@@ -1,0 +1,9 @@
+[versions]
+smbj = "0.13.0"
+kotlin = "2.0.0"
+
+[libraries]
+smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
+
+[plugins]
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
