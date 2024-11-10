@@ -1,4 +1,4 @@
-package com.example.greetingcard
+package com.example.greetingcard.ui
 
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -6,8 +6,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -29,8 +30,17 @@ fun Gallery(pictures: List<Picture>) {
     }
 }
 
+class PicturePreviewProvider: PreviewParameterProvider<Picture> {
+    override val values = sequenceOf(
+        Picture("5.2 Banners", "https://i.imgur.com/JER4BcR.jpeg")
+    )
+}
+
+@Preview
 @Composable
-fun GalleryItem(picture: Picture) {
+fun GalleryItem(
+    @PreviewParameter(PicturePreviewProvider::class) picture: Picture
+) {
     GalleryThumbnail(picture.uri, picture.filename)
 }
 

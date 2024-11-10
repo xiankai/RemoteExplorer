@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -15,10 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.greetingcard.ui.theme.GreetingCardTheme
 import androidx.compose.ui.unit.dp
-//import androidx.compose.foundation.layout.padding
-import com.example.greetingcard.Gallery
-import com.example.greetingcard.GalleryItem
-
+import com.example.greetingcard.ui.GalleryItem
+import com.example.greetingcard.ui.Picture
+import com.example.greetingcard.ui.List
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,7 +25,8 @@ class MainActivity : ComponentActivity() {
             GreetingCardTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    GalleryItem({ uri: "https://i.imgur.com/JER4BcR.jpeg", filename: "5.2 Banners" })
+                    List()
+//                    GalleryItem(Picture("5.2 Banners", "https://i.imgur.com/JER4BcR.jpeg"))
                 }
             }
         }

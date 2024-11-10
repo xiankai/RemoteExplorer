@@ -1,24 +1,33 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'com.google.protobuf' version '0.9.4'
+//    id 'com.google.protobuf' version '0.9.4'
     alias libs.plugins.compose.compiler
 }
 
-protobuf {
-    protoc {
-        // The artifact spec for the Protobuf Compiler
-        artifact = "com.google.protobuf:protoc:3.6.1"
-    }
-}
+//protobuf {
+//    protoc {
+//        // The artifact spec for the Protobuf Compiler
+//        artifact = "com.google.protobuf:protoc:4.28.3"
+//    }
+//    generateProtoTasks {
+//        all().forEach {
+//            it.builtins {
+//                create("java") {
+//                    option("lite")
+//                }
+//            }
+//        }
+//    }
+//}
 
 android {
     namespace 'com.example.greetingcard'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.example.greetingcard"
-        minSdk 24
+        minSdk 26
         targetSdk 33
         versionCode 1
         versionName "1.0"
@@ -53,13 +62,13 @@ android {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
-    sourceSets {
-        main {
-            proto {
-
-            }
-        }
-    }
+//    sourceSets {
+//        main {
+//            proto {
+//
+//            }
+//        }
+//    }
 }
 
 dependencies {
@@ -75,8 +84,10 @@ dependencies {
     implementation libs.smbj
     implementation "io.coil-kt.coil3:coil-compose:3.0.0-rc02"
     implementation 'io.coil-kt.coil3:coil-network-okhttp:3.0.0-rc02'
-    implementation "androidx.datastore:datastore:1.1.1"
-    implementation "com.google.protobuf:protobuf-java:3.6.1"
+//    implementation "androidx.datastore:datastore:1.1.1"
+//    implementation "com.google.protobuf:protobuf-java:4.28.3"
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
