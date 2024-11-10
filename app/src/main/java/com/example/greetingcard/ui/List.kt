@@ -27,12 +27,10 @@ fun List(
     val listUiState by listViewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-
     Column(
         modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Text(
             color = Color.White,
             text = listUiState.currentPath,
@@ -67,7 +65,7 @@ fun List(
         ) {
             items(listUiState.files) { file ->
                 ListItem(file) {
-                    clickedItem -> listViewModel.listFiles(clickedItem.filename)
+                    clickedItem -> listViewModel.listFiles(clickedItem.uri)
                 }
             }
         }

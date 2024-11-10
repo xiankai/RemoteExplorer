@@ -51,13 +51,4 @@ class ListViewModel(
             }
         }
     }
-
-    fun setPath(path: String) {
-        viewModelScope.launch {
-            _uiState.update { currentState ->
-                currentState.copy(currentPath = path)
-            }
-            listFiles()
-        }
-    }
 }

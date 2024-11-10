@@ -39,13 +39,6 @@ class MainActivity : ComponentActivity() {
         val viewModel: ListViewModel by viewModels {
             ListViewModelFactory(Dispatchers.IO)
         }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect {
-
-                }
-            }
-        }
         super.onCreate(savedInstanceState)
         setContent {
             GreetingCardTheme {
