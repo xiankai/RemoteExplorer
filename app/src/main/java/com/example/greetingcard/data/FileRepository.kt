@@ -2,11 +2,10 @@ package com.example.greetingcard.data
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.nio.file.Path
 
 data class File(
     val filename: String,
-    val uri: Path,
+    val uri: String,
 )
 
 class FileRepository (

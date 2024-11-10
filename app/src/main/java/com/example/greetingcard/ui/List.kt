@@ -4,6 +4,9 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Text
@@ -14,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 
 @Composable
@@ -58,9 +62,14 @@ fun List(
             text = listUiState.files.size.toString(),
         )
 
-        Text(
-            color = Color.Black,
-            text = "The End"
-        )
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 128.dp),
+        ) {
+            items(listUiState.files) { file ->
+                ListItem(file) {
+                    clickedItem -> listViewModel.listFiles(clickedItem.filename)
+                }
+            }
+        }
     }
 }

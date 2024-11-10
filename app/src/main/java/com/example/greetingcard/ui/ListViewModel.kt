@@ -1,6 +1,7 @@
 package com.example.greetingcard.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.greetingcard.data.File
 import com.example.greetingcard.data.FileRepository
@@ -19,10 +20,8 @@ class ListViewModel(
     private val defaultDispatcher: CoroutineDispatcher,
 ): ViewModel() {
     private lateinit var fileRepository: FileRepository
-    private var _count = 0
     private val _uiState = MutableStateFlow(ListUiState())
     val uiState: StateFlow<ListUiState> = _uiState.asStateFlow()
-    private lateinit var currentWord: String
 
     fun connect() {
         viewModelScope.launch {
@@ -39,12 +38,26 @@ class ListViewModel(
         }
     }
 
-    fun listFiles() {
+    fun listFiles(path: String = "") {
         viewModelScope.launch {
-            val files = this@ListViewModel.fileRepository.listFiles()
+            println("Current Path: ${_uiState.value.currentPath}")
+            val files = fileRepository.listFiles(path)
+            println("Current Files: ${files}")
             _uiState.update { currentState ->
-                currentState.copy(files = files)
+                currentState.copy(
+                    currentPath = path,
+                    files = files
+                )
             }
+        }
+    }
+
+    fun setPath(path: String) {
+        viewModelScope.launch {
+            _uiState.update { currentState ->
+                currentState.copy(currentPath = path)
+            }
+            listFiles()
         }
     }
 }
