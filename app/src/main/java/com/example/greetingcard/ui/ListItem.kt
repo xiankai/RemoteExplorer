@@ -33,9 +33,8 @@ fun ListItem(file: File, onItemClick: (File) -> Unit) {
             containerColor = Color.Transparent
         )
     ) {
-        Icon(
-            Icons.Default.Folder,
-            "folder",
+        ListItemIcon(
+            file.filename,
             Modifier
                 .fillMaxSize()
                 .padding(8.dp)

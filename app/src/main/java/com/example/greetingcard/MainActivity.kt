@@ -20,8 +20,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.example.greetingcard.ui.GalleryItem
-import com.example.greetingcard.ui.Picture
 import com.example.greetingcard.ui.List
 import com.example.greetingcard.ui.ListViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -45,7 +43,6 @@ class MainActivity : ComponentActivity() {
                 // A surface container using the 'background' color from the theme
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     List(viewModel)
-//                    GalleryItem(Picture("5.2 Banners", "https://i.imgur.com/JER4BcR.jpeg"))
                 }
             }
         }
