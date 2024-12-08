@@ -7,14 +7,11 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 
@@ -29,19 +26,15 @@ fun List(
     val listState by listViewModel.listState.collectAsState()
     val pathState by listViewModel.pathState.collectAsState()
 
+
     Column(
-        modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
+        modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.TopStart),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            color = Color.White,
-            text = pathState,
-            style = typography.titleLarge,
-        )
-
-        Text(
-            color = Color.Black,
-            text = listState.size.toString(),
+        BreadcrumbHeader(
+            currentPath = pathState,
+            modifier = Modifier.wrapContentSize(Alignment.CenterStart),
+            onBreadcrumbClick = { path -> listViewModel.changePath(path) },
         )
 
         LazyVerticalGrid(
