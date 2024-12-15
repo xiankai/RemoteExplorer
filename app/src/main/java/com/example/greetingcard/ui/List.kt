@@ -1,5 +1,6 @@
 package com.example.greetingcard.ui
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,13 +13,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 
 @Composable
 fun List(
     listViewModel: ListViewModel = ListViewModel(Dispatchers.IO)
 ) {
+    val context = LocalContext.current
+
     BackHandler {
         listViewModel.goBack()
     }
@@ -44,7 +49,15 @@ fun List(
                 ListItem(
                     file = file,
                     handleChangePath = { (clickedItem) -> listViewModel.changePath(clickedItem) },
-                    handleOpenItem = { (clickedItem) -> listViewModel.openFile(clickedItem) },
+                    handleOpenItem = { (clickedItem) ->
+                        val url = listViewModel.getUrl(clickedItem)
+
+                        val intent = Intent(Intent.ACTION_VIEW)
+                        intent.setDataAndType(Uri.parse(url), "image/*")
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                        context.startActivity(intent)
+                    },
 
                 )
             }

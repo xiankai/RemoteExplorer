@@ -8,14 +8,11 @@ import com.example.greetingcard.data.SambaFileDataSource
 import com.example.greetingcard.data.ServerRepository
 import com.example.greetingcard.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 
 class ListViewModel(
     private val defaultDispatcher: CoroutineDispatcher,
@@ -76,31 +73,7 @@ class ListViewModel(
         }
     }
 
-    fun openFile(path: String) {
-        val client = OkHttpClient()
-
-        viewModelScope.launch(defaultDispatcher) {
-            val url = serverRepository.constructUrl(path)
-
-            println("building request")
-            println(url)
-
-            val request = Request.Builder()
-                .url(url)
-                .build()
-
-            println("sending request")
-            println(url)
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val responseBody = response.body?.string()
-                    println("got response")
-                    println(responseBody)
-                }
-            }
-
-//            fileRepository.openFile(path)
-        }
+    fun getUrl(path: String): String {
+        return serverRepository.constructUrl(path)
     }
 }

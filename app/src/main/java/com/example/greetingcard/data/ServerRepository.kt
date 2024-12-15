@@ -32,9 +32,7 @@ class ServerRepository (
         }
     }
 
-    suspend fun constructUrl(path: String): String {
-        return withContext(dispatcher) {
-            "http://127.0.0.1:${port}/${path}"
-        }
+    fun constructUrl(path: String): String {
+        return "http://127.0.0.1:${port}/${path}"
     }
 }
