@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 class ListViewModel(
     private val defaultDispatcher: CoroutineDispatcher,
@@ -75,8 +77,30 @@ class ListViewModel(
     }
 
     fun openFile(path: String) {
-        viewModelScope.launch {
-            fileRepository.openFile(path)
+        val client = OkHttpClient()
+
+        viewModelScope.launch(defaultDispatcher) {
+            val url = serverRepository.constructUrl(path)
+
+            println("building request")
+            println(url)
+
+            val request = Request.Builder()
+                .url(url)
+                .build()
+
+            println("sending request")
+            println(url)
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    println("got response")
+                    println(responseBody)
+                }
+            }
+
+//            fileRepository.openFile(path)
         }
     }
 }
