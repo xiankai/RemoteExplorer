@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.greetingcard"
-        minSdk 26
+        minSdk 33
         targetSdk 33
         versionCode 1
         versionName "1.0"
@@ -59,7 +59,7 @@ android {
     }
     packagingOptions {
         resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            excludes += '/META-INF/*'
         }
     }
 //    sourceSets {
@@ -96,4 +96,5 @@ dependencies {
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    implementation("io.ktor:ktor-server-jetty-jakarta:3.0.2")
 }

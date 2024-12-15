@@ -23,4 +23,10 @@ class FileRepository (
             this@FileRepository.sambaFileDataSource.listFiles(currentPath, filter)
         }
     }
+
+    suspend fun openFile(currentPath: String): com.hierynomus.smbj.share.File {
+        return withContext(dispatcher) {
+            this@FileRepository.sambaFileDataSource.openFile(currentPath)
+        }
+    }
 }

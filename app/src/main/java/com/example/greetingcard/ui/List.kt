@@ -41,9 +41,12 @@ fun List(
             columns = GridCells.Adaptive(minSize = 128.dp),
         ) {
             items(listState) { file ->
-                ListItem(file) {
-                    clickedItem -> listViewModel.changePath(clickedItem.uri)
-                }
+                ListItem(
+                    file = file,
+                    handleChangePath = { (clickedItem) -> listViewModel.changePath(clickedItem) },
+                    handleOpenItem = { (clickedItem) -> listViewModel.openFile(clickedItem) },
+
+                )
             }
         }
     }

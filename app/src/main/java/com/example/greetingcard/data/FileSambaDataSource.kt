@@ -1,4 +1,9 @@
 package com.example.greetingcard.data
+import com.hierynomus.msdtyp.AccessMask
+import com.hierynomus.msfscc.FileAttributes
+import com.hierynomus.mssmb2.SMB2CreateDisposition
+import com.hierynomus.mssmb2.SMB2CreateOptions
+import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
@@ -22,5 +27,19 @@ class SambaFileDataSource() {
             File(it.fileName, Paths.get(currentPath, it.fileName).toString())
         }
         return files
+    }
+
+    suspend fun openFile(path: String): com.hierynomus.smbj.share.File {
+        val accessMask = setOf(AccessMask.FILE_READ_DATA)
+        val attributes = setOf(FileAttributes.FILE_ATTRIBUTE_NORMAL)
+        val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)
+        val createDisposition = SMB2CreateDisposition.FILE_OPEN
+        val createOptions = setOf(SMB2CreateOptions.FILE_WRITE_THROUGH)
+
+        val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
+
+        println("samba has opened the file. details: ${file}")
+
+        return file
     }
 }

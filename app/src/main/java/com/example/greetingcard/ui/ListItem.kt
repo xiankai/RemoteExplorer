@@ -21,13 +21,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.greetingcard.data.File
+import java.net.URLConnection
 
 @Composable
-fun ListItem(file: File, onItemClick: (File) -> Unit) {
+fun ListItem(file: File, handleChangePath: (File) -> Unit, handleOpenItem: (File) -> Unit) {
     Card(
         modifier = Modifier
             .size(128.dp)
-            .clickable { onItemClick(file) }
+            .clickable {
+                val mimeType = URLConnection.guessContentTypeFromName(file.filename) ?: "folder"
+                if (mimeType == "folder") {
+                    handleChangePath(file)
+                } else {
+                    handleOpenItem(file)
+                }
+            }
         ,
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent

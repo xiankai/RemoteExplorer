@@ -16,8 +16,8 @@ import java.net.URLConnection
 @Composable
 fun ListItemIcon(filename: String, modifier: Modifier) {
     val mimeType = URLConnection.guessContentTypeFromName(filename) ?: "folder"
-    println("mimeType of $filename is $mimeType")
-    println(mimeType)
+//    println("mimeType of $filename is $mimeType")
+//    println(mimeType)
 
     val (icon, contentDescription) = when {
         Regex("image/.*").matches(mimeType) -> Pair(Icons.Default.Image, "image")
