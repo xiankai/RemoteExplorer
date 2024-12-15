@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.greetingcard.ui.List
 import com.example.greetingcard.ui.ListViewModel
+import com.example.greetingcard.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,6 +35,8 @@ class ListViewModelFactory(private val defaultDispatcher: CoroutineDispatcher): 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        PropertiesLoader.loadProperties(this)
+
         val viewModel: ListViewModel by viewModels {
             ListViewModelFactory(Dispatchers.IO)
         }

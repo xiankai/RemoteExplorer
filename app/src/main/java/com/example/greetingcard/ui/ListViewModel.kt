@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.greetingcard.data.File
 import com.example.greetingcard.data.FileRepository
 import com.example.greetingcard.data.SambaFileDataSource
+import com.example.greetingcard.data.ServerRepository
+import com.example.greetingcard.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +19,7 @@ class ListViewModel(
     private val defaultDispatcher: CoroutineDispatcher,
 ): ViewModel() {
     private lateinit var fileRepository: FileRepository
+    private lateinit var serverRepository: ServerRepository
 
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -27,16 +31,15 @@ class ListViewModel(
     // 1. connect to source
     // 2. start watching `path` and then update `files` based on the value
     init {
+        val smbFileDataSource = SambaFileDataSource()
         viewModelScope.launch {
-            fileRepository = FileRepository(SambaFileDataSource(), defaultDispatcher)
-
+            fileRepository = FileRepository(smbFileDataSource, defaultDispatcher)
             fileRepository.connect(
-                "192.0.2.1",
-//                "192.0.2.1",
-                "user",
-                "user",
-                "",
-                "share"
+                PropertiesLoader.getProperty("hostname", ""),
+                PropertiesLoader.getProperty("username", ""),
+                PropertiesLoader.getProperty("password", ""),
+                PropertiesLoader.getProperty("domain", ""),
+                PropertiesLoader.getProperty("share", ""),
             )
 
             pathState.collect { newPath ->
@@ -45,6 +48,10 @@ class ListViewModel(
                     files
                 }
             }
+        }
+        viewModelScope.launch {
+            serverRepository = ServerRepository(smbFileDataSource, defaultDispatcher)
+            serverRepository.startup()
         }
     }
 
@@ -64,6 +71,12 @@ class ListViewModel(
         }
         _navigationStack.update {
             it.dropLast(1)
+        }
+    }
+
+    fun openFile(path: String) {
+        viewModelScope.launch {
+            fileRepository.openFile(path)
         }
     }
 }
