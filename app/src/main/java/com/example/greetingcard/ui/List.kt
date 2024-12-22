@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun List(
+    modifier: Modifier,
     listViewModel: ListViewModel
 ) {
     val context = LocalContext.current
@@ -29,31 +30,23 @@ fun List(
     }
 
     val listState by listViewModel.listState.collectAsState()
-    val pathState by listViewModel.pathState.collectAsState()
-
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .wrapContentSize(Alignment.TopStart),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        BreadcrumbHeader(
-            currentPath = pathState,
-            modifier = Modifier.wrapContentSize(Alignment.CenterStart),
-            onBreadcrumbClick = { path -> listViewModel.changePath(path) },
-        )
-
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 128.dp),
         ) {
             items(listState) { file ->
                 ListItem(
                     filename = file.filename,
-                    url = listViewModel.getUrl(file.uri),
-                    handleChangePath = { listViewModel.changePath(file.uri) },
+                    url = listViewModel.getUrl(file.fullPath),
+                    handleChangePath = { listViewModel.changePath(file.fullPath) },
                     handleOpenItem = {
-                        val url = listViewModel.getUrl(file.uri)
+                        val url = listViewModel.getUrl(file.fullPath)
                         val intent = Intent(Intent.ACTION_VIEW)
                         intent.setAction(Intent.ACTION_VIEW)
                         intent.setDataAndType(Uri.parse(url), "image/*")

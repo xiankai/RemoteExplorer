@@ -2,10 +2,12 @@ package com.example.greetingcard.data
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import java.util.Date
 
 data class File(
     val filename: String,
-    val uri: String,
+    val fullPath: String,
+    val lastModified: Date,
 )
 
 class FileRepository (

@@ -27,7 +27,11 @@ class SambaFileDataSource() {
             if (it.fileName in listOf(".", "..")) {
                 null
             } else {
-                File(it.fileName, Paths.get(currentPath, it.fileName).toString())
+                File(
+                    it.fileName,
+                    Paths.get(currentPath, it.fileName).toString(),
+                    it.lastWriteTime.toDate(),
+                )
             }
         }
         return files
