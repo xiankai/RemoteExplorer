@@ -15,20 +15,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.greetingcard.data.File
 import java.net.URLConnection
 
 @Composable
-fun ListItem(file: File, handleChangePath: (File) -> Unit, handleOpenItem: (File) -> Unit) {
+fun ListItem(
+    filename: String,
+    url: String,
+    handleChangePath: (String) -> Unit,
+    handleOpenItem: (String) -> Unit) {
     Card(
         modifier = Modifier
             .size(128.dp)
             .clickable {
-                val mimeType = URLConnection.guessContentTypeFromName(file.filename) ?: "folder"
+                val mimeType = URLConnection.guessContentTypeFromName(filename) ?: "folder"
                 if (mimeType == "folder") {
-                    handleChangePath(file)
+                    handleChangePath(filename)
                 } else {
-                    handleOpenItem(file)
+                    handleOpenItem(filename)
                 }
             }
         ,
@@ -37,15 +40,17 @@ fun ListItem(file: File, handleChangePath: (File) -> Unit, handleOpenItem: (File
         )
     ) {
         ListItemIcon(
-            file.filename,
+            filename,
+            url,
             Modifier
                 .fillMaxSize()
                 .padding(8.dp)
-                .weight(1f)
+                .weight(1f),
+            DisplayType.MANGA
         )
         Spacer(modifier = Modifier.width((8.dp)))
         Text(
-            text = file.filename,
+            text = filename,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(8.dp),
             overflow = TextOverflow.Ellipsis,

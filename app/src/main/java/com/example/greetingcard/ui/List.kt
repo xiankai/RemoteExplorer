@@ -1,6 +1,7 @@
 package com.example.greetingcard.ui
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,12 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import android.net.Uri
-import kotlinx.coroutines.Dispatchers
+
 
 @Composable
 fun List(
-    listViewModel: ListViewModel = ListViewModel(Dispatchers.IO)
+    listViewModel: ListViewModel
 ) {
     val context = LocalContext.current
 
@@ -33,7 +33,9 @@ fun List(
 
 
     Column(
-        modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.TopStart),
+        modifier = Modifier
+            .fillMaxSize()
+            .wrapContentSize(Alignment.TopStart),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         BreadcrumbHeader(
@@ -47,18 +49,20 @@ fun List(
         ) {
             items(listState) { file ->
                 ListItem(
-                    file = file,
-                    handleChangePath = { (clickedItem) -> listViewModel.changePath(clickedItem) },
-                    handleOpenItem = { (clickedItem) ->
-                        val url = listViewModel.getUrl(clickedItem)
-
+                    filename = file.filename,
+                    url = listViewModel.getUrl(file.filename),
+                    handleChangePath = { path -> listViewModel.changePath(path) },
+                    handleOpenItem = { path ->
+                        val url = listViewModel.getUrl(path)
                         val intent = Intent(Intent.ACTION_VIEW)
+                        intent.setAction(Intent.ACTION_VIEW)
                         intent.setDataAndType(Uri.parse(url), "image/*")
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+//                        intent.setData(Uri.parse(url))
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
                         context.startActivity(intent)
                     },
-
                 )
             }
         }
