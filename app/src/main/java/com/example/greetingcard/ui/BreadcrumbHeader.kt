@@ -19,7 +19,13 @@ fun BreadcrumbHeader(
             val crumb = pathComponents.subList(0, i + 1).joinToString("/")
             val display = crumb.split("/").last()
             Text(
-                text = "/ "
+                text = "/ Root / ",
+                modifier = modifier
+                    .clickable(
+                        onClick = {
+                            onBreadcrumbClick("")
+                        }
+                    )
             )
 
             Text(
