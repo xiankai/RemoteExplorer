@@ -61,7 +61,6 @@ class ListViewModel(
         }
     }
 
-
     fun changePath(path: String) {
         _path.update {
             path

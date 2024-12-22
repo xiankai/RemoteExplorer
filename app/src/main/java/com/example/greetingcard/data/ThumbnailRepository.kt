@@ -49,7 +49,7 @@ class ThumbnailRepository (
         return bitmap
     }
 
-    suspend fun fetchImageThumbnail(path: String): ImageBitmap? {
+    fun fetchImageThumbnail(path: String): ImageBitmap? {
         val filesDir = context.filesDir
         return try {
             val file = File(filesDir, path)

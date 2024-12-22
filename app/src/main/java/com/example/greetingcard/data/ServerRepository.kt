@@ -16,7 +16,7 @@ class ServerRepository (
 
     suspend fun startup() {
         return withContext(dispatcher) {
-            embeddedServer(Jetty, 8080) {
+            embeddedServer(Jetty, port) {
                 routing {
                     get("/{path...}") {
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
