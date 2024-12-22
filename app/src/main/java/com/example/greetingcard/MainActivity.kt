@@ -1,5 +1,6 @@
 package com.example.greetingcard
 
+import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,21 +16,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.greetingcard.ui.theme.GreetingCardTheme
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.example.greetingcard.ui.List
 import com.example.greetingcard.ui.ListViewModel
 import com.example.greetingcard.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
-class ListViewModelFactory(private val defaultDispatcher: CoroutineDispatcher): ViewModelProvider.Factory {
+class ListViewModelFactory(
+    private val application: Application,
+    private val defaultDispatcher: CoroutineDispatcher
+): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ListViewModel(defaultDispatcher) as T
+        return ListViewModel(application, defaultDispatcher) as T
     }
 }
 
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         PropertiesLoader.loadProperties(this)
 
         val viewModel: ListViewModel by viewModels {
-            ListViewModelFactory(Dispatchers.IO)
+            ListViewModelFactory(application, Dispatchers.IO)
         }
         super.onCreate(savedInstanceState)
         setContent {

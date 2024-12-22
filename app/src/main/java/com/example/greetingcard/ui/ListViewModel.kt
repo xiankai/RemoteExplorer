@@ -1,11 +1,13 @@
 package com.example.greetingcard.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.greetingcard.data.File
 import com.example.greetingcard.data.FileRepository
 import com.example.greetingcard.data.SambaFileDataSource
 import com.example.greetingcard.data.ServerRepository
+import com.example.greetingcard.data.ThumbnailRepository
 import com.example.greetingcard.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +17,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ListViewModel(
+    application: Application,
     private val defaultDispatcher: CoroutineDispatcher,
-): ViewModel() {
+): AndroidViewModel(application) {
     private lateinit var fileRepository: FileRepository
     private lateinit var serverRepository: ServerRepository
+    private lateinit var thumbnailRepository: ThumbnailRepository
 
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -52,6 +56,9 @@ class ListViewModel(
             serverRepository = ServerRepository(smbFileDataSource, defaultDispatcher)
             serverRepository.startup()
         }
+        viewModelScope.launch {
+            thumbnailRepository = ThumbnailRepository(application.applicationContext, smbFileDataSource, defaultDispatcher)
+        }
     }
 
 
@@ -75,5 +82,11 @@ class ListViewModel(
 
     fun getUrl(path: String): String {
         return serverRepository.constructUrl(path)
+    }
+
+    fun generateThumbnail(path: String) {
+        viewModelScope.launch {
+            thumbnailRepository.generateImageThumbnail(path)
+        }
     }
 }
