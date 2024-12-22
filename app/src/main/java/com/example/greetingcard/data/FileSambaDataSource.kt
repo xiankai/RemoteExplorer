@@ -23,8 +23,12 @@ class SambaFileDataSource() {
     }
 
     suspend fun listFiles(currentPath: String = "", filter: String? = null): List<File> {
-        val files =  this.diskShare.list(currentPath, filter).map {
-            File(it.fileName, Paths.get(currentPath, it.fileName).toString())
+        val files =  this.diskShare.list(currentPath, filter).mapNotNull {
+            if (it.fileName in listOf(".", "..")) {
+                null
+            } else {
+                File(it.fileName, Paths.get(currentPath, it.fileName).toString())
+            }
         }
         return files
     }
