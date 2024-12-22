@@ -50,10 +50,10 @@ fun List(
             items(listState) { file ->
                 ListItem(
                     filename = file.filename,
-                    url = listViewModel.getUrl(file.filename),
-                    handleChangePath = { path -> listViewModel.changePath(path) },
-                    handleOpenItem = { path ->
-                        val url = listViewModel.getUrl(path)
+                    url = listViewModel.getUrl(file.uri),
+                    handleChangePath = { listViewModel.changePath(file.uri) },
+                    handleOpenItem = {
+                        val url = listViewModel.getUrl(file.uri)
                         val intent = Intent(Intent.ACTION_VIEW)
                         intent.setAction(Intent.ACTION_VIEW)
                         intent.setDataAndType(Uri.parse(url), "image/*")

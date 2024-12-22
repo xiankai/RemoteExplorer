@@ -21,17 +21,17 @@ import java.net.URLConnection
 fun ListItem(
     filename: String,
     url: String,
-    handleChangePath: (String) -> Unit,
-    handleOpenItem: (String) -> Unit) {
+    handleChangePath: () -> Unit,
+    handleOpenItem: () -> Unit) {
     Card(
         modifier = Modifier
             .size(128.dp)
             .clickable {
                 val mimeType = URLConnection.guessContentTypeFromName(filename) ?: "folder"
                 if (mimeType == "folder") {
-                    handleChangePath(filename)
+                    handleChangePath()
                 } else {
-                    handleOpenItem(filename)
+                    handleOpenItem()
                 }
             }
         ,
