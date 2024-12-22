@@ -18,10 +18,11 @@ class ServerRepository (
         return withContext(dispatcher) {
             embeddedServer(Jetty, 8080) {
                 routing {
-                    get("/{path}") {
-                        println("Received GET request for ${call.parameters["path"]}")
-                        val file = sambaFileDataSource.openFile(call.parameters["path"] ?: "")
-                        println("Opened file: ${file}")
+                    get("/{path...}") {
+                        val fullPath = call.parameters.getAll("path")?.joinToString("/")
+                        println("Received GET request for $fullPath")
+                        val file = sambaFileDataSource.openFile(fullPath ?: "")
+                        println("Opened file: $file")
                         call.respondOutputStream {
                             file.inputStream.transferTo(this)
                         }
