@@ -23,12 +23,12 @@ plugins {
 
 android {
     namespace 'com.example.greetingcard'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.example.greetingcard"
         minSdk 33
-        targetSdk 33
+        targetSdk 35
         versionCode 1
         versionName "1.0"
 
@@ -72,29 +72,39 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.8.0'
-    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.0')
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.3.1'
-    implementation 'androidx.activity:activity-compose:1.5.1'
-    implementation platform('androidx.compose:compose-bom:2022.10.00')
-    implementation 'androidx.compose.ui:ui'
-    implementation 'androidx.compose.ui:ui-graphics'
-    implementation 'androidx.compose.ui:ui-tooling-preview'
-    implementation 'androidx.compose.material3:material3'
+    // Core
+    implementation libs.core.ktx
+    implementation libs.lifecycle.runtime.ktx
+    implementation libs.activity.compose
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation platform(libs.kotlin.bom)
+    implementation platform(libs.compose.bom)
+
+    // UI
+    implementation libs.ui
+    implementation libs.ui.graphics
+    implementation libs.ui.tooling.preview
+    implementation libs.material3
+    implementation(libs.material.icons.extended)
+
+    // Server
     implementation libs.smbj
-    implementation "io.coil-kt.coil3:coil-compose:3.0.0-rc02"
-    implementation 'io.coil-kt.coil3:coil-network-okhttp:3.0.0-rc02'
-//    implementation "androidx.datastore:datastore:1.1.1"
-//    implementation "com.google.protobuf:protobuf-java:4.28.3"
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
-    implementation("androidx.compose.material:material-icons-extended")
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
-    androidTestImplementation platform('androidx.compose:compose-bom:2022.10.00')
-    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
-    debugImplementation 'androidx.compose.ui:ui-tooling'
-    debugImplementation 'androidx.compose.ui:ui-test-manifest'
-    implementation("io.ktor:ktor-server-jetty-jakarta:3.0.2")
+    implementation(libs.ktor.server.jetty.jakarta)
+
+    // Image Fetching
+    implementation libs.coil.compose
+    implementation libs.coil.network.okhttp
+    implementation(libs.coil.gif)
+    implementation(libs.coil.svg)
+    implementation(libs.coil.video)
+
+    // Misc
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+    androidTestImplementation platform(libs.compose.bom)
+    androidTestImplementation libs.ui.test.junit4
+    debugImplementation libs.ui.tooling
+    debugImplementation libs.ui.test.manifest
 }
