@@ -1,4 +1,4 @@
-package com.example.remoteexplorer.ui
+package com.example.remoteexplorer.ui.screens.header
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -8,15 +8,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.example.remoteexplorer.ui.viewmodels.SortType
 
 @Composable
 fun HeaderButtons(
-    listViewModel: ListViewModel
+    explorerViewModel: ExplorerViewModel
 ) {
-    val sortState = listViewModel.sortState.collectAsState()
+    val sortState = explorerViewModel.sortState.collectAsState()
 
     IconButton(
-        onClick = { listViewModel.search("") },
+        onClick = { explorerViewModel.search("") },
         content = {
             Icon(
                 Icons.Filled.Search,
@@ -25,7 +27,7 @@ fun HeaderButtons(
         }
     )
     IconButton(
-        onClick = { listViewModel.sort(
+        onClick = { explorerViewModel.sort(
             if (sortState.value == SortType.NAME_ASC) SortType.NAME_DESC else SortType.NAME_ASC
         ) },
         content = {

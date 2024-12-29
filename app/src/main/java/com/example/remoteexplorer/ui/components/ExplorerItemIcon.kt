@@ -1,10 +1,12 @@
-package com.example.remoteexplorer.ui
+package com.example.remoteexplorer.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.Icon
@@ -24,9 +26,10 @@ enum class DisplayType {
 }
 
 @Composable
-fun ListItemIcon(
+fun ExplorerItemIcon(
     filename: String,
     url: String,
+    type: String,
     modifier: Modifier,
     displayType: DisplayType = DisplayType.ICON
 ) {
@@ -44,19 +47,24 @@ fun ListItemIcon(
     when {
         displayType === DisplayType.MANGA -> MangaIcon(filename, url, iconType, modifier)
         displayType === DisplayType.GALLERY -> Text(text = "Manga")
+        type === "connection" -> SystemIcon(filename, IconType.CONNECTION, modifier)
+        type === "add_connection" -> SystemIcon(filename, IconType.ADD_CONNECTION, modifier)
         else ->
             SystemIcon(filename, iconType, modifier)
     }
 }
 
 enum class IconType {
-    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER
+    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER,
+    CONNECTION, ADD_CONNECTION
 }
 
 @Composable
-fun SystemIcon(filename: String, iconType: IconType,modifier: Modifier) {
+fun SystemIcon(filename: String, iconType: IconType, modifier: Modifier) {
 
     val icon = when(iconType) {
+        IconType.CONNECTION-> Icons.Default.CreateNewFolder
+        IconType.ADD_CONNECTION -> Icons.Default.FolderShared
         IconType.IMAGE -> Icons.Default.Image
         IconType.VIDEO -> Icons.Default.VideoFile
         IconType.AUDIO -> Icons.Default.AudioFile

@@ -1,5 +1,6 @@
 package com.example.remoteexplorer.data
 
+import LocalDatabaseDataSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.util.Date
@@ -12,6 +13,7 @@ data class File(
 
 class FileRepository (
     private val sambaFileDataSource: SambaFileDataSource,
+    private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
     suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {

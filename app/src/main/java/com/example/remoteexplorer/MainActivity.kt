@@ -1,5 +1,7 @@
 package com.example.remoteexplorer
 
+import ConnectionDataSource
+import LocalDatabaseDataSource
 import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,41 +10,109 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
-import com.example.remoteexplorer.ui.theme.GreetingCardTheme
+import com.example.remoteexplorer.ui.theme.RemoteExplorerTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.remoteexplorer.ui.Header
-import com.example.remoteexplorer.ui.List
-import com.example.remoteexplorer.ui.ListViewModel
+import androidx.room.Room
+import com.example.remoteexplorer.data.ConnectionRepository
+import com.example.remoteexplorer.data.FileRepository
+import com.example.remoteexplorer.data.SambaFileDataSource
+import com.example.remoteexplorer.data.ServerRepository
+import com.example.remoteexplorer.data.ThumbnailRepository
+import com.example.remoteexplorer.data.db.AppDatabase
+import com.example.remoteexplorer.data.db.ConnectionDao
+import com.example.remoteexplorer.data.db.LocalDatabaseDao
+import com.example.remoteexplorer.ui.screens.header.Header
+import com.example.remoteexplorer.ui.components.MainView
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-class ListViewModelFactory(
+class ExplorerViewModelFactory(
     private val application: Application,
     private val defaultDispatcher: CoroutineDispatcher
 ): ViewModelProvider.Factory {
+
+
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ListViewModel(application, defaultDispatcher) as T
+        val db = Room.databaseBuilder(
+            application.applicationContext,
+            AppDatabase::class.java, "remote-explorer"
+        ).build()
+        val sambaFileDataSource = SambaFileDataSource()
+        val localDatabaseDataSource = LocalDatabaseDataSource(
+            db.localDatabaseDao()
+        )
+        val fileRepository = FileRepository(
+            sambaFileDataSource,
+            localDatabaseDataSource,
+            defaultDispatcher
+        )
+        val serverRepository = ServerRepository(
+            sambaFileDataSource,
+            defaultDispatcher
+        )
+        val thumbnailRepository = ThumbnailRepository(
+            application.applicationContext,
+            sambaFileDataSource,
+            defaultDispatcher
+        )
+        val connectionDataSource = ConnectionDataSource(
+            db.connectionDao()
+        )
+        val connectionRepository = ConnectionRepository(
+            connectionDataSource,
+        )
+
+        return ExplorerViewModel(application,
+            fileRepository,
+                    serverRepository,
+                    thumbnailRepository,
+                    connectionRepository,
+                    defaultDispatcher,
+            ) as T
     }
 }
 
 class MainActivity : ComponentActivity() {
+    lateinit var database: AppDatabase
+        private set
+    lateinit var connectionDao: ConnectionDao
+        private set
+    lateinit var localDatabaseDao: LocalDatabaseDao
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // For local dev
         PropertiesLoader.loadProperties(this)
 
-        val listViewModel: ListViewModel by viewModels {
-            ListViewModelFactory(application, Dispatchers.IO)
+        val explorerViewModel: ExplorerViewModel by viewModels {
+            ExplorerViewModelFactory(application, Dispatchers.IO)
         }
-        super.onCreate(savedInstanceState)
+
+        database = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "app_database"
+        ).build()
+        connectionDao = database.connectionDao()
+        localDatabaseDao = database.localDatabaseDao()
+
         setContent {
-            GreetingCardTheme {
+            RemoteExplorerTheme {
                 Scaffold(
-                    topBar = { Header(listViewModel) },
+                    topBar = { Header(explorerViewModel) },
                     content =  {
                         innerPadding ->
-                            List(modifier = Modifier.padding(innerPadding), listViewModel = listViewModel, )
+                            MainView(
+                                modifier = Modifier.padding(innerPadding),
+                                explorerViewModel = explorerViewModel,
+                            )
                     },
                     containerColor = MaterialTheme.colorScheme.background
                 )

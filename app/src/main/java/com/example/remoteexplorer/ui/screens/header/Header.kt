@@ -1,4 +1,4 @@
-package com.example.remoteexplorer.ui
+package com.example.remoteexplorer.ui.screens.header
 
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -10,13 +10,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Header(
-    listViewModel: ListViewModel
+    explorerViewModel: ExplorerViewModel
 ) {
-    val pathState by listViewModel.pathState.collectAsState()
+    val pathState by explorerViewModel.pathState.collectAsState()
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -26,9 +27,9 @@ fun Header(
         title = { BreadcrumbHeader(
             currentPath = pathState,
             modifier = Modifier.wrapContentSize(Alignment.CenterStart),
-            onBreadcrumbClick = { path -> listViewModel.changePath(path) },
+            onBreadcrumbClick = { path -> explorerViewModel.changePath(path) },
         ) },
-        actions = { HeaderButtons(listViewModel) },
+        actions = { HeaderButtons(explorerViewModel) },
         scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
     )
 }

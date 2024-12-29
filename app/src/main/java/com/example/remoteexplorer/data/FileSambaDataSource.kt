@@ -12,7 +12,7 @@ import java.nio.file.Paths
 class SambaFileDataSource() {
     private lateinit var diskShare: DiskShare
 
-    suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String)  {
+    suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
         val client = SMBClient()
         val connection = client.connect(hostname)
         val authContext = AuthenticationContext(username, password.toCharArray(), domain)

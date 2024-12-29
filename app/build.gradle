@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
 //    id 'com.google.protobuf' version '0.9.4'
     alias libs.plugins.compose.compiler
 }
@@ -22,7 +23,7 @@ plugins {
 //}
 
 android {
-    namespace 'com.example.greetingcard'
+    namespace 'com.example.remoteexplorer'
     compileSdk 35
 
     defaultConfig {
@@ -76,8 +77,8 @@ dependencies {
     implementation libs.core.ktx
     implementation libs.lifecycle.runtime.ktx
     implementation libs.activity.compose
-    implementation(libs.lifecycle.viewmodel.compose)
-    implementation(libs.kotlinx.coroutines.android)
+    implementation libs.lifecycle.viewmodel.compose
+    implementation libs.kotlinx.coroutines.android
     implementation platform(libs.kotlin.bom)
     implementation platform(libs.compose.bom)
 
@@ -86,18 +87,24 @@ dependencies {
     implementation libs.ui.graphics
     implementation libs.ui.tooling.preview
     implementation libs.material3
-    implementation(libs.material.icons.extended)
+    implementation libs.material.icons.extended
 
     // Server
     implementation libs.smbj
-    implementation(libs.ktor.server.jetty.jakarta)
+    implementation libs.ktor.server.jetty.jakarta
+
+    // DB
+    implementation libs.room.common
+    implementation libs.room.runtime
+    implementation libs.room.ktx
+    ksp libs.room.compiler
 
     // Image Fetching
     implementation libs.coil.compose
     implementation libs.coil.network.okhttp
-    implementation(libs.coil.gif)
-    implementation(libs.coil.svg)
-    implementation(libs.coil.video)
+    implementation libs.coil.gif
+    implementation libs.coil.svg
+    implementation libs.coil.video
 
     // Misc
     testImplementation libs.junit

@@ -1,4 +1,4 @@
-package com.example.remoteexplorer.ui
+package com.example.remoteexplorer.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
@@ -18,30 +18,26 @@ import androidx.compose.ui.unit.dp
 import java.net.URLConnection
 
 @Composable
-fun ListItem(
-    filename: String,
+fun ExplorerItem(
+    name: String,
     url: String,
-    handleChangePath: () -> Unit,
-    handleOpenItem: () -> Unit) {
+    type: String,
+    handleItemClick: () -> Unit) {
     Card(
         modifier = Modifier
             .size(128.dp)
             .clickable {
-                val mimeType = URLConnection.guessContentTypeFromName(filename) ?: "folder"
-                if (mimeType == "folder") {
-                    handleChangePath()
-                } else {
-                    handleOpenItem()
-                }
+                handleItemClick()
             }
         ,
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent
         )
     ) {
-        ListItemIcon(
-            filename,
+        ExplorerItemIcon(
+            name,
             url,
+            type,
             Modifier
                 .fillMaxSize()
                 .padding(8.dp)
@@ -50,7 +46,7 @@ fun ListItem(
         )
         Spacer(modifier = Modifier.width((8.dp)))
         Text(
-            text = filename,
+            text = name,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(8.dp),
             overflow = TextOverflow.Ellipsis,
