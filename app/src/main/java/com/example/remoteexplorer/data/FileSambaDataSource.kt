@@ -1,4 +1,4 @@
-package com.example.greetingcard.data
+package com.example.remoteexplorer.data
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.mssmb2.SMB2CreateDisposition

@@ -1,4 +1,4 @@
-package com.example.greetingcard.data
+package com.example.remoteexplorer.data
 
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty

@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid

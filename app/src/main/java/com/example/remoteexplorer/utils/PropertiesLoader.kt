@@ -1,4 +1,4 @@
-package com.example.greetingcard.utils
+package com.example.remoteexplorer.utils
 
 import android.content.Context
 import java.util.Properties

@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.ExperimentalMaterial3Api

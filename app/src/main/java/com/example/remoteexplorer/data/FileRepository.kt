@@ -1,4 +1,4 @@
-package com.example.greetingcard.data
+package com.example.remoteexplorer.data
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext

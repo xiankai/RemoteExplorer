@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
@@ -17,7 +17,7 @@ import androidx.compose.ui.res.painterResource
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import java.net.URLConnection
-import com.example.greetingcard.R
+import com.example.remoteexplorer.R
 
 enum class DisplayType {
     ICON, GALLERY, MANGA

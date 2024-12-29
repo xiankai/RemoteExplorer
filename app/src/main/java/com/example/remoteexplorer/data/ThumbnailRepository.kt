@@ -1,4 +1,4 @@
-package com.example.greetingcard.data
+package com.example.remoteexplorer.data
 
 import android.content.Context
 import android.graphics.Bitmap

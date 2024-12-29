@@ -1,4 +1,4 @@
-package com.example.greetingcard
+package com.example.remoteexplorer
 
 import android.app.Application
 import android.os.Bundle
@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
-import com.example.greetingcard.ui.theme.GreetingCardTheme
+import com.example.remoteexplorer.ui.theme.GreetingCardTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.greetingcard.ui.Header
-import com.example.greetingcard.ui.List
-import com.example.greetingcard.ui.ListViewModel
-import com.example.greetingcard.utils.PropertiesLoader
+import com.example.remoteexplorer.ui.Header
+import com.example.remoteexplorer.ui.List
+import com.example.remoteexplorer.ui.ListViewModel
+import com.example.remoteexplorer.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 

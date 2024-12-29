@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui.theme
+package com.example.remoteexplorer.ui.theme
 
 import android.app.Activity
 import android.os.Build

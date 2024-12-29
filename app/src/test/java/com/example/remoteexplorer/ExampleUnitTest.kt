@@ -1,4 +1,4 @@
-package com.example.greetingcard
+package com.example.remoteexplorer
 
 import org.junit.Test
 

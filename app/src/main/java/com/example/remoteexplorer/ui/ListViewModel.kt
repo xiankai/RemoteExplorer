@@ -1,14 +1,14 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.greetingcard.data.File
-import com.example.greetingcard.data.FileRepository
-import com.example.greetingcard.data.SambaFileDataSource
-import com.example.greetingcard.data.ServerRepository
-import com.example.greetingcard.data.ThumbnailRepository
-import com.example.greetingcard.utils.PropertiesLoader
+import com.example.remoteexplorer.data.File
+import com.example.remoteexplorer.data.FileRepository
+import com.example.remoteexplorer.data.SambaFileDataSource
+import com.example.remoteexplorer.data.ServerRepository
+import com.example.remoteexplorer.data.ThumbnailRepository
+import com.example.remoteexplorer.utils.PropertiesLoader
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

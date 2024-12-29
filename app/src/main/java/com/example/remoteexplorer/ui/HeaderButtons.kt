@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search

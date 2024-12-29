@@ -1,4 +1,4 @@
-package com.example.greetingcard.ui
+package com.example.remoteexplorer.ui
 
 import android.content.Intent
 import android.net.Uri
