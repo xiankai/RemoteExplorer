@@ -56,9 +56,12 @@ fun MainView(
                 connection = null,
                 onSave = {
                     explorerViewModel.addConnection(it)
-                 },
-                onDelete = {
-                    explorerViewModel.deleteConnection(it)
+                },
+                onTest = {
+                    explorerViewModel.testConnection(it)
+                },
+                onConnect = {
+                    explorerViewModel.connect(it)
                 },
                 onCancel = { explorerViewModel.changeScreen("connection") }
             )
@@ -67,8 +70,11 @@ fun MainView(
                 onSave = {
                     explorerViewModel.addConnection(it)
                 },
-                onDelete = {
-                    explorerViewModel.deleteConnection(it)
+                onTest = {
+                    explorerViewModel.testConnection(it)
+                },
+                onConnect = {
+                    explorerViewModel.connect(it)
                 },
                 onCancel = { explorerViewModel.changeScreen("connection") }
             )

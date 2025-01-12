@@ -12,7 +12,7 @@ import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.ui.viewmodels.SortType
 
 @Composable
-fun HeaderButtons(
+fun ExplorerButtons(
     explorerViewModel: ExplorerViewModel
 ) {
     val sortState = explorerViewModel.sortState.collectAsState()

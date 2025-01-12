@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -18,18 +19,30 @@ fun Header(
     explorerViewModel: ExplorerViewModel
 ) {
     val pathState by explorerViewModel.pathState.collectAsState()
+    val screenState by explorerViewModel.screenState.collectAsState()
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             titleContentColor = MaterialTheme.colorScheme.primary,
         ),
-        title = { BreadcrumbHeader(
-            currentPath = pathState,
-            modifier = Modifier.wrapContentSize(Alignment.CenterStart),
-            onBreadcrumbClick = { path -> explorerViewModel.changePath(path) },
-        ) },
-        actions = { HeaderButtons(explorerViewModel) },
+        title = {
+            if (screenState == "list") {
+                BreadcrumbHeader(
+                    currentPath = pathState,
+                    modifier = Modifier.wrapContentSize(Alignment.CenterStart),
+                    onBreadcrumbClick = { path -> explorerViewModel.changePath(path) },
+                )
+            } else {
+                Text("Connections")
+            }
+        },
+        actions = {
+            if (screenState == "list") {
+                ExplorerButtons(explorerViewModel)
+            } else {
+                ConnectionButtons(explorerViewModel)
+            } },
         scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
     )
 }

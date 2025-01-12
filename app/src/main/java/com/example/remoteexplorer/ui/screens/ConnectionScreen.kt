@@ -54,8 +54,6 @@ fun ConnectionScreen(
         }
     } }
 
-    Text("Connections")
-
     Explorer(
         items = connectionItems.plus(newConnection),
         handleItemClick = handleItemClick,

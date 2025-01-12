@@ -110,6 +110,23 @@ class ExplorerViewModel(
         }
     }
 
+    fun testConnection(connection: Connection) {
+        viewModelScope.launch {
+            try {
+                fileRepository.connect(
+                    connection.hostname,
+                    connection.username,
+                    connection.password,
+                    connection.domain,
+                    connection.share,
+                )
+                _toast.emit("Connected to ${connection.hostname}")
+            } catch (e: Exception) {
+                _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
+            }
+        }
+    }
+
     fun changeScreen(screen: String) {
         _screen.update {
             screen

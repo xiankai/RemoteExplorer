@@ -30,8 +30,9 @@ import java.util.Date
 fun ConnectionDetailsScreen(
     connection: Connection?,
     onSave: (Connection) -> Unit,
-    onDelete: (Connection) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onTest: (Connection) -> Unit,
+    onConnect: (Connection) -> Unit,
 ) {
     var name by remember { mutableStateOf(connection?.name ?: "") }
     var hostname by remember { mutableStateOf(connection?.hostname ?: "") }
@@ -39,6 +40,18 @@ fun ConnectionDetailsScreen(
     var password by remember { mutableStateOf(connection?.password ?: "") }
     var domain by remember { mutableStateOf(connection?.domain ?: "") }
     var share by remember { mutableStateOf(connection?.share ?: "") }
+
+    val getCurrentConnection = {
+        Connection(
+            name = name,
+            hostname = hostname,
+            username = username,
+            password = password,
+            domain = domain,
+            share = share,
+            lastModified = Date()
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -106,15 +119,15 @@ fun ConnectionDetailsScreen(
                 Text("Cancel")
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onSave(Connection(
-                name = name,
-                hostname = hostname,
-                username = username,
-                password = password,
-                domain = domain,
-                share = share,
-                lastModified = Date()
-            )) }) {
+            Button(onClick = { onTest(getCurrentConnection()) }) {
+                Text("Test Connection")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = { onConnect(getCurrentConnection()) }) {
+                Text("Connect")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = { onSave(getCurrentConnection()) }) {
                 Text("Save")
             }
         }
@@ -137,8 +150,11 @@ fun PreviewConnectionDetailsScreen() {
         onSave = { connection ->
             println("Save: host=${connection.hostname}, port=${connection.username}")
         },
-        onDelete = { connection ->
-            println("Delete: name=${connection.name}")
+        onTest = { connection ->
+            println("Test: host=${connection.hostname}, port=${connection.username}")
+        },
+        onConnect = { connection ->
+            println("Connect: host=${connection.hostname}, port=${connection.username}")
         },
         onCancel = { println("Cancel") }
     )

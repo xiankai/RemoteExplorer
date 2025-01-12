@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
@@ -14,7 +15,7 @@ interface ConnectionDao {
     @Query("SELECT * FROM Connection")
     fun getConnections(): Flow<List<Connection>>
 
-    @Insert
+    @Upsert
     suspend fun addConnection(connection: Connection)
 
     @Delete
