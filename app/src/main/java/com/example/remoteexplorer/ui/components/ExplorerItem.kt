@@ -1,7 +1,6 @@
 package com.example.remoteexplorer.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,16 +16,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.net.URLConnection
+import com.example.remoteexplorer.data.db.FileType
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExplorerItem(
     name: String,
-    url: String,
-    type: String,
+    type: FileType,
+    urls: List<String>,
     handleItemClick: () -> Unit,
-    handleLongItemClick: () -> Unit) {
+    handleLongItemClick: () -> Unit,
+    ) {
     Card(
         modifier = Modifier
             .size(128.dp)
@@ -41,13 +41,12 @@ fun ExplorerItem(
     ) {
         ExplorerItemIcon(
             name,
-            url,
             type,
+            urls,
             Modifier
                 .fillMaxSize()
                 .padding(8.dp)
-                .weight(1f),
-            DisplayType.MANGA
+                .weight(1f)
         )
         Spacer(modifier = Modifier.width((8.dp)))
         Text(

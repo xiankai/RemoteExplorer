@@ -8,18 +8,20 @@ import androidx.compose.ui.Modifier
 
 @Composable
 fun BreadcrumbHeader(
+    rootPath: String,
     currentPath: String,
     modifier: Modifier,
     onBreadcrumbClick: (String) -> Unit,
 ) {
     val pathComponents = currentPath.split("/")
+    val rootLabel = rootPath.ifEmpty { "Root" }
 
     Row {
         for (i in pathComponents.indices) {
             val crumb = pathComponents.subList(0, i + 1).joinToString("/")
             val display = crumb.split("/").last()
             Text(
-                text = "/ Root / ",
+                text = "/ $rootLabel / ",
                 modifier = modifier
                     .clickable(
                         onClick = {

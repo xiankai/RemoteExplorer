@@ -1,10 +1,10 @@
 package com.example.remoteexplorer.ui.screens
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.example.remoteexplorer.data.db.Connection
+import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.ui.components.Explorer
 import com.example.remoteexplorer.ui.components.Item
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
@@ -18,15 +18,15 @@ fun ConnectionScreen(
     val connectionItems: List<Item<Connection?>> = connections.map {
         Item(
             name = it.name,
-            type = "connection",
-            url = "",
+            type = FileType.CONNECTION,
+            urls = emptyList(),
             item = it,
         )
     }
     val newConnection: Item<Connection?> = Item(
         name = "Add Connection",
-        type = "add_connection",
-        url = "",
+        type = FileType.ADD_CONNECTION,
+        urls = emptyList(),
         item = null,
     )
 

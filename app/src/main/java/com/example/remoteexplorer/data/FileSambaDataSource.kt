@@ -7,12 +7,11 @@ import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
-import java.nio.file.Paths
 
 class SambaFileDataSource() {
     private lateinit var diskShare: DiskShare
 
-    suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
+    fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
         val client = SMBClient()
         val connection = client.connect(hostname)
         val authContext = AuthenticationContext(username, password.toCharArray(), domain)
@@ -22,22 +21,24 @@ class SambaFileDataSource() {
         this.diskShare = share
     }
 
-    suspend fun listFiles(currentPath: String = "", filter: String? = null): List<File> {
+    fun listFiles(currentPath: String = "", filter: String? = null): List<File> {
         val files =  this.diskShare.list(currentPath, filter).mapNotNull {
             if (it.fileName in listOf(".", "..")) {
                 null
             } else {
                 File(
                     it.fileName,
-                    Paths.get(currentPath, it.fileName).toString(),
+                    currentPath,
                     it.lastWriteTime.toDate(),
+                    it.allocationSize,
+                    it.fileAttributes,
                 )
             }
         }
         return files
     }
 
-    suspend fun openFile(path: String): com.hierynomus.smbj.share.File {
+    fun openFile(path: String): com.hierynomus.smbj.share.File {
         val accessMask = setOf(AccessMask.FILE_READ_DATA)
         val attributes = setOf(FileAttributes.FILE_ATTRIBUTE_NORMAL)
         val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)

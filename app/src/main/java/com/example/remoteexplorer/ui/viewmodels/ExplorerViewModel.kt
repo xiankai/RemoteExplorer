@@ -1,15 +1,15 @@
 package com.example.remoteexplorer.ui.viewmodels
 
 import android.app.Application
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.remoteexplorer.data.ConnectionRepository
-import com.example.remoteexplorer.data.File
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.ServerRepository
 import com.example.remoteexplorer.data.ThumbnailRepository
 import com.example.remoteexplorer.data.db.Connection
+import com.example.remoteexplorer.data.db.FileType
+import com.example.remoteexplorer.data.db.LocalFile
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.nio.file.Paths
 
 enum class SortType {
     NAME_ASC,
@@ -48,9 +49,10 @@ class ExplorerViewModel(
     private val _navigationStack = MutableStateFlow(listOf(""))
     private val _screen = MutableStateFlow("connection")
     val screenState: StateFlow<String> = _screen.asStateFlow()
+    private val _screenStack = MutableStateFlow(listOf(""))
 
-    private val _list: MutableStateFlow<List<File>> = MutableStateFlow(emptyList())
-    val listState: StateFlow<List<File>> = _list.asStateFlow()
+    private val _list: MutableStateFlow<List<LocalFile>> = MutableStateFlow(emptyList())
+    val listState: StateFlow<List<LocalFile>> = _list.asStateFlow()
 
     private val _search: MutableStateFlow<String?> = MutableStateFlow(null)
     val searchState: StateFlow<String?> = _search.asStateFlow()
@@ -61,10 +63,14 @@ class ExplorerViewModel(
     val connectionState: StateFlow<Connection?> = _connection.asStateFlow()
     private val _connections: MutableStateFlow<List<Connection>> = MutableStateFlow(emptyList())
     val connectionsState: StateFlow<List<Connection>> = _connections.asStateFlow()
+    private val _connectionName = MutableStateFlow("")
+    val connectionNameState = _connectionName.asStateFlow()
 
     private val _toast = MutableSharedFlow<String>()
     val toast = _toast.asSharedFlow()
 
+    private val _thumbnails: MutableStateFlow<Map<String, List<String>>> = MutableStateFlow(emptyMap())
+    val thumbnailsState = _thumbnails.asStateFlow()
 
     // On init:
     // start http server
@@ -96,12 +102,26 @@ class ExplorerViewModel(
                 )
 
                 pathState.collect { newPath ->
-                    val files = fileRepository.listFiles(newPath, searchState.value)
+                    val files = fileRepository.listFiles(newPath, searchState.value, true)
+                    val thumbnails = files.associate {
+                        val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                        if (it.canHaveThumbnail) {
+                            it.filename to listOf(fullPath)
+                        } else if (it.type === FileType.FOLDER) {
+                            it.filename to fileRepository.getFolderThumbnails(fullPath, 4)
+                        } else {
+                            it.filename to emptyList()
+                        }
+                    }
+                    _thumbnails.update { thumbnails }
                     _list.update {
                         files.sortedWith(getSortFunction(sortState.value))
                     }
                     _screen.update {
                         "list"
+                    }
+                    _connectionName.update {
+                        connection.name + " / " + connection.share
                     }
                 }
             } catch (e: Exception) {
@@ -158,12 +178,6 @@ class ExplorerViewModel(
         return serverRepository.constructUrl(path)
     }
 
-    fun generateThumbnail(path: String) {
-        viewModelScope.launch {
-            thumbnailRepository.generateImageThumbnail(path)
-        }
-    }
-
     fun search(query: String) {
         _search.update {
             query
@@ -179,13 +193,12 @@ class ExplorerViewModel(
         }
     }
 
-    private fun getSortFunction(sortType: SortType): Comparator<File> {
+    private fun getSortFunction(sortType: SortType): Comparator<LocalFile> {
         return when (sortType) {
             SortType.NAME_ASC -> compareBy { it.filename }
             SortType.NAME_DESC -> compareByDescending { it.filename }
             SortType.LAST_MODIFIED_ASC -> compareBy { it.lastModified }
             SortType.LAST_MODIFIED_DESC -> compareByDescending { it.lastModified }
-            else -> compareBy { it.filename } // Default to sort by name asc
         }
     }
 

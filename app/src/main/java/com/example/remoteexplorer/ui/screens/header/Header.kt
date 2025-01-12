@@ -20,6 +20,7 @@ fun Header(
 ) {
     val pathState by explorerViewModel.pathState.collectAsState()
     val screenState by explorerViewModel.screenState.collectAsState()
+    val connectionName by explorerViewModel.connectionNameState.collectAsState()
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -29,6 +30,7 @@ fun Header(
         title = {
             if (screenState == "list") {
                 BreadcrumbHeader(
+                    rootPath = connectionName,
                     currentPath = pathState,
                     modifier = Modifier.wrapContentSize(Alignment.CenterStart),
                     onBreadcrumbClick = { path -> explorerViewModel.changePath(path) },

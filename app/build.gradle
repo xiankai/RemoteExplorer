@@ -37,6 +37,9 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        ksp {
+            arg('room.schemaLocation', "$projectDir/schemas")
+        }
     }
 
     buildTypes {
@@ -63,13 +66,6 @@ android {
             excludes += '/META-INF/*'
         }
     }
-//    sourceSets {
-//        main {
-//            proto {
-//
-//            }
-//        }
-//    }
 }
 
 dependencies {

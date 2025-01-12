@@ -1,14 +1,20 @@
 package com.example.remoteexplorer.data
 
 import LocalDatabaseDataSource
+import com.example.remoteexplorer.data.db.FileType
+import com.example.remoteexplorer.data.db.LocalFile
+import com.example.remoteexplorer.utils.Utils
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import java.nio.file.Paths
 import java.util.Date
 
 data class File(
     val filename: String,
-    val fullPath: String,
+    val parentPath: String,
     val lastModified: Date,
+    val allocationSize: Long,
+    val fileAttributes: Long,
 )
 
 class FileRepository (
@@ -18,19 +24,56 @@ class FileRepository (
 ) {
     suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
         return withContext(dispatcher) {
-            this@FileRepository.sambaFileDataSource.connect(hostname, username, password, domain, shareName)
+            sambaFileDataSource.connect(hostname, username, password, domain, shareName)
         }
     }
 
-    suspend fun listFiles(currentPath: String = "", filter: String? = null): List<File> {
+    private fun updateRemoteMapping(parentPath: String): List<LocalFile> {
+        val remoteList = sambaFileDataSource.listFiles(parentPath)
+        val mappedRemoteList = remoteList.map {
+            LocalFile(
+                filename = it.filename,
+                parentPath = parentPath,
+                type = if (Utils.isDirectory(it.fileAttributes)) { FileType.FOLDER } else { FileType.FILE },
+//                type = if (it.allocationSize == 0L) { FileType.FOLDER } else { FileType.FILE },
+                canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
+                lastModified = it.lastModified,
+            )
+        }
+        localDatabaseDataSource.updateFileList(mappedRemoteList)
+        return mappedRemoteList
+    }
+
+    suspend fun listFiles(currentPath: String = "", filter: String? = null, forceRemote: Boolean = false): List<LocalFile> {
         return withContext(dispatcher) {
-            this@FileRepository.sambaFileDataSource.listFiles(currentPath, filter)
+            if (forceRemote) {
+                fetchRemoteFilesAndFilter(currentPath, filter)
+            } else {
+                val localList = localDatabaseDataSource.getFiles(currentPath, filter)
+                localList.ifEmpty {
+                    fetchRemoteFilesAndFilter(currentPath, filter)
+                }
+            }
         }
     }
 
-    suspend fun openFile(currentPath: String): com.hierynomus.smbj.share.File {
+    private suspend fun fetchRemoteFilesAndFilter(currentPath: String = "", filter: String? = null): List<LocalFile> {
+        val unfiltered = updateRemoteMapping(currentPath)
+        return if (filter != null) {
+            unfiltered.filter { it.filename.contains(filter) }
+        } else {
+            unfiltered
+        }
+    }
+
+    suspend fun getFolderThumbnails(folder: String, limit: Int): List<String> {
         return withContext(dispatcher) {
-            this@FileRepository.sambaFileDataSource.openFile(currentPath)
+            val localList = localDatabaseDataSource.getFolderThumbnails(folder, limit)
+            localList.ifEmpty {
+                updateRemoteMapping(folder)
+            }.map {
+                Paths.get(folder, it.filename).toString()
+            }
         }
     }
 }

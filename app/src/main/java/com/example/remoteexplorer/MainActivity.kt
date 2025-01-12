@@ -42,10 +42,11 @@ class ExplorerViewModelFactory(
         val db = Room.databaseBuilder(
             application.applicationContext,
             AppDatabase::class.java, "remote-explorer"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
         val sambaFileDataSource = SambaFileDataSource()
         val localDatabaseDataSource = LocalDatabaseDataSource(
-            db.localDatabaseDao()
+            db.localDatabaseDao(),
+            defaultDispatcher
         )
         val fileRepository = FileRepository(
             sambaFileDataSource,
@@ -111,7 +112,7 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             AppDatabase::class.java,
             "app_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
         connectionDao = database.connectionDao()
         localDatabaseDao = database.localDatabaseDao()
 
