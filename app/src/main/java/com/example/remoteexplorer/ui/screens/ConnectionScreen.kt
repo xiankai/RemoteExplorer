@@ -1,11 +1,9 @@
 package com.example.remoteexplorer.ui.screens
 
-import android.widget.Toast
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.ui.components.Explorer
 import com.example.remoteexplorer.ui.components.Item
@@ -15,8 +13,6 @@ import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 fun ConnectionScreen(
     explorerViewModel: ExplorerViewModel
 ) {
-    val context = LocalContext.current
-
     val connections by explorerViewModel.connectionsState.collectAsState()
 
     val connectionItems: List<Item<Connection?>> = connections.map {
@@ -52,10 +48,17 @@ fun ConnectionScreen(
         }
     } }
 
+    val handleLongItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> -> {
+        if (item.item != null) {
+            explorerViewModel.editConnection(item.item)
+        }
+    } }
+
     Text("Connections")
 
     Explorer(
         items = connectionItems.plus(newConnection),
-        handleItemClick = handleItemClick
+        handleItemClick = handleItemClick,
+        handleLongItemClick = handleLongItemClick
     )
 }

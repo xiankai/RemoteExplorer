@@ -100,6 +100,9 @@ class ExplorerViewModel(
                     _list.update {
                         files.sortedWith(getSortFunction(sortState.value))
                     }
+                    _screen.update {
+                        "list"
+                    }
                 }
             } catch (e: Exception) {
                 _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
@@ -179,6 +182,15 @@ class ExplorerViewModel(
                 connection
             }
             changeScreen("connection")
+        }
+    }
+
+    fun editConnection(connection: Connection) {
+        viewModelScope.launch {
+            _connection.update {
+                connection
+            }
+            changeScreen("edit_connection")
         }
     }
 

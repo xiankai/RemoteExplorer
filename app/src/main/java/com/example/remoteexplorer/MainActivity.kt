@@ -10,12 +10,15 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import com.example.remoteexplorer.ui.theme.RemoteExplorerTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.SambaFileDataSource
@@ -35,8 +38,6 @@ class ExplorerViewModelFactory(
     private val application: Application,
     private val defaultDispatcher: CoroutineDispatcher
 ): ViewModelProvider.Factory {
-
-
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val db = Room.databaseBuilder(
             application.applicationContext,
@@ -90,6 +91,17 @@ class MainActivity : ComponentActivity() {
 
         // For local dev
         PropertiesLoader.loadProperties(this)
+
+        SingletonImageLoader.setSafe {
+            ImageLoader.Builder(this)
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(this.cacheDir.resolve("image_cache"))
+                        .maxSizePercent(0.2)
+                        .build()
+                }
+                .build()
+        }
 
         val explorerViewModel: ExplorerViewModel by viewModels {
             ExplorerViewModelFactory(application, Dispatchers.IO)

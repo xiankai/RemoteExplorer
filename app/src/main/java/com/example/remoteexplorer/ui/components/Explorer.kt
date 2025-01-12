@@ -18,6 +18,7 @@ data class Item<T> (
 fun <T>Explorer(
     items: List<Item<T>>,
     handleItemClick: (Item<T>) -> () -> Unit,
+    handleLongItemClick: (Item<T>) -> () -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 128.dp),
@@ -28,6 +29,7 @@ fun <T>Explorer(
                 url = item.url,
                 type = item.type,
                 handleItemClick = handleItemClick(item),
+                handleLongItemClick = handleLongItemClick(item),
             )
         }
     }

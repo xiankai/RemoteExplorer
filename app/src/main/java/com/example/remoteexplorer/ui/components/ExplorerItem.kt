@@ -1,6 +1,8 @@
 package com.example.remoteexplorer.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,18 +19,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.net.URLConnection
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExplorerItem(
     name: String,
     url: String,
     type: String,
-    handleItemClick: () -> Unit) {
+    handleItemClick: () -> Unit,
+    handleLongItemClick: () -> Unit) {
     Card(
         modifier = Modifier
             .size(128.dp)
-            .clickable {
-                handleItemClick()
-            }
+            .combinedClickable(
+                onClick = handleItemClick,
+                onLongClick = handleLongItemClick,
+            )
         ,
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent

@@ -62,6 +62,16 @@ fun MainView(
                 },
                 onCancel = { explorerViewModel.changeScreen("connection") }
             )
+            "edit_connection" -> ConnectionDetailsScreen(
+                connection = explorerViewModel.connectionState.collectAsState().value,
+                onSave = {
+                    explorerViewModel.addConnection(it)
+                },
+                onDelete = {
+                    explorerViewModel.deleteConnection(it)
+                },
+                onCancel = { explorerViewModel.changeScreen("connection") }
+            )
             "list" -> ExplorerScreen(
                 explorerViewModel = explorerViewModel,
             )
