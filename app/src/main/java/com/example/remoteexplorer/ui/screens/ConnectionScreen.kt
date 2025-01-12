@@ -8,6 +8,7 @@ import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.ui.components.Explorer
 import com.example.remoteexplorer.ui.components.Item
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import kotlin.math.exp
 
 @Composable
 fun ConnectionScreen(
@@ -57,6 +58,7 @@ fun ConnectionScreen(
     Explorer(
         items = connectionItems.plus(newConnection),
         handleItemClick = handleItemClick,
-        handleLongItemClick = handleLongItemClick
+        handleLongItemClick = handleLongItemClick,
+        handleRefresh = {},
     )
 }

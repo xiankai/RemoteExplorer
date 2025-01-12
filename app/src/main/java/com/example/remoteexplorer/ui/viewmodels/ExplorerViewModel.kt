@@ -55,7 +55,7 @@ class ExplorerViewModel(
     val listState: StateFlow<List<LocalFile>> = _list.asStateFlow()
 
     private val _search: MutableStateFlow<String?> = MutableStateFlow(null)
-    val searchState: StateFlow<String?> = _search.asStateFlow()
+    private val searchState: StateFlow<String?> = _search.asStateFlow()
     private val _sort = MutableStateFlow(SortType.NAME_ASC)
     val sortState: StateFlow<SortType> = _sort.asStateFlow()
 
@@ -101,31 +101,18 @@ class ExplorerViewModel(
                     connection.share,
                 )
 
-                pathState.collect { newPath ->
-                    val files = fileRepository.listFiles(newPath, searchState.value, true)
-                    val thumbnails = files.associate {
-                        val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                        if (it.canHaveThumbnail) {
-                            it.filename to listOf(fullPath)
-                        } else if (it.type === FileType.FOLDER) {
-                            it.filename to fileRepository.getFolderThumbnails(fullPath, 4)
-                        } else {
-                            it.filename to emptyList()
-                        }
-                    }
-                    _thumbnails.update { thumbnails }
-                    _list.update {
-                        files.sortedWith(getSortFunction(sortState.value))
-                    }
-                    _screen.update {
-                        "list"
-                    }
-                    _connectionName.update {
-                        connection.name + " / " + connection.share
-                    }
-                }
+                listFiles(false)
             } catch (e: Exception) {
                 _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
+            }
+        }
+
+        viewModelScope.launch {
+            _screen.update {
+                "list"
+            }
+            _connectionName.update {
+                connection.name + " / " + connection.share
             }
         }
     }
@@ -190,6 +177,32 @@ class ExplorerViewModel(
         }
         _list.update {
             listState.value.sortedWith(getSortFunction(sortType))
+        }
+    }
+
+    private suspend fun listFiles(forceRemote: Boolean) {
+        pathState.collect { newPath ->
+            val files = fileRepository.listFiles(newPath, searchState.value, forceRemote)
+            val thumbnails = files.associate {
+                val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                if (it.canHaveThumbnail) {
+                    it.filename to listOf(fullPath)
+                } else if (it.type === FileType.FOLDER) {
+                    it.filename to fileRepository.getFolderThumbnails(fullPath, 4)
+                } else {
+                    it.filename to emptyList()
+                }
+            }
+            _thumbnails.update { thumbnails }
+            _list.update {
+                files.sortedWith(getSortFunction(sortState.value))
+            }
+        }
+    }
+
+    fun forceRefresh() {
+        viewModelScope.launch {
+            listFiles(true)
         }
     }
 

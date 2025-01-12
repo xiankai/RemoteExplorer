@@ -3,9 +3,22 @@ package com.example.remoteexplorer.ui.components
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.FileType
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.coroutines.coroutineContext
 
 data class Item<T> (
     val name: String,
@@ -14,23 +27,40 @@ data class Item<T> (
     val item: T,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T>Explorer(
     items: List<Item<T>>,
     handleItemClick: (Item<T>) -> () -> Unit,
     handleLongItemClick: (Item<T>) -> () -> Unit,
+    handleRefresh: () -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 128.dp),
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            handleRefresh()
+            coroutineScope.launch {
+                delay(1000)
+                isRefreshing = false
+            }
+        },
     ) {
-        items(items) { item ->
-            ExplorerItem(
-                name = item.name,
-                type = item.type,
-                urls = item.urls,
-                handleItemClick = handleItemClick(item),
-                handleLongItemClick = handleLongItemClick(item),
-            )
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 128.dp),
+        ) {
+            items(items) { item ->
+                ExplorerItem(
+                    name = item.name,
+                    type = item.type,
+                    urls = item.urls,
+                    handleItemClick = handleItemClick(item),
+                    handleLongItemClick = handleLongItemClick(item),
+                )
+            }
         }
     }
 }

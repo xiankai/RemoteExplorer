@@ -18,8 +18,6 @@ fun GalleryIcon(
     thumbnailUrls: List<String>, // List of thumbnail image URLs
     gridSize: Dp = 16.dp // Size of individual grid thumbnails
 ) {
-    println("this is a gallery: $thumbnailUrls")
-
     Box(
         modifier = modifier
             .size(64.dp)

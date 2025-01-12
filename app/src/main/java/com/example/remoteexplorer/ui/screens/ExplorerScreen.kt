@@ -54,5 +54,6 @@ fun ExplorerScreen(
         ) },
         handleItemClick = handleItemClick,
         handleLongItemClick = handleLongItemClick,
+        handleRefresh = { explorerViewModel.forceRefresh() }
     )
 }
