@@ -11,19 +11,19 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateFileList(fileList)
     }
 
-    suspend fun getFiles(parentPath: String, filter: String?): List<LocalFile> {
+    suspend fun getFiles(connectionId: Int, parentPath: String, filter: String?): List<LocalFile> {
         return withContext(dispatcher) {
             if (filter != null) {
-                localDatabaseDao.getFilesWithFilter(parentPath, filter)
+                localDatabaseDao.getFilesWithFilter(connectionId, parentPath, filter)
             } else {
-                localDatabaseDao.getFiles(parentPath)
+                localDatabaseDao.getFiles(connectionId, parentPath)
             }
         }
     }
 
-    suspend fun getFolderThumbnails(parentPath: String, limit: Int = 1): List<LocalFile> {
+    suspend fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int = 1): List<LocalFile> {
         return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(parentPath, limit)
+            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit)
         }
     }
 }

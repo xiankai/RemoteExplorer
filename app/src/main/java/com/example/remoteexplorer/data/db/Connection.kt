@@ -3,7 +3,7 @@ package com.example.remoteexplorer.data.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Entity
-import androidx.room.Insert
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Upsert
@@ -22,10 +22,11 @@ interface ConnectionDao {
     suspend fun deleteConnection(connection: Connection)
 }
 
-@Entity
+@Entity(indices = [Index("name", unique = true)])
 data class Connection(
-    @PrimaryKey val name: String,
+    @PrimaryKey(autoGenerate = true) val id: Int,
 
+    val name: String,
     val hostname: String,
     val username: String,
     val password: String,

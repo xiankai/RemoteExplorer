@@ -15,14 +15,14 @@ interface LocalDatabaseDao {
             "WHERE FileTagRelation.tag = :tag")
     fun getFilesWithTag(tag: String): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE parentPath = :parentPath")
-    fun getFiles(parentPath: String): List<LocalFile>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun getFiles(connectionId: Int, parentPath: String): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE parentPath = :parentPath AND filename LIKE :filter")
-    fun getFilesWithFilter(parentPath: String, filter: String): List<LocalFile>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename LIKE :filter")
+    fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE parentPath = :parentPath AND canHaveThumbnail = TRUE LIMIT :limit")
-    fun getFolderThumbnails(parentPath: String, limit: Int): List<LocalFile>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND canHaveThumbnail = TRUE LIMIT :limit")
+    fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int): List<LocalFile>
 
     @Query("SELECT * FROM LocalTag")
     fun getTags(): List<LocalTag>
@@ -31,10 +31,14 @@ interface LocalDatabaseDao {
     fun updateFileList(files: List<LocalFile>)
 }
 
-@Entity
+@Entity(primaryKeys = [
+    "connectionId",
+    "parentPath",
+    "filename",
+])
 data class LocalFile(
-    @PrimaryKey val filename: String,
-
+    val filename: String,
+    val connectionId: Int,
     val parentPath: String,
     val type: FileType,
     val canHaveThumbnail: Boolean,

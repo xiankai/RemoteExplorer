@@ -37,6 +37,7 @@ fun ConnectionScreen(
         } else {
             explorerViewModel.connect(
                 Connection(
+                    id = item.item.id,
                     name = item.item.name,
                     hostname = item.item.hostname,
                     username = item.item.username,

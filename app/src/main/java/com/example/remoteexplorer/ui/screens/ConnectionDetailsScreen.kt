@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,7 @@ fun ConnectionDetailsScreen(
     onTest: (Connection) -> Unit,
     onConnect: (Connection) -> Unit,
 ) {
+    var id by remember { mutableIntStateOf(connection?.id ?: 0) }
     var name by remember { mutableStateOf(connection?.name ?: "") }
     var hostname by remember { mutableStateOf(connection?.hostname ?: "") }
     var username by remember { mutableStateOf(connection?.username ?: "") }
@@ -43,6 +45,7 @@ fun ConnectionDetailsScreen(
 
     val getCurrentConnection = {
         Connection(
+            id = id,
             name = name,
             hostname = hostname,
             username = username,
@@ -139,6 +142,7 @@ fun ConnectionDetailsScreen(
 fun PreviewConnectionDetailsScreen() {
     ConnectionDetailsScreen(
         connection = Connection(
+            id = 1,
             name = "test",
             hostname = "192.168.1.100",
             username = "testuser",

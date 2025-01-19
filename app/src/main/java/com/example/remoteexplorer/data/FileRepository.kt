@@ -28,10 +28,11 @@ class FileRepository (
         }
     }
 
-    private fun updateRemoteMapping(parentPath: String): List<LocalFile> {
+    private fun updateRemoteMapping(connectionId: Int, parentPath: String): List<LocalFile> {
         val remoteList = sambaFileDataSource.listFiles(parentPath)
         val mappedRemoteList = remoteList.map {
             LocalFile(
+                connectionId = connectionId,
                 filename = it.filename,
                 parentPath = parentPath,
                 type = if (Utils.isDirectory(it.fileAttributes)) { FileType.FOLDER } else { FileType.FILE },
@@ -44,21 +45,21 @@ class FileRepository (
         return mappedRemoteList
     }
 
-    suspend fun listFiles(currentPath: String = "", filter: String? = null, forceRemote: Boolean = false): List<LocalFile> {
+    suspend fun listFiles(connectionId: Int, currentPath: String = "", filter: String? = null, forceRemote: Boolean = false): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {
-                fetchRemoteFilesAndFilter(currentPath, filter)
+                fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
             } else {
-                val localList = localDatabaseDataSource.getFiles(currentPath, filter)
+                val localList = localDatabaseDataSource.getFiles(connectionId, currentPath, filter)
                 localList.ifEmpty {
-                    fetchRemoteFilesAndFilter(currentPath, filter)
+                    fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
                 }
             }
         }
     }
 
-    private suspend fun fetchRemoteFilesAndFilter(currentPath: String = "", filter: String? = null): List<LocalFile> {
-        val unfiltered = updateRemoteMapping(currentPath)
+    private suspend fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String? = null): List<LocalFile> {
+        val unfiltered = updateRemoteMapping(connectionId, currentPath)
         return if (filter != null) {
             unfiltered.filter { it.filename.contains(filter) }
         } else {
@@ -66,11 +67,11 @@ class FileRepository (
         }
     }
 
-    suspend fun getFolderThumbnails(folder: String, limit: Int): List<String> {
+    suspend fun getFolderThumbnails(connectionId: Int, folder: String, limit: Int): List<String> {
         return withContext(dispatcher) {
-            val localList = localDatabaseDataSource.getFolderThumbnails(folder, limit)
+            val localList = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
             localList.ifEmpty {
-                updateRemoteMapping(folder)
+                updateRemoteMapping(connectionId, folder)
             }.map {
                 Paths.get(folder, it.filename).toString()
             }

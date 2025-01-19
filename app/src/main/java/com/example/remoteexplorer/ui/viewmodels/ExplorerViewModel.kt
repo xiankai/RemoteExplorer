@@ -101,7 +101,7 @@ class ExplorerViewModel(
                     connection.share,
                 )
 
-                listFiles(false)
+                listFiles(connection.id, false)
             } catch (e: Exception) {
                 _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
             }
@@ -180,15 +180,15 @@ class ExplorerViewModel(
         }
     }
 
-    private suspend fun listFiles(forceRemote: Boolean) {
+    private suspend fun listFiles(connectionId: Int, forceRemote: Boolean) {
         pathState.collect { newPath ->
-            val files = fileRepository.listFiles(newPath, searchState.value, forceRemote)
+            val files = fileRepository.listFiles(connectionId, newPath, searchState.value, forceRemote)
             val thumbnails = files.associate {
                 val fullPath = Paths.get(it.parentPath, it.filename).toString()
                 if (it.canHaveThumbnail) {
                     it.filename to listOf(fullPath)
-                } else if (it.type === FileType.FOLDER) {
-                    it.filename to fileRepository.getFolderThumbnails(fullPath, 4)
+                } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
+                    it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
                 } else {
                     it.filename to emptyList()
                 }
@@ -202,7 +202,10 @@ class ExplorerViewModel(
 
     fun forceRefresh() {
         viewModelScope.launch {
-            listFiles(true)
+            val connection = connectionState.value
+            if (connection != null) {
+                listFiles(connection.id, true)
+            }
         }
     }
 
