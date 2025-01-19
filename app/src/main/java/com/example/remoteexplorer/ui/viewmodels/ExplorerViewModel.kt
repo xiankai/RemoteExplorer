@@ -74,6 +74,12 @@ class ExplorerViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            val tags = fileRepository.getTags()
+            _tags.update {
+                tags
+            }
+        }
     }
 
     // 1. connect to source
@@ -159,7 +165,6 @@ class ExplorerViewModel(
     // Job to track the running coroutine
     private var currentJob: Job? = null
 
-
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             pathState.collect { path ->
@@ -168,8 +173,20 @@ class ExplorerViewModel(
 
                 // Launch a new coroutine for the new path
                 currentJob = launch {
-                    val files =
-                        fileRepository.listFiles(connectionId, path, searchState.value, forceRemote)
+                    val files = if (path.startsWith("Tag: ")) {
+                        val tag = path.substringAfter("Tag: ")
+                        fileRepository.getFilesWithTag(LocalTag(tag))
+                    } else {
+                        // TODO: scan tags as a background job instead
+                        scanTags(connectionId, path, forceRemote)
+
+                        fileRepository.listFiles(
+                            connectionId,
+                            path,
+                            searchState.value,
+                            forceRemote
+                        )
+                    }
                     _list.update {
                         files.sortedWith(getSortFunction(sortState.value))
                     }
@@ -184,9 +201,6 @@ class ExplorerViewModel(
                         }
                     }
                     _thumbnails.update { thumbnails }
-
-                    // TODO: scan tags as a background job instead
-                    scanTags(connectionId, path, forceRemote)
                 }
             }
         }
@@ -258,14 +272,6 @@ class ExplorerViewModel(
     private val _tags = MutableStateFlow(emptyList<LocalTag>())
     val tagsState = _tags.asStateFlow()
 
-    fun listTags() {
-        viewModelScope.launch {
-            _tags.update {
-                fileRepository.getTags()
-            }
-        }
-    }
-
     private fun scanTags(connectionId: Int, path: String, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val files = fileRepository.listFiles(connectionId, path, null, forceRemote)
@@ -274,14 +280,26 @@ class ExplorerViewModel(
                 val tagPath = Paths.get(it.parentPath, it.filename).toString()
                 val tagFileHandle = fileRepository.openFileDirectly(tagPath)
                 val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
+
+                // Using Dublin Core namespace as they are the most common metadata category
                 val namespace = "http://purl.org/dc/elements/1.1/"
                 val propertyName = "subject"
+
+                // XML array starts from 1-index
                 val tags = mutableListOf<String>()
                 for (i in 1..xmpMeta.countArrayItems(namespace, propertyName)) {
                     val tag = xmpMeta.getArrayItem(namespace, propertyName, i).value
                     tags.add(tag)
                 }
                 fileRepository.updateFileTags(it, tags)
+            }
+        }
+    }
+
+    fun getFilesWithTag(tag: LocalTag) {
+        viewModelScope.launch {
+            _path.update {
+                "Tag: ${tag.tag}"
             }
         }
     }

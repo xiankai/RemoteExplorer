@@ -83,11 +83,15 @@ class FileRepository (
         return localDatabaseDataSource.getTags()
     }
 
+    suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
+        return localDatabaseDataSource.getFilesWithTag(tag)
+    }
+
     suspend fun updateFileTags(
         file: LocalFile,
         tags: List<String>
     ) {
-        return localDatabaseDataSource.updateFileTags(file, tags)
+        localDatabaseDataSource.updateFileTags(file, tags)
     }
 
     fun openFileDirectly(fullPath: String): File {

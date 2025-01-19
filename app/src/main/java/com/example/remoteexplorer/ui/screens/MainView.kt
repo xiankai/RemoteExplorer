@@ -8,11 +8,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import com.example.remoteexplorer.ui.screens.ConnectionDetailsScreen
 import com.example.remoteexplorer.ui.screens.ConnectionsScreen
 import com.example.remoteexplorer.ui.screens.ExplorerScreen
 import com.example.remoteexplorer.ui.screens.ImageBrowserScreen
+import com.example.remoteexplorer.ui.screens.TagsScreen
 import com.example.remoteexplorer.ui.theme.RemoteExplorerTheme
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import kotlinx.serialization.Serializable
@@ -23,6 +25,7 @@ sealed class Route {
     @Serializable object ConnectionDetailsRoute
     @Serializable object ExplorerRoute
     @Serializable object ImageBrowserRoute
+    @Serializable object TagsRoute
 }
 
 @Composable
@@ -87,6 +90,12 @@ fun Routes(
         composable<Route.ImageBrowserRoute> {
             ImageBrowserScreen(
                 explorerViewModel = explorerViewModel,
+            )
+        }
+        dialog<Route.TagsRoute> {
+            TagsScreen(
+                explorerViewModel = explorerViewModel,
+                onDismissDialog = { navHostController.popBackStack() },
             )
         }
     }

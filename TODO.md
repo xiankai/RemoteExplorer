@@ -6,7 +6,7 @@ Feature Priority
   - [x] (Remote #n)
   - [x] (Add Remote)
 - [ ] 2 Inline search
-- [ ] 2 Tag search (reading XMP files)
+- [x] 2 Tag search (reading XMP files)
 - [ ] 2 Display filter (hide metadata files)
 - [ ] 3 Configure size of items / grid size / grid layout
 - [ ] 3 Expand gallery folder view to fit all items
@@ -14,4 +14,5 @@ Feature Priority
 - [x] 3 Breadcrumbs not working
 
 Get in my hands priority
-- [ ] 0 Figure where I can package my app
+- [x] 0 Figure where I can package my app (Android Studio build APK)
+- [ ] 1 Figure how to do this via (Github) CI so I can download / share it

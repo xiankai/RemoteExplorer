@@ -13,7 +13,8 @@ import com.example.remoteexplorer.ui.viewmodels.SortType
 
 @Composable
 fun ExplorerButtons(
-    explorerViewModel: ExplorerViewModel
+    explorerViewModel: ExplorerViewModel,
+    onOpenTagsScreen: () -> Unit,
 ) {
     val sortState = explorerViewModel.sortState.collectAsState()
 
@@ -38,7 +39,7 @@ fun ExplorerButtons(
         }
     )
     IconButton(
-        onClick = {  },
+        onClick = onOpenTagsScreen,
         content = {
             Icon(
                 Icons.Filled.Sell,

@@ -34,6 +34,12 @@ class LocalDatabaseDataSource(
         }
     }
 
+    suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
+        return withContext(dispatcher) {
+            localDatabaseDao.getFilesWithTag(tag.tag)
+        }
+    }
+
     suspend fun updateFileTags(file: LocalFile, tags: List<String>) {
         return withContext(dispatcher) {
             localDatabaseDao.updateFileTags(file, tags)

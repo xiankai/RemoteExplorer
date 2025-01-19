@@ -74,6 +74,8 @@ fun ExplorerScreen(
         Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
     } }
 
+    val onOpenTagsScreen = { navHostController.navigate(Route.TagsRoute) }
+
     BackHandler {
         explorerViewModel.goBack()
     }
@@ -102,7 +104,7 @@ fun ExplorerScreen(
                     )
                 },
                 actions = {
-                    ExplorerButtons(explorerViewModel)
+                    ExplorerButtons(explorerViewModel, onOpenTagsScreen)
                 },
                 scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
             )
