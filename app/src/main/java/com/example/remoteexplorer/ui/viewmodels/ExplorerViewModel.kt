@@ -112,7 +112,7 @@ class ExplorerViewModel(
                 "list"
             }
             _connectionName.update {
-                connection.name + " / " + connection.share
+                connection.name + " » " + connection.share
             }
         }
     }
@@ -180,22 +180,25 @@ class ExplorerViewModel(
         }
     }
 
-    private suspend fun listFiles(connectionId: Int, forceRemote: Boolean) {
-        pathState.collect { newPath ->
-            val files = fileRepository.listFiles(connectionId, newPath, searchState.value, forceRemote)
-            val thumbnails = files.associate {
-                val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                if (it.canHaveThumbnail) {
-                    it.filename to listOf(fullPath)
-                } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
-                    it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
-                } else {
-                    it.filename to emptyList()
+    private fun listFiles(connectionId: Int, forceRemote: Boolean) {
+        viewModelScope.launch {
+            pathState.collect { newPath ->
+                val files =
+                    fileRepository.listFiles(connectionId, newPath, searchState.value, forceRemote)
+                val thumbnails = files.associate {
+                    val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                    if (it.canHaveThumbnail) {
+                        it.filename to listOf(fullPath)
+                    } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
+                        it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
+                    } else {
+                        it.filename to emptyList()
+                    }
                 }
-            }
-            _thumbnails.update { thumbnails }
-            _list.update {
-                files.sortedWith(getSortFunction(sortState.value))
+                _thumbnails.update { thumbnails }
+                _list.update {
+                    files.sortedWith(getSortFunction(sortState.value))
+                }
             }
         }
     }

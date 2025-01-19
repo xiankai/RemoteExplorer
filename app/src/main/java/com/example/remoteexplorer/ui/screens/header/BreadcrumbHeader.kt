@@ -16,7 +16,7 @@ fun BreadcrumbHeader(
     modifier: Modifier,
     onBreadcrumbClick: (String) -> Unit,
 ) {
-    val pathComponents = currentPath.split("/")
+    val pathComponents = currentPath.split("/").filter { it.isNotEmpty() }
     val rootLabel = rootPath.ifEmpty { "Root" }
 
     Row {
@@ -31,7 +31,7 @@ fun BreadcrumbHeader(
         )
 
         Text(
-            text = "/ $rootLabel",
+            text = "» $rootLabel",
             modifier = modifier
                 .clickable(
                     onClick = {
@@ -45,7 +45,7 @@ fun BreadcrumbHeader(
             val display = crumb.split("/").last()
 
             Text(
-                text = "/ $display",
+                text = "» $display",
                 modifier = modifier
                     .clickable(
                         onClick = {
