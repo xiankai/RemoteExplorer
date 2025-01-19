@@ -18,10 +18,10 @@ import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.ui.screens.ConnectionDetailsScreen
 import com.example.remoteexplorer.ui.screens.ConnectionScreen
 import com.example.remoteexplorer.ui.screens.ExplorerScreen
+import com.example.remoteexplorer.ui.screens.ImageBrowserScreen
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import java.util.Date
 import kotlin.math.exp
-
 
 @Composable
 fun MainView(
@@ -79,6 +79,9 @@ fun MainView(
                 onCancel = { explorerViewModel.changeScreen("connection") }
             )
             "list" -> ExplorerScreen(
+                explorerViewModel = explorerViewModel,
+            )
+            "image_browser" -> ImageBrowserScreen(
                 explorerViewModel = explorerViewModel,
             )
         }

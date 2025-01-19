@@ -249,4 +249,21 @@ class ExplorerViewModel(
             changeScreen("connection")
         }
     }
+
+    private val _browsableImages = MutableStateFlow(emptyList<LocalFile>())
+    val browsableImagesState = _browsableImages.asStateFlow()
+    private val _initialBrowsableImage = MutableStateFlow(0)
+    val initialBrowsableImageState = _initialBrowsableImage.asStateFlow()
+
+    fun browseImages(browsableImages: List<LocalFile>, initialBrowsableImage: Int) {
+        viewModelScope.launch {
+            _browsableImages.update {
+                browsableImages
+            }
+            _initialBrowsableImage.update {
+                initialBrowsableImage
+            }
+            changeScreen("image_browser")
+        }
+    }
 }

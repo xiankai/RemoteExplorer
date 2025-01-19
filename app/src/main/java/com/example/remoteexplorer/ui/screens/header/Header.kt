@@ -41,6 +41,8 @@ fun Header(
                         }
                     },
                 )
+            } else if (screenState == "image_browser") {
+                Text("Image Browser")
             } else {
                 Text("Connections")
             }
@@ -48,6 +50,8 @@ fun Header(
         actions = {
             if (screenState == "list") {
                 ExplorerButtons(explorerViewModel)
+            } else if (screenState == "image_browser") {
+                ImageBrowserButtons(explorerViewModel)
             } else {
                 ConnectionButtons(explorerViewModel)
             } },

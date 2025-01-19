@@ -30,12 +30,18 @@ fun ExplorerScreen(
                 explorerViewModel.changePath(path)
             }
             FileType.FILE -> {
-                val intent = Intent(Intent.ACTION_VIEW)
-                val mimeType = URLConnection.guessContentTypeFromName(item.name)
-                val url = explorerViewModel.getUrl(path)
-                intent.setDataAndType(Uri.parse(url), mimeType)
+                if (item.item.canHaveThumbnail) {
+                    val browsableImages = list.value.filter { it.canHaveThumbnail }
+                    val initialBrowsableImage = browsableImages.indexOf(item.item)
+                    explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
+                } else {
+                    val intent = Intent(Intent.ACTION_VIEW)
+                    val mimeType = URLConnection.guessContentTypeFromName(item.name)
+                    val url = explorerViewModel.getUrl(path)
+                    intent.setDataAndType(Uri.parse(url), mimeType)
 
-                context.startActivity(intent)
+                    context.startActivity(intent)
+                }
             }
             else -> {}
         }
