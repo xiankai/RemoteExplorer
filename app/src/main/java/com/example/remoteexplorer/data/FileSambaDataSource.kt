@@ -8,7 +8,7 @@ import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
 
-class SambaFileDataSource() {
+class SambaFileDataSource {
     private lateinit var diskShare: DiskShare
 
     fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {

@@ -2,25 +2,9 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'com.google.devtools.ksp'
-//    id 'com.google.protobuf' version '0.9.4'
     alias libs.plugins.compose.compiler
+    id "org.jetbrains.kotlin.plugin.serialization" version "2.1.0"
 }
-
-//protobuf {
-//    protoc {
-//        // The artifact spec for the Protobuf Compiler
-//        artifact = "com.google.protobuf:protoc:4.28.3"
-//    }
-//    generateProtoTasks {
-//        all().forEach {
-//            it.builtins {
-//                create("java") {
-//                    option("lite")
-//                }
-//            }
-//        }
-//    }
-//}
 
 android {
     namespace 'com.example.remoteexplorer'
@@ -77,6 +61,7 @@ dependencies {
     implementation libs.kotlinx.coroutines.android
     implementation platform(libs.kotlin.bom)
     implementation platform(libs.compose.bom)
+    implementation libs.kotlinx.serialization.json
 
     // UI
     implementation libs.ui
@@ -93,6 +78,7 @@ dependencies {
     implementation libs.room.common
     implementation libs.room.runtime
     implementation libs.room.ktx
+    implementation libs.navigation.compose
     ksp libs.room.compiler
 
     // Image Fetching

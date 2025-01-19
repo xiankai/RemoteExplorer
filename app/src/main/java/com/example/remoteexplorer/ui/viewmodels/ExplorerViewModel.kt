@@ -6,11 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.ServerRepository
-import com.example.remoteexplorer.data.ThumbnailRepository
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,25 +29,11 @@ class ExplorerViewModel(
     application: Application,
     private val fileRepository: FileRepository,
     private val serverRepository: ServerRepository,
-    private val thumbnailRepository: ThumbnailRepository,
     private val connectionRepository: ConnectionRepository,
-    private val defaultDispatcher: CoroutineDispatcher,
 ): AndroidViewModel(application) {
-//    private lateinit var fileRepository: FileRepository
-//    private lateinit var serverRepository: ServerRepository
-//    private lateinit var thumbnailRepository: ThumbnailRepository
-//    private lateinit var connectionRepository: ConnectionRepository
-
-//    private var smbFileDataSource: SambaFileDataSource = SambaFileDataSource()
-//    private var localDatabaseSource: LocalDatabaseDataSource = LocalDatabaseDataSource()
-//    private var connectionDataSource: ConnectionDataSource = ConnectionDataSource(ConnectionDao)
-
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
-    private val _screen = MutableStateFlow("connection")
-    val screenState: StateFlow<String> = _screen.asStateFlow()
-    private val _screenStack = MutableStateFlow(listOf(""))
 
     private val _list: MutableStateFlow<List<LocalFile>> = MutableStateFlow(emptyList())
     val listState: StateFlow<List<LocalFile>> = _list.asStateFlow()
@@ -108,9 +92,6 @@ class ExplorerViewModel(
         }
 
         viewModelScope.launch {
-            _screen.update {
-                "list"
-            }
             _connectionName.update {
                 connection.name + " » " + connection.share
             }
@@ -131,15 +112,6 @@ class ExplorerViewModel(
             } catch (e: Exception) {
                 _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
             }
-        }
-    }
-
-    fun changeScreen(screen: String) {
-        _screen.update {
-            screen
-        }
-        _navigationStack.update {
-            emptyList()
         }
     }
 
@@ -230,7 +202,6 @@ class ExplorerViewModel(
             _connection.update {
                 connection
             }
-            changeScreen("connection")
         }
     }
 
@@ -239,7 +210,6 @@ class ExplorerViewModel(
             _connection.update {
                 connection
             }
-            changeScreen("edit_connection")
         }
     }
 
@@ -249,7 +219,6 @@ class ExplorerViewModel(
             _connections.update {
                 it.minus(connection)
             }
-            changeScreen("connection")
         }
     }
 
@@ -266,7 +235,6 @@ class ExplorerViewModel(
             _initialBrowsableImage.update {
                 initialBrowsableImage
             }
-            changeScreen("image_browser")
         }
     }
 }

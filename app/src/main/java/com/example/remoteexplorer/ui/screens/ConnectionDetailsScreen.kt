@@ -10,9 +10,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,8 +29,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.Connection
+import com.example.remoteexplorer.ui.screens.header.ConnectionDetailsButtons
 import java.util.Date
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectionDetailsScreen(
     connection: Connection?,
@@ -34,8 +40,9 @@ fun ConnectionDetailsScreen(
     onCancel: () -> Unit,
     onTest: (Connection) -> Unit,
     onConnect: (Connection) -> Unit,
+    onDelete: (Connection) -> Unit,
 ) {
-    var id by remember { mutableIntStateOf(connection?.id ?: 0) }
+    val id by remember { mutableIntStateOf(connection?.id ?: 0) }
     var name by remember { mutableStateOf(connection?.name ?: "") }
     var hostname by remember { mutableStateOf(connection?.hostname ?: "") }
     var username by remember { mutableStateOf(connection?.username ?: "") }
@@ -56,85 +63,113 @@ fun ConnectionDetailsScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = if (connection != null) { "Edit Connection" } else { "Add Connection"}, style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.primary,
+                ),
+                title = {
+                    Text("Connections")
+                },
+                actions = {
+                    if (connection != null) {
+                        ConnectionDetailsButtons { onDelete(connection) }
+                    }
+                },
+                scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
+            )
+        },
+        content = { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (connection != null) {
+                        "Edit Connection"
+                    } else {
+                        "Add Connection"
+                    }, style = MaterialTheme.typography.headlineMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = hostname,
-            onValueChange = { hostname = it },
-            label = { Text("Hostname") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = hostname,
+                    onValueChange = { hostname = it },
+                    label = { Text("Hostname") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = domain,
-            onValueChange = { domain = it },
-            label = { Text("Domain") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = domain,
+                    onValueChange = { domain = it },
+                    label = { Text("Domain") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = share,
-            onValueChange = { share = it },
-            label = { Text("Share") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = share,
+                    onValueChange = { share = it },
+                    label = { Text("Share") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Button(onClick = onCancel) {
-                Text("Cancel")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = { onTest(getCurrentConnection()) }) {
+                        Text("Test Connection")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = { onConnect(getCurrentConnection()) }) {
+                        Text("Connect")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = { onSave(getCurrentConnection()) }) {
+                        Text("Save")
+                    }
+                }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onTest(getCurrentConnection()) }) {
-                Text("Test Connection")
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onConnect(getCurrentConnection()) }) {
-                Text("Connect")
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onSave(getCurrentConnection()) }) {
-                Text("Save")
-            }
-        }
-    }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    )
 }
 
 @Preview(showBackground = true)
@@ -160,6 +195,9 @@ fun PreviewConnectionDetailsScreen() {
         onConnect = { connection ->
             println("Connect: host=${connection.hostname}, port=${connection.username}")
         },
-        onCancel = { println("Cancel") }
+        onCancel = { println("Cancel") },
+        onDelete = { connection ->
+            println("Delete: host=${connection.hostname}, port=${connection.username}")
+        }
     )
 }

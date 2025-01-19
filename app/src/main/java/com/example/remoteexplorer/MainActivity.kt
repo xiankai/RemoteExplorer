@@ -7,11 +7,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.ui.Modifier
-import com.example.remoteexplorer.ui.theme.RemoteExplorerTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
@@ -23,11 +18,9 @@ import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.SambaFileDataSource
 import com.example.remoteexplorer.data.ServerRepository
-import com.example.remoteexplorer.data.ThumbnailRepository
 import com.example.remoteexplorer.data.db.AppDatabase
 import com.example.remoteexplorer.data.db.ConnectionDao
 import com.example.remoteexplorer.data.db.LocalDatabaseDao
-import com.example.remoteexplorer.ui.screens.header.Header
 import com.example.remoteexplorer.ui.components.MainView
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.PropertiesLoader
@@ -57,11 +50,6 @@ class ExplorerViewModelFactory(
             sambaFileDataSource,
             defaultDispatcher
         )
-        val thumbnailRepository = ThumbnailRepository(
-            application.applicationContext,
-            sambaFileDataSource,
-            defaultDispatcher
-        )
         val connectionDataSource = ConnectionDataSource(
             db.connectionDao()
         )
@@ -72,9 +60,7 @@ class ExplorerViewModelFactory(
         return ExplorerViewModel(application,
             fileRepository,
                     serverRepository,
-                    thumbnailRepository,
                     connectionRepository,
-                    defaultDispatcher,
             ) as T
     }
 }
@@ -117,19 +103,7 @@ class MainActivity : ComponentActivity() {
         localDatabaseDao = database.localDatabaseDao()
 
         setContent {
-            RemoteExplorerTheme {
-                Scaffold(
-                    topBar = { Header(explorerViewModel) },
-                    content =  {
-                        innerPadding ->
-                            MainView(
-                                modifier = Modifier.padding(innerPadding),
-                                explorerViewModel = explorerViewModel,
-                            )
-                    },
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            }
+            MainView(explorerViewModel = explorerViewModel)
         }
     }
 }
