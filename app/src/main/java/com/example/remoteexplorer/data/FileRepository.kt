@@ -36,7 +36,6 @@ class FileRepository (
                 filename = it.filename,
                 parentPath = parentPath,
                 type = if (Utils.isDirectory(it.fileAttributes)) { FileType.FOLDER } else { FileType.FILE },
-//                type = if (it.allocationSize == 0L) { FileType.FOLDER } else { FileType.FILE },
                 canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
                 lastModified = it.lastModified,
             )
@@ -58,7 +57,7 @@ class FileRepository (
         }
     }
 
-    private suspend fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String? = null): List<LocalFile> {
+    private fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String? = null): List<LocalFile> {
         val unfiltered = updateRemoteMapping(connectionId, currentPath)
         return if (filter != null) {
             unfiltered.filter { it.filename.contains(filter) }

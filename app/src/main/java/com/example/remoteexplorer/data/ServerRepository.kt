@@ -1,5 +1,6 @@
 package com.example.remoteexplorer.data
 
+import android.util.Log
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
 import io.ktor.server.response.respondOutputStream
@@ -20,9 +21,9 @@ class ServerRepository (
                 routing {
                     get("/{path...}") {
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
-                        println("Received GET request for $fullPath")
+                        Log.d("ServerRepository", "Received GET request for $fullPath")
                         val file = sambaFileDataSource.openFile(fullPath ?: "")
-                        println("Opened file: $file")
+                        Log.d("ServerRepository", "Opened file: $file")
                         call.respondOutputStream {
                             file.inputStream.transferTo(this)
                         }

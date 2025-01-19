@@ -1,5 +1,6 @@
 package com.example.remoteexplorer.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -187,17 +188,17 @@ fun PreviewConnectionDetailsScreen() {
             lastModified = Date()
         ),
         onSave = { connection ->
-            println("Save: host=${connection.hostname}, port=${connection.username}")
+            Log.d("ConnectionDetailsScreen", "Save: host=${connection.hostname}, port=${connection.username}")
         },
         onTest = { connection ->
-            println("Test: host=${connection.hostname}, port=${connection.username}")
+            Log.d("ConnectionDetailsScreen", "Test: host=${connection.hostname}, port=${connection.username}")
         },
         onConnect = { connection ->
-            println("Connect: host=${connection.hostname}, port=${connection.username}")
+            Log.d("ConnectionDetailsScreen", "Connect: host=${connection.hostname}, port=${connection.username}")
         },
-        onCancel = { println("Cancel") },
+        onCancel = { Log.d("ConnectionDetailsScreen", "Cancel") },
         onDelete = { connection ->
-            println("Delete: host=${connection.hostname}, port=${connection.username}")
+            Log.d("ConnectionDetailsScreen", "Delete: host=${connection.hostname}, port=${connection.username}")
         }
     )
 }

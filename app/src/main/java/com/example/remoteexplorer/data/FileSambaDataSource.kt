@@ -1,4 +1,5 @@
 package com.example.remoteexplorer.data
+import android.util.Log
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.mssmb2.SMB2CreateDisposition
@@ -47,7 +48,7 @@ class SambaFileDataSource {
 
         val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
 
-        println("samba has opened the file. details: ${file}")
+        Log.d("FileSambaDataSource", "samba has opened the file. details: ${file}")
 
         return file
     }

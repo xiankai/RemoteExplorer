@@ -3,6 +3,7 @@ package com.example.remoteexplorer.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -25,7 +26,7 @@ class ThumbnailRepository (
             val thumbnailFile = File(context.filesDir, path)
             FileOutputStream(thumbnailFile).use { out ->
                 thumbnail?.compress(Bitmap.CompressFormat.PNG, 100, out)
-                println("thumbnail saved to ${thumbnailFile.absolutePath}")
+                Log.d("ThumbnailRepository", "thumbnail saved to ${thumbnailFile.absolutePath}")
             }
         }
     }
