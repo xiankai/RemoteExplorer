@@ -2,6 +2,9 @@ package com.example.remoteexplorer.ui.screens.header
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -17,21 +20,32 @@ fun BreadcrumbHeader(
     val rootLabel = rootPath.ifEmpty { "Root" }
 
     Row {
+        Icon(
+            Icons.Default.Home,
+            contentDescription = "Home",
+            modifier = Modifier.clickable(
+                onClick = {
+                    onBreadcrumbClick("home")
+                }
+            )
+        )
+
+        Text(
+            text = "/ $rootLabel",
+            modifier = modifier
+                .clickable(
+                    onClick = {
+                        onBreadcrumbClick("")
+                    }
+                )
+        )
+
         for (i in pathComponents.indices) {
             val crumb = pathComponents.subList(0, i + 1).joinToString("/")
             val display = crumb.split("/").last()
-            Text(
-                text = "/ $rootLabel / ",
-                modifier = modifier
-                    .clickable(
-                        onClick = {
-                            onBreadcrumbClick("")
-                        }
-                    )
-            )
 
             Text(
-                text = display,
+                text = "/ $display",
                 modifier = modifier
                     .clickable(
                         onClick = {

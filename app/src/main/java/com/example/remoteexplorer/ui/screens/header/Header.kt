@@ -33,7 +33,13 @@ fun Header(
                     rootPath = connectionName,
                     currentPath = pathState,
                     modifier = Modifier.wrapContentSize(Alignment.CenterStart),
-                    onBreadcrumbClick = { path -> explorerViewModel.changePath(path) },
+                    onBreadcrumbClick = { path ->
+                        if (path == "home") {
+                            explorerViewModel.changeScreen("connection")
+                        } else {
+                            explorerViewModel.changePath(path)
+                        }
+                    },
                 )
             } else {
                 Text("Connections")
