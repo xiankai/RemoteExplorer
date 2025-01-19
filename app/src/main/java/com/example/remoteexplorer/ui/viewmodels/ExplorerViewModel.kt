@@ -3,12 +3,14 @@ package com.example.remoteexplorer.ui.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.adobe.internal.xmp.XMPMetaFactory
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.ServerRepository
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
+import com.example.remoteexplorer.data.db.LocalTag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -175,13 +177,16 @@ class ExplorerViewModel(
                         val fullPath = Paths.get(it.parentPath, it.filename).toString()
                         if (it.canHaveThumbnail) {
                             it.filename to listOf(fullPath)
-                        } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
+                        } else if (it.type === FileType.FOLDER) {
                             it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
                         } else {
                             it.filename to emptyList()
                         }
                     }
                     _thumbnails.update { thumbnails }
+
+                    // TODO: scan tags as a background job instead
+                    scanTags(connectionId, path, forceRemote)
                 }
             }
         }
@@ -246,6 +251,37 @@ class ExplorerViewModel(
             }
             _initialBrowsableImage.update {
                 initialBrowsableImage
+            }
+        }
+    }
+
+    private val _tags = MutableStateFlow(emptyList<LocalTag>())
+    val tagsState = _tags.asStateFlow()
+
+    fun listTags() {
+        viewModelScope.launch {
+            _tags.update {
+                fileRepository.getTags()
+            }
+        }
+    }
+
+    private fun scanTags(connectionId: Int, path: String, forceRemote: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val files = fileRepository.listFiles(connectionId, path, null, forceRemote)
+            val tagFiles = files.filter { it.filename.endsWith(".xmp", true) }
+            tagFiles.forEach {
+                val tagPath = Paths.get(it.parentPath, it.filename).toString()
+                val tagFileHandle = fileRepository.openFileDirectly(tagPath)
+                val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
+                val namespace = "http://purl.org/dc/elements/1.1/"
+                val propertyName = "subject"
+                val tags = mutableListOf<String>()
+                for (i in 1..xmpMeta.countArrayItems(namespace, propertyName)) {
+                    val tag = xmpMeta.getArrayItem(namespace, propertyName, i).value
+                    tags.add(tag)
+                }
+                fileRepository.updateFileTags(it, tags)
             }
         }
     }

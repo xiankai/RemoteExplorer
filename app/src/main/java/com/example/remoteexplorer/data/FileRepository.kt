@@ -3,7 +3,9 @@ package com.example.remoteexplorer.data
 import LocalDatabaseDataSource
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
+import com.example.remoteexplorer.data.db.LocalTag
 import com.example.remoteexplorer.utils.Utils
+import com.hierynomus.smbj.share.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.nio.file.Paths
@@ -75,5 +77,20 @@ class FileRepository (
                 Paths.get(folder, it.filename).toString()
             }
         }
+    }
+
+    suspend fun getTags(): List<LocalTag> {
+        return localDatabaseDataSource.getTags()
+    }
+
+    suspend fun updateFileTags(
+        file: LocalFile,
+        tags: List<String>
+    ) {
+        return localDatabaseDataSource.updateFileTags(file, tags)
+    }
+
+    fun openFileDirectly(fullPath: String): File {
+        return sambaFileDataSource.openFile(fullPath)
     }
 }

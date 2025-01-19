@@ -1,5 +1,6 @@
 import com.example.remoteexplorer.data.db.LocalDatabaseDao
 import com.example.remoteexplorer.data.db.LocalFile
+import com.example.remoteexplorer.data.db.LocalTag
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -24,6 +25,18 @@ class LocalDatabaseDataSource(
     suspend fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int = 1): List<LocalFile> {
         return withContext(dispatcher) {
             localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit)
+        }
+    }
+
+    suspend fun getTags(): List<LocalTag> {
+        return withContext(dispatcher) {
+            localDatabaseDao.getTags()
+        }
+    }
+
+    suspend fun updateFileTags(file: LocalFile, tags: List<String>) {
+        return withContext(dispatcher) {
+            localDatabaseDao.updateFileTags(file, tags)
         }
     }
 }

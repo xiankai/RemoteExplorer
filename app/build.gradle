@@ -88,6 +88,9 @@ dependencies {
     implementation libs.coil.svg
     implementation libs.coil.video
 
+    // Tagging
+    implementation libs.metadata.extractor
+
     // Misc
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit

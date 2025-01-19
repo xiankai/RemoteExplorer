@@ -2,8 +2,11 @@ package com.example.remoteexplorer.data.db
 
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import java.util.Date
 
@@ -29,6 +32,30 @@ interface LocalDatabaseDao {
 
     @Upsert(entity = LocalFile::class)
     fun updateFileList(files: List<LocalFile>)
+
+    @Insert(entity = LocalTag::class, onConflict = OnConflictStrategy.IGNORE)
+    fun addTag(tag: LocalTag)
+
+    @Insert(entity = FileTagRelation::class, onConflict = OnConflictStrategy.IGNORE)
+    fun addFileTagRelation(relation: FileTagRelation)
+
+    @Transaction
+    fun updateFileTags(file: LocalFile, tags: List<String>) {
+        val connectionId = file.connectionId
+        val parentPath = file.parentPath
+        val filename = file.filename
+        tags.map {
+            addTag(LocalTag(it))
+            addFileTagRelation(
+                FileTagRelation(
+                    connectionId,
+                    parentPath,
+                    filename,
+                    it
+                )
+            )
+        }
+    }
 }
 
 @Entity(primaryKeys = [
@@ -37,9 +64,9 @@ interface LocalDatabaseDao {
     "filename",
 ])
 data class LocalFile(
-    val filename: String,
     val connectionId: Int,
     val parentPath: String,
+    val filename: String,
     val type: FileType,
     val canHaveThumbnail: Boolean,
     val lastModified: Date,
@@ -47,11 +74,18 @@ data class LocalFile(
 
 @Entity
 data class LocalTag(
-    @PrimaryKey val tag: Int,
+    @PrimaryKey val tag: String,
 )
 
-@Entity(primaryKeys = ["filename", "tag"])
+@Entity(primaryKeys = [
+    "connectionId",
+    "parentPath",
+    "filename",
+    "tag",
+])
 data class FileTagRelation(
+    val connectionId: Int,
+    val parentPath: String,
     val filename: String,
     val tag: String
 )
