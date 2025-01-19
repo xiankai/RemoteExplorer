@@ -9,6 +9,8 @@ import com.example.remoteexplorer.data.ServerRepository
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -152,24 +154,34 @@ class ExplorerViewModel(
         }
     }
 
+    // Job to track the running coroutine
+    private var currentJob: Job? = null
+
+
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
-        viewModelScope.launch {
-            pathState.collect { newPath ->
-                val files =
-                    fileRepository.listFiles(connectionId, newPath, searchState.value, forceRemote)
-                val thumbnails = files.associate {
-                    val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                    if (it.canHaveThumbnail) {
-                        it.filename to listOf(fullPath)
-                    } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
-                        it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
-                    } else {
-                        it.filename to emptyList()
+        viewModelScope.launch(Dispatchers.IO) {
+            pathState.collect { path ->
+                // Cancel the previous coroutine if it's still running
+                currentJob?.cancel()
+
+                // Launch a new coroutine for the new path
+                currentJob = launch {
+                    val files =
+                        fileRepository.listFiles(connectionId, path, searchState.value, forceRemote)
+                    _list.update {
+                        files.sortedWith(getSortFunction(sortState.value))
                     }
-                }
-                _thumbnails.update { thumbnails }
-                _list.update {
-                    files.sortedWith(getSortFunction(sortState.value))
+                    val thumbnails = files.associate {
+                        val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                        if (it.canHaveThumbnail) {
+                            it.filename to listOf(fullPath)
+                        } else if (it.type === FileType.FOLDER && it.filename != "\$RECYCLE.BIN") {
+                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
+                        } else {
+                            it.filename to emptyList()
+                        }
+                    }
+                    _thumbnails.update { thumbnails }
                 }
             }
         }

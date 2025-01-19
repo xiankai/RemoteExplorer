@@ -10,7 +10,7 @@ Feature Priority
 - [ ] 2 Display filter (hide metadata files)
 - [ ] 3 Configure size of items / grid size / grid layout
 - [ ] 3 Expand gallery folder view to fit all items
-- [ ] 3 Performance when loading
+- [x] 3 Performance when loading
 - [x] 3 Breadcrumbs not working
 
 Get in my hands priority
