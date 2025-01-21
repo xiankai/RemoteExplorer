@@ -11,7 +11,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.FileType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -29,7 +28,8 @@ fun <T>Explorer(
     items: List<Item<T>>,
     handleItemClick: (Item<T>) -> () -> Unit,
     handleLongItemClick: (Item<T>) -> () -> Unit,
-    handleRefresh: () -> Unit
+    handleRefresh: () -> Unit,
+    columnCount: Int,
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -46,7 +46,7 @@ fun <T>Explorer(
         },
     ) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 128.dp),
+            columns = GridCells.Fixed(columnCount)
         ) {
             items(items) { item ->
                 ExplorerItem(

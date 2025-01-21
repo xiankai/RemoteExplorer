@@ -303,4 +303,13 @@ class ExplorerViewModel(
             }
         }
     }
+
+    private val _columnCount = MutableStateFlow(4)
+    val columnCountState: StateFlow<Int> = _columnCount.asStateFlow()
+
+    fun setColumnCount(columnCount: Int) {
+        _columnCount.update {
+            columnCount
+        }
+    }
 }

@@ -1,5 +1,7 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -14,46 +16,27 @@ import com.example.remoteexplorer.R
 @Composable
 fun GalleryIcon(
     modifier: Modifier = Modifier,
-    folderColor: Color = Color(0xFFFFD700), // Gold-like color for the folder
     thumbnailUrls: List<String>, // List of thumbnail image URLs
-    gridSize: Dp = 16.dp // Size of individual grid thumbnails
 ) {
-    Box(
-        modifier = modifier
-            .size(64.dp)
-            .background(folderColor, RoundedCornerShape(4.dp)),
-        contentAlignment = Alignment.Center
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = modifier,
     ) {
-        // Draw the 2x2 grid inside the folder
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            for (row in 0 until 2) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    for (col in 0 until 2) {
-                        val index = row * 2 + col
-                        Box(
-                            modifier = Modifier
-                                .size(gridSize)
-                                .background(Color.Gray, shape = RoundedCornerShape(2.dp))
-                        ) {
-                            if (index < thumbnailUrls.size) {
-                                val fallback = R.drawable.folder_24px
-                                AsyncImage(
-                                    model = thumbnailUrls[index],
-                                    contentDescription = "Thumbnail $index",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.LightGray, shape = RoundedCornerShape(2.dp)),
-                                    placeholder = painterResource(fallback),
-                                    error = painterResource(fallback)
-                                )
-                            }
-                        }
-                    }
-                }
+        items(4) { index ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .background(Color.LightGray, shape = RoundedCornerShape(2.dp)),
+            ) {
+                val fallback = R.drawable.folder_24px
+                AsyncImage(
+                    model = thumbnailUrls.getOrNull(index),
+                    contentDescription = "Thumbnail $index",
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = painterResource(fallback),
+                    error = painterResource(fallback)
+                )
             }
         }
     }

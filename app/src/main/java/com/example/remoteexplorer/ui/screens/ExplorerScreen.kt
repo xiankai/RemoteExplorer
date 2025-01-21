@@ -43,6 +43,7 @@ fun ExplorerScreen(
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val list = explorerViewModel.listState.collectAsState()
     val thumbnails = explorerViewModel.thumbnailsState.collectAsState()
+    val columnCount by explorerViewModel.columnCountState.collectAsState()
 
     val handleItemClick = { item: Item<LocalFile> -> {
         val path = Paths.get(item.item.parentPath, item.item.filename).toString()
@@ -126,7 +127,8 @@ fun ExplorerScreen(
                     ) },
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
-                    handleRefresh = { explorerViewModel.forceRefresh() }
+                    handleRefresh = { explorerViewModel.forceRefresh() },
+                    columnCount = columnCount,
                 )
             }
         },

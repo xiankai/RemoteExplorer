@@ -75,7 +75,8 @@ fun TagsScreen(
                     ) },
                     handleItemClick = handleItemClick,
                     handleLongItemClick = {{}},
-                    handleRefresh = { explorerViewModel.forceRefresh() }
+                    handleRefresh = { explorerViewModel.forceRefresh() },
+                    columnCount = 2,
                 )
             }
         },

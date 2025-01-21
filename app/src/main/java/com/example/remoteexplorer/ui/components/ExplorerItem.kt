@@ -3,9 +3,10 @@ package com.example.remoteexplorer.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,7 +30,8 @@ fun ExplorerItem(
     ) {
     Card(
         modifier = Modifier
-            .size(128.dp)
+            .fillMaxWidth()
+            .aspectRatio(1f)
             .combinedClickable(
                 onClick = handleItemClick,
                 onLongClick = handleLongItemClick,
@@ -44,7 +46,8 @@ fun ExplorerItem(
             type,
             urls,
             Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .aspectRatio(1f)
                 .padding(8.dp)
                 .weight(1f)
         )

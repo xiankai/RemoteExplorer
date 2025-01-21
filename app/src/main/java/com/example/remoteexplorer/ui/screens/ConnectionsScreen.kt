@@ -99,6 +99,7 @@ fun ConnectionsScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = {},
+                    columnCount = 12
                 )
             }
         },
