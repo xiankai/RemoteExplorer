@@ -12,6 +12,10 @@ Feature Priority
 - [ ] 3 Expand gallery folder view to fit all items
 - [x] 3 Performance when loading
 - [x] 3 Breadcrumbs not working
+- [ ] 1 Video support
+  - [ ] Support thumbnail via MediaDataSource
+  - [ ] Support range seeking via Range headers
+  - [ ] Support playback
 
 Get in my hands priority
 - [x] 0 Figure where I can package my app (Android Studio build APK)

@@ -200,12 +200,15 @@ class ExplorerViewModel(
                     }
 
                     Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
+                    val thumbnailQueryString = "?thumbnail=true"
                     val thumbnails = files.associate {
                         val fullPath = Paths.get(it.parentPath, it.filename).toString()
                         if (it.canHaveThumbnail) {
-                            it.filename to listOf(fullPath)
+                            it.filename to listOf(fullPath.plus(thumbnailQueryString))
                         } else if (it.type === FileType.FOLDER) {
-                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
+                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote).map {
+                                it.plus(thumbnailQueryString)
+                            }
                         } else {
                             it.filename to emptyList()
                         }

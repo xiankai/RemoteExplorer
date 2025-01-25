@@ -8,7 +8,7 @@ junit = "4.13.2"
 junitVersion = "1.2.1"
 kotlinBom = "1.8.0"
 kotlinxCoroutinesAndroid = "1.9.0"
-ktorServerJettyJakarta = "3.0.2"
+ktor = "3.0.2"
 lifecycleRuntime = "2.8.7"
 metadataExtractor = "2.19.0"
 smbj = "0.14.0"
@@ -31,7 +31,8 @@ junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlinBom" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinBom" }
-ktor-server-jetty-jakarta = { module = "io.ktor:ktor-server-jetty-jakarta", version.ref = "ktorServerJettyJakarta" }
+ktor-server-auto-head-response = { module = "io.ktor:ktor-server-auto-head-response", version.ref = "ktor" }
+ktor-server-jetty-jakarta = { module = "io.ktor:ktor-server-jetty-jakarta", version.ref = "ktor" }
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntime" }
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleRuntime" }
 material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }

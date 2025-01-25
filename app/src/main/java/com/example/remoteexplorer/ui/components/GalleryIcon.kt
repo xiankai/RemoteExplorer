@@ -1,3 +1,4 @@
+import android.media.MediaDataSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -30,7 +31,8 @@ fun GalleryIcon(
             ) {
                 val fallback = R.drawable.folder_24px
                 AsyncImage(
-                    model = thumbnailUrls.getOrNull(index),
+//                    model = thumbnailUrls.getOrNull(index),
+                    model = VideoThumbnail(),
                     contentDescription = "Thumbnail $index",
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = painterResource(fallback),
@@ -38,5 +40,19 @@ fun GalleryIcon(
                 )
             }
         }
+    }
+}
+
+class VideoThumbnail: MediaDataSource() {
+    override fun close() {
+        TODO("Not yet implemented")
+    }
+
+    override fun readAt(position: Long, buffer: ByteArray?, offset: Int, size: Int): Int {
+        TODO("Not yet implemented")
+    }
+
+    override fun getSize(): Long {
+        TODO("Not yet implemented")
     }
 }

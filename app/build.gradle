@@ -73,6 +73,7 @@ dependencies {
     // Server
     implementation libs.smbj
     implementation libs.ktor.server.jetty.jakarta
+    implementation libs.ktor.server.auto.head.response
 
     // DB
     implementation libs.room.common
