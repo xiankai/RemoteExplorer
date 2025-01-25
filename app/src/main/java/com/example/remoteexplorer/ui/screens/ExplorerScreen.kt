@@ -42,7 +42,7 @@ fun ExplorerScreen(
     val pathState by explorerViewModel.pathState.collectAsState()
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val list = explorerViewModel.listState.collectAsState()
-    val thumbnails = explorerViewModel.thumbnailsState.collectAsState()
+    val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val columnCount by explorerViewModel.columnCountState.collectAsState()
 
     val handleItemClick = { item: Item<LocalFile> -> {
@@ -122,7 +122,7 @@ fun ExplorerScreen(
                     items = list.value.map { Item(
                         name = it.filename,
                         type = it.type,
-                        urls = thumbnails.value.getOrDefault(it.filename, emptyList()).map { explorerViewModel.getUrl(it) },
+                        urls = thumbnails.getOrDefault(it.filename, emptyList()).map { explorerViewModel.getUrl(it) },
                         item = it,
                     ) },
                     handleItemClick = handleItemClick,
