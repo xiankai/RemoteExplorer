@@ -16,6 +16,7 @@ import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.gif.AnimatedImageDecoder
 import coil3.svg.SvgDecoder
+import coil3.util.DebugLogger
 import coil3.video.VideoFrameDecoder
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
 
         SingletonImageLoader.setSafe {
             ImageLoader.Builder(this)
+                .logger(DebugLogger())
                 .components {
                     add(AnimatedImageDecoder.Factory())
                     add(SvgDecoder.Factory())

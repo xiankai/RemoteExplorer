@@ -22,7 +22,6 @@ object Utils {
 
     fun canHaveThumbnail(filename: String): Boolean {
         val iconType = guessIconType(filename)
-        Log.d("CanHaveThumbnail", "$filename -> $iconType")
         return listOf(IconType.IMAGE, IconType.VIDEO).contains(iconType)
     }
 
