@@ -48,6 +48,7 @@ fun ConnectionsScreen(
 
     val handleItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> -> {
         if (item.item == null) {
+            explorerViewModel.editConnection(null)
             navHostController.navigate(Route.ConnectionDetailsRoute)
         } else {
             explorerViewModel.connect(

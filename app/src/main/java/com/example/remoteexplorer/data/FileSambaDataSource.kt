@@ -48,7 +48,7 @@ class SambaFileDataSource {
 
         val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
 
-        Log.d("FileSambaDataSource", "samba has opened the file. details: ${file}")
+        Log.d("FileSambaDataSource", "samba has opened the file. details: ${file.uncPath}")
 
         return file
     }

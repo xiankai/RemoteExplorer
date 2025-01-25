@@ -1,6 +1,7 @@
 package com.example.remoteexplorer.ui.viewmodels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.adobe.internal.xmp.XMPMetaFactory
@@ -190,6 +191,8 @@ class ExplorerViewModel(
                     _list.update {
                         files.sortedWith(getSortFunction(sortState.value))
                     }
+
+                    Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
                     val thumbnails = files.associate {
                         val fullPath = Paths.get(it.parentPath, it.filename).toString()
                         if (it.canHaveThumbnail) {
@@ -236,7 +239,7 @@ class ExplorerViewModel(
         }
     }
 
-    fun editConnection(connection: Connection) {
+    fun editConnection(connection: Connection?) {
         viewModelScope.launch {
             _connection.update {
                 connection
