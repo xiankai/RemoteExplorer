@@ -14,6 +14,9 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
+import coil3.gif.AnimatedImageDecoder
+import coil3.svg.SvgDecoder
+import coil3.video.VideoFrameDecoder
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.SambaFileDataSource
@@ -81,6 +84,11 @@ class MainActivity : ComponentActivity() {
 
         SingletonImageLoader.setSafe {
             ImageLoader.Builder(this)
+                .components {
+                    add(AnimatedImageDecoder.Factory())
+                    add(SvgDecoder.Factory())
+                    add(VideoFrameDecoder.Factory())
+                }
                 .diskCache {
                     DiskCache.Builder()
                         .directory(this.cacheDir.resolve("image_cache"))

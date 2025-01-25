@@ -1,5 +1,6 @@
 package com.example.remoteexplorer.utils
 
+import android.util.Log
 import com.example.remoteexplorer.ui.components.IconType
 import java.net.URLConnection
 
@@ -21,6 +22,7 @@ object Utils {
 
     fun canHaveThumbnail(filename: String): Boolean {
         val iconType = guessIconType(filename)
+        Log.d("CanHaveThumbnail", "$filename -> $iconType")
         return listOf(IconType.IMAGE, IconType.VIDEO).contains(iconType)
     }
 
