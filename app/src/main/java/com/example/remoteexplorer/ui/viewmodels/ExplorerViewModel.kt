@@ -12,6 +12,7 @@ import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.data.db.LocalTag
+import com.example.remoteexplorer.utils.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -191,6 +192,8 @@ class ExplorerViewModel(
                             searchState.value,
                             forceRemote
                         )
+                    }.map {
+                        it.copy(canHaveThumbnail = Utils.canHaveThumbnail(it.filename))
                     }
                     _list.update {
                         files.sortedWith(getSortFunction(sortState.value))

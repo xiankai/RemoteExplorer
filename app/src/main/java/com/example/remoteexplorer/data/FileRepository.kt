@@ -73,13 +73,15 @@ class FileRepository (
             if (forceRemote) {
                 updateRemoteMapping(connectionId, folder)
             } else {
-                val localList = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
+                val localList = localDatabaseDataSource.getFiles(connectionId, folder, null)
                 localList.ifEmpty {
                     updateRemoteMapping(connectionId, folder)
                 }
+            }.filter {
+                Utils.canHaveThumbnail(it.filename)
             }.map {
                 Paths.get(folder, it.filename).toString()
-            }
+            }.take(limit)
         }
     }
 
