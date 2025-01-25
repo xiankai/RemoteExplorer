@@ -88,6 +88,10 @@ class ExplorerViewModel(
     fun connect(connection: Connection) {
         viewModelScope.launch {
             try {
+                _connection.update {
+                    connection
+                }
+
                 fileRepository.connect(
                     connection.hostname,
                     connection.username,
@@ -198,11 +202,12 @@ class ExplorerViewModel(
                         if (it.canHaveThumbnail) {
                             it.filename to listOf(fullPath)
                         } else if (it.type === FileType.FOLDER) {
-                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4)
+                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
                         } else {
                             it.filename to emptyList()
                         }
                     }
+                    Log.d("ExplorerViewModel#ListFiles", "Thumbnails found: $thumbnails")
                     _thumbnails.update { thumbnails }
                 }
             }
@@ -210,11 +215,10 @@ class ExplorerViewModel(
     }
 
     fun forceRefresh() {
-        viewModelScope.launch {
-            val connection = connectionState.value
-            if (connection != null) {
-                listFiles(connection.id, true)
-            }
+        val connection = connectionState.value
+        Log.d("ForceRefresh", "Refreshing for connection: $connection")
+        if (connection != null) {
+            listFiles(connection.id, true)
         }
     }
 

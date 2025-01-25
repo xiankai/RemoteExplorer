@@ -68,11 +68,15 @@ class FileRepository (
         }
     }
 
-    suspend fun getFolderThumbnails(connectionId: Int, folder: String, limit: Int): List<String> {
+    suspend fun getFolderThumbnails(connectionId: Int, folder: String, limit: Int, forceRemote: Boolean): List<String> {
         return withContext(dispatcher) {
-            val localList = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
-            localList.ifEmpty {
+            if (forceRemote) {
                 updateRemoteMapping(connectionId, folder)
+            } else {
+                val localList = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
+                localList.ifEmpty {
+                    updateRemoteMapping(connectionId, folder)
+                }
             }.map {
                 Paths.get(folder, it.filename).toString()
             }
