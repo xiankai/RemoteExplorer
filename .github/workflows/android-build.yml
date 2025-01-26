@@ -1,0 +1,55 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Download dependencies
+        run: ./gradlew dependencies
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Decode keystore (for release build)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > my-release-key.jks
+
+      - name: Build Release APK
+        run: |
+          ./gradlew assembleRelease -Pandroid.injected.signing.store.file=my-release-key.jks \
+                                    -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+                                    -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+                                    -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: Debug APK
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: Release APK
+          path: app/build/outputs/apk/release/*.apk
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
