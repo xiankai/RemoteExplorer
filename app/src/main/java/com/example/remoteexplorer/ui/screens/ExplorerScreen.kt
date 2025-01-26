@@ -23,11 +23,13 @@ import androidx.navigation.NavHostController
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.ui.components.Explorer
+import com.example.remoteexplorer.ui.components.IconType
 import com.example.remoteexplorer.ui.components.Item
 import com.example.remoteexplorer.ui.components.Route
 import com.example.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.example.remoteexplorer.ui.screens.header.ExplorerButtons
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.example.remoteexplorer.utils.Utils
 import java.net.URLConnection
 import java.nio.file.Paths
 
@@ -53,7 +55,8 @@ fun ExplorerScreen(
                 explorerViewModel.changePath(path)
             }
             FileType.FILE -> {
-                if (item.item.canHaveThumbnail) {
+                val iconType = Utils.guessIconType(item.item.filename)
+                if (item.item.canHaveThumbnail && iconType != IconType.VIDEO) {
                     val browsableImages = list.value.filter { it.canHaveThumbnail }
                     val initialBrowsableImage = browsableImages.indexOf(item.item)
                     explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
