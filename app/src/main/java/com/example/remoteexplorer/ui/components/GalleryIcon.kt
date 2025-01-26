@@ -1,4 +1,3 @@
-import android.media.MediaDataSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -7,52 +6,37 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.example.remoteexplorer.R
-import kotlin.math.min
+import com.example.remoteexplorer.ui.components.ImageIcon
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
 @Composable
 fun GalleryIcon(
+    explorerViewModel: ExplorerViewModel,
+    thumbnailUrls: List<String>,
     modifier: Modifier = Modifier,
-    thumbnailUrls: List<String>, // List of thumbnail image URLs
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = modifier,
     ) {
-        items(min(4, thumbnailUrls.size)) { index ->
+        items(4) { index ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .background(Color.LightGray, shape = RoundedCornerShape(2.dp)),
+                    .background(Color(0xFFFFD700), shape = RoundedCornerShape(4.dp)),
             ) {
-                val fallback = R.drawable.folder_24px
-                AsyncImage(
-//                    model = thumbnailUrls.getOrNull(index),
-                    model = VideoThumbnail(),
-                    contentDescription = "Thumbnail $index",
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = painterResource(fallback),
-                    error = painterResource(fallback)
-                )
+                val filename = thumbnailUrls.getOrNull(index)
+                if (filename != null) {
+                    AsyncImage(
+                        model = ImageIcon(explorerViewModel, thumbnailUrls[index], modifier),
+                        contentDescription = filename,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
-    }
-}
-
-class VideoThumbnail: MediaDataSource() {
-    override fun close() {
-        TODO("Not yet implemented")
-    }
-
-    override fun readAt(position: Long, buffer: ByteArray?, offset: Int, size: Int): Int {
-        TODO("Not yet implemented")
-    }
-
-    override fun getSize(): Long {
-        TODO("Not yet implemented")
     }
 }

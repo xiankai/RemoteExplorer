@@ -1,6 +1,5 @@
 package com.example.remoteexplorer.utils
 
-import android.util.Log
 import com.example.remoteexplorer.ui.components.IconType
 import java.net.URLConnection
 

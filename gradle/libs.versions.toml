@@ -4,6 +4,7 @@ coil = "3.0.4"
 composeBom = "2025.01.00"
 coreKtx = "1.15.0"
 espressoCore = "3.6.1"
+ffmpegmediametadataretrieverCore = "1.0.19"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 kotlinBom = "1.8.0"
@@ -27,6 +28,8 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
 ext-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
+ffmpegmediametadataretriever-core = { module = "com.github.wseemann:FFmpegMediaMetadataRetriever-core", version.ref = "ffmpegmediametadataretrieverCore" }
+ffmpegmediametadataretriever-native = { module = "com.github.wseemann:FFmpegMediaMetadataRetriever-native", version.ref = "ffmpegmediametadataretrieverCore" }
 junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlinBom" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }

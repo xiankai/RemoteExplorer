@@ -35,14 +35,14 @@ fun ConnectionsScreen(
         Item(
             name = it.name,
             type = FileType.CONNECTION,
-            urls = emptyList(),
+            thumbnails = emptyList(),
             item = it,
         )
     }
     val newConnection: Item<Connection?> = Item(
         name = "Add Connection",
         type = FileType.ADD_CONNECTION,
-        urls = emptyList(),
+        thumbnails = emptyList(),
         item = null,
     )
 
@@ -96,6 +96,7 @@ fun ConnectionsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
+                    explorerViewModel= explorerViewModel,
                     items = connectionItems.plus(newConnection),
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,

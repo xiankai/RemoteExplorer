@@ -200,15 +200,12 @@ class ExplorerViewModel(
                     }
 
                     Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
-                    val thumbnailQueryString = "?thumbnail=true"
                     val thumbnails = files.associate {
                         val fullPath = Paths.get(it.parentPath, it.filename).toString()
                         if (it.canHaveThumbnail) {
-                            it.filename to listOf(fullPath.plus(thumbnailQueryString))
+                            it.filename to listOf(fullPath)
                         } else if (it.type === FileType.FOLDER) {
-                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote).map {
-                                it.plus(thumbnailQueryString)
-                            }
+                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
                         } else {
                             it.filename to emptyList()
                         }
@@ -324,5 +321,13 @@ class ExplorerViewModel(
         _columnCount.update {
             columnCount
         }
+    }
+
+    fun openFileRange(fullPath: String, buffer: ByteArray, start: Int, end: Int): Int {
+        return fileRepository.openFileRange(fullPath, buffer, start, end)
+    }
+
+    fun getFileSize(fullPath: String): Long {
+        return fileRepository.getFileSize(fullPath)
     }
 }

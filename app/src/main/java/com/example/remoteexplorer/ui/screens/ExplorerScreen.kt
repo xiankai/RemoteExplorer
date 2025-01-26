@@ -119,10 +119,11 @@ fun ExplorerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
+                    explorerViewModel = explorerViewModel,
                     items = list.value.map { Item(
                         name = it.filename,
                         type = it.type,
-                        urls = thumbnails.getOrDefault(it.filename, emptyList()).map { explorerViewModel.getUrl(it) },
+                        thumbnails = thumbnails.getOrDefault(it.filename, emptyList()),
                         item = it,
                     ) },
                     handleItemClick = handleItemClick,

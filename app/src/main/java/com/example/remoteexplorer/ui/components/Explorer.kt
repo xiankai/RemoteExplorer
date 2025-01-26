@@ -12,19 +12,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.example.remoteexplorer.data.db.FileType
+import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class Item<T> (
     val name: String,
     val type: FileType,
-    val urls: List<String>,
+    val thumbnails: List<String>,
     val item: T,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T>Explorer(
+    explorerViewModel: ExplorerViewModel,
     items: List<Item<T>>,
     handleItemClick: (Item<T>) -> () -> Unit,
     handleLongItemClick: (Item<T>) -> () -> Unit,
@@ -50,11 +52,12 @@ fun <T>Explorer(
         ) {
             items(items) { item ->
                 ExplorerItem(
-                    name = item.name,
-                    type = item.type,
-                    urls = item.urls,
-                    handleItemClick = handleItemClick(item),
-                    handleLongItemClick = handleLongItemClick(item),
+                    explorerViewModel,
+                    item.name,
+                    item.type,
+                    item.thumbnails,
+                    handleItemClick(item),
+                    handleLongItemClick(item),
                 )
             }
         }

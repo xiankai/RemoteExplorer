@@ -67,10 +67,11 @@ fun TagsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
+                    explorerViewModel = explorerViewModel,
                     items = tags.value.map { Item(
                         name = it.tag,
                         type = FileType.FILE, // TODO: Add FOLDER for supporting nested tags
-                        urls = emptyList(), // TODO: Add the thumbnails for tags
+                        thumbnails = emptyList(), // TODO: Add the thumbnails for tags
                         item = it,
                     ) },
                     handleItemClick = handleItemClick,
