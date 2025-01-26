@@ -55,9 +55,11 @@ fun ExplorerScreen(
                 explorerViewModel.changePath(path)
             }
             FileType.FILE -> {
-                val iconType = Utils.guessIconType(item.item.filename)
-                if (item.item.canHaveThumbnail && iconType != IconType.VIDEO) {
-                    val browsableImages = list.value.filter { it.canHaveThumbnail }
+                val isBrowsable = { item: LocalFile ->
+                    item.canHaveThumbnail && Utils.guessIconType(item.filename) != IconType.VIDEO
+                }
+                if (isBrowsable(item.item)) {
+                    val browsableImages = list.value.filter { isBrowsable(it) }
                     val initialBrowsableImage = browsableImages.indexOf(item.item)
                     explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                     navHostController.navigate(Route.ImageBrowserRoute)
