@@ -1,9 +1,13 @@
 import android.media.MediaDataSource
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
-class VideoThumbnail(private val explorerViewModel: ExplorerViewModel, private val fullPath: String): MediaDataSource() {
+class VideoDataSource(
+    private val explorerViewModel: ExplorerViewModel,
+    private val fullPath: String,
+    private val closeHandler: () -> Unit,
+): MediaDataSource() {
     override fun close() {
-        // TODO: Not yet implemented
+        closeHandler()
     }
 
     override fun readAt(position: Long, buffer: ByteArray?, offset: Int, size: Int): Int {

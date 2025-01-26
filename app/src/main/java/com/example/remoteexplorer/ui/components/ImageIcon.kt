@@ -1,7 +1,7 @@
 package com.example.remoteexplorer.ui.components
 
 import FallbackIcon
-import VideoThumbnail
+import VideoDataSource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -37,7 +37,7 @@ fun ImageIcon(
     val context = LocalContext.current
     val model = when (iconType) {
         IconType.VIDEO -> ImageRequest.Builder(context)
-            .data(VideoThumbnail(explorerViewModel, fullPath))
+            .data(VideoDataSource(explorerViewModel, fullPath, {}))
             .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
             .build()
         else -> explorerViewModel.getUrl(fullPath)

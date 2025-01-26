@@ -46,10 +46,13 @@ class SambaFileDataSource {
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
         val createOptions = setOf(SMB2CreateOptions.FILE_WRITE_THROUGH)
 
-        val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
-
-        Log.d("FileSambaDataSource", "samba has opened the file. details: ${file.uncPath}")
-
-        return file
+        try {
+            val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
+            Log.d("FileSambaDataSource", "samba has opened the file. details: ${file.uncPath}")
+            return file
+        } catch (e: Exception) {
+            Log.e("FileSambaDataSource", "samba failed to open $path. details: $e")
+            throw e
+        }
     }
 }
