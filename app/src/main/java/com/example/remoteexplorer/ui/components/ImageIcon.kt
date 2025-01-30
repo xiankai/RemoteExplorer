@@ -36,10 +36,12 @@ fun ImageIcon(
 
     val context = LocalContext.current
     val model = when (iconType) {
-        IconType.VIDEO -> ImageRequest.Builder(context)
-            .data(VideoDataSource(explorerViewModel, fullPath, {}))
-            .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
-            .build()
+        IconType.VIDEO ->
+            explorerViewModel.getUrl(fullPath)
+//            ImageRequest.Builder(context)
+//            .data(VideoDataSource(explorerViewModel, fullPath, {}))
+//            .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
+//            .build()
         else -> explorerViewModel.getUrl(fullPath)
     }
 
