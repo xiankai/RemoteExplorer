@@ -1,23 +1,23 @@
 package com.example.remoteexplorer.ui.components
 
 import FallbackIcon
-import VideoDataSource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.video.VideoFrameDecoder
 import com.example.remoteexplorer.R
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.Utils
+import com.github.panpf.sketch.AsyncImage
+import com.github.panpf.sketch.rememberAsyncImageState
+import com.github.panpf.sketch.request.ComposableImageOptions
+import com.github.panpf.sketch.request.placeholder
+import com.github.panpf.sketch.request.error
 
 @Composable
 fun ImageIcon(
     explorerViewModel: ExplorerViewModel,
-    fullPath: String?, modifier: Modifier = Modifier) {
+    fullPath: String?,
+    modifier: Modifier = Modifier
+) {
 
     if (fullPath == null) {
         return FallbackIcon(null, modifier)
@@ -34,24 +34,13 @@ fun ImageIcon(
         else -> R.drawable.draft_24px
     }
 
-    val context = LocalContext.current
-    val model = when (iconType) {
-        IconType.VIDEO ->
-            explorerViewModel.getUrl(fullPath)
-//            ImageRequest.Builder(context)
-//            .data(VideoDataSource(explorerViewModel, fullPath, {}))
-//            .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
-//            .build()
-        else -> explorerViewModel.getUrl(fullPath)
-    }
-
     AsyncImage(
-        model = model,
-        placeholder = painterResource(fallback),
+        uri = explorerViewModel.getUrl(fullPath),
+        state = rememberAsyncImageState(ComposableImageOptions {
+            placeholder(fallback)
+            error(R.drawable.sentiment_very_dissatisfied_24px)
+        }),
         contentDescription = filename,
-        contentScale = ContentScale.Fit,
         modifier = modifier,
-        fallback = painterResource(fallback),
-        error = painterResource(fallback),
     )
 }

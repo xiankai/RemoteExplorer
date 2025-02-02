@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import androidx.room.Upsert
 import java.util.Date
 
@@ -39,11 +40,11 @@ interface LocalDatabaseDao {
     @Insert(entity = FileTagRelation::class, onConflict = OnConflictStrategy.IGNORE)
     fun addFileTagRelation(relation: FileTagRelation)
 
+    @Query("UPDATE LocalFile SET status = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
+    fun updateFileStatus(connectionId: Int, parentPath: String, filename: String, status: LocalFileStatus)
+
     @Transaction
-    fun updateFileTags(file: LocalFile, tags: List<String>) {
-        val connectionId = file.connectionId
-        val parentPath = file.parentPath
-        val filename = file.filename
+    fun updateFileTags(connectionId: Int, parentPath: String, filename: String, tagFilename: String, tags: List<String>) {
         tags.map {
             addTag(LocalTag(it))
             addFileTagRelation(
@@ -55,7 +56,14 @@ interface LocalDatabaseDao {
                 )
             )
         }
+        updateFileStatus(connectionId, parentPath, tagFilename, LocalFileStatus.SUCCESS)
     }
+
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status")
+    fun getUnprocessedTagFiles(connectionId: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
+
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type")
+    fun getAllTagFiles(connectionId: Int, type: FileType = FileType.TAG): List<LocalFile>
 }
 
 @Entity(primaryKeys = [
@@ -68,7 +76,9 @@ data class LocalFile(
     val parentPath: String,
     val filename: String,
     val type: FileType,
-    val canHaveThumbnail: Boolean,
+    @Deprecated("Using Utils.canHaveThumbnail instead") val canHaveThumbnail: Boolean,
+//    val thumbnailPath: String?,
+    val status: LocalFileStatus = LocalFileStatus.UNPROCESSED,
     val lastModified: Date,
 )
 
@@ -91,5 +101,9 @@ data class FileTagRelation(
 )
 
 enum class FileType {
-    FILE, FOLDER, CONNECTION, ADD_CONNECTION
+    FILE, FOLDER, TAG, CONNECTION, ADD_CONNECTION
+}
+
+enum class LocalFileStatus {
+    UNPROCESSED, SUCCESS, ERROR, REMOVED
 }

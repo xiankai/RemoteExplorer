@@ -14,10 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import com.example.remoteexplorer.R
+import com.github.panpf.sketch.AsyncImage
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import java.nio.file.Paths
 
@@ -36,13 +34,13 @@ fun ImageBrowserScreen(
             val url = explorerViewModel.getUrl(path.toString())
             val contentDescription = image.filename
             AsyncImage(
-                model = url,
+                uri = url,
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.LightGray, shape = RoundedCornerShape(2.dp)),
-                placeholder = painterResource(R.drawable.image_24px),
-                error = painterResource(R.drawable.sentiment_very_dissatisfied_24px)
+//                placeholder = painterResource(R.drawable.image_24px),
+//                error = painterResource(R.drawable.sentiment_very_dissatisfied_24px)
             )
         }
 

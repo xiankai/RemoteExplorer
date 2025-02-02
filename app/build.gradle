@@ -83,11 +83,12 @@ dependencies {
     ksp libs.room.compiler
 
     // Image Fetching
-    implementation libs.coil.compose
-    implementation libs.coil.network.okhttp
-    implementation libs.coil.gif
-    implementation libs.coil.svg
-    implementation libs.coil.video
+    implementation libs.sketch.compose
+    implementation libs.sketch.compose.resources
+    implementation libs.sketch.compose.resources
+    implementation libs.sketch.animated.gif
+    implementation libs.sketch.video.ffmpeg
+    implementation libs.sketch.http
 
     // Video Handling
     implementation libs.ffmpegmediametadataretriever.core
