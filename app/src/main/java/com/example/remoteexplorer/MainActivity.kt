@@ -14,6 +14,7 @@ import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.SambaFileDataSource
 import com.example.remoteexplorer.data.ServerRepository
+import com.example.remoteexplorer.data.TagRepository
 import com.example.remoteexplorer.data.db.AppDatabase
 import com.example.remoteexplorer.data.db.ConnectionDao
 import com.example.remoteexplorer.data.db.LocalDatabaseDao
@@ -46,6 +47,11 @@ class ExplorerViewModelFactory(
             sambaFileDataSource,
             defaultDispatcher
         )
+        val tagRepository = TagRepository(
+            fileRepository,
+            localDatabaseDataSource,
+            defaultDispatcher
+        )
         val connectionDataSource = ConnectionDataSource(
             db.connectionDao()
         )
@@ -55,24 +61,10 @@ class ExplorerViewModelFactory(
 
         return ExplorerViewModel(application,
             fileRepository,
-                    serverRepository,
-                    connectionRepository,
-            ) as T
-    }
-}
-
-class RequestHeaderInterceptor() : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response {
-        val filename = chain.request().url.pathSegments.last()
-        val isVideoRequest = Utils.guessIconType(filename) == IconType.VIDEO
-        val isThumbnailRequest = chain.request().url.queryParameter("thumbnail") != null
-        if (isVideoRequest && isThumbnailRequest) {
-            val request = chain.request().newBuilder()
-                .addHeader("Range", "bytes=0-65536")
-                .build()
-            return chain.proceed(request)
-        }
-        return chain.proceed(chain.request())
+            serverRepository,
+            connectionRepository,
+            tagRepository,
+        ) as T
     }
 }
 

@@ -37,7 +37,11 @@ class FileRepository (
                 connectionId = connectionId,
                 filename = it.filename,
                 parentPath = parentPath,
-                type = if (Utils.isDirectory(it.fileAttributes)) { FileType.FOLDER } else { FileType.FILE },
+                type = when {
+                    Utils.isDirectory(it.fileAttributes) -> FileType.FOLDER
+                    it.filename.endsWith(".xmp", true) -> FileType.TAG
+                    else -> FileType.FILE
+                },
                 canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
                 lastModified = it.lastModified,
             )
@@ -85,19 +89,8 @@ class FileRepository (
         }
     }
 
-    suspend fun getTags(): List<LocalTag> {
-        return localDatabaseDataSource.getTags()
-    }
-
     suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
         return localDatabaseDataSource.getFilesWithTag(tag)
-    }
-
-    suspend fun updateFileTags(
-        file: LocalFile,
-        tags: List<String>
-    ) {
-        localDatabaseDataSource.updateFileTags(file, tags)
     }
 
     fun openFileDirectly(fullPath: String): File {

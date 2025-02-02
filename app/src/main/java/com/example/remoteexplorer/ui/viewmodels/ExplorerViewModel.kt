@@ -4,10 +4,10 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.adobe.internal.xmp.XMPMetaFactory
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.ServerRepository
+import com.example.remoteexplorer.data.TagRepository
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
@@ -36,6 +36,7 @@ class ExplorerViewModel(
     private val fileRepository: FileRepository,
     private val serverRepository: ServerRepository,
     private val connectionRepository: ConnectionRepository,
+    private val tagRepository: TagRepository,
 ): AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -77,7 +78,7 @@ class ExplorerViewModel(
             }
         }
         viewModelScope.launch {
-            val tags = fileRepository.getTags()
+            val tags = tagRepository.getTags()
             _tags.update {
                 tags
             }
@@ -169,23 +170,24 @@ class ExplorerViewModel(
     }
 
     // Job to track the running coroutine
-    private var currentJob: Job? = null
+    private var listFileJob: Job? = null
+    private var thumbnailJob: Job? = null
+    private var tagJob: Job? = null
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             pathState.collect { path ->
                 // Cancel the previous coroutine if it's still running
-                currentJob?.cancel()
+                listFileJob?.cancel()
+                thumbnailJob?.cancel()
+                tagJob?.cancel()
 
                 // Launch a new coroutine for the new path
-                currentJob = launch {
+                listFileJob = launch {
                     val files = if (path.startsWith("Tag: ")) {
                         val tag = path.substringAfter("Tag: ")
                         fileRepository.getFilesWithTag(LocalTag(tag))
                     } else {
-                        // TODO: scan tags as a background job instead
-                        scanTags(connectionId, path, forceRemote)
-
                         fileRepository.listFiles(
                             connectionId,
                             path,
@@ -199,19 +201,25 @@ class ExplorerViewModel(
                         files.sortedWith(getSortFunction(sortState.value))
                     }
 
-                    Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
-                    val thumbnails = files.associate {
-                        val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                        if (it.canHaveThumbnail) {
-                            it.filename to listOf(fullPath)
-                        } else if (it.type === FileType.FOLDER) {
-                            it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
-                        } else {
-                            it.filename to emptyList()
+                    thumbnailJob = launch {
+                        Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
+                        val thumbnails = files.associate {
+                            val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                            if (it.canHaveThumbnail) {
+                                it.filename to listOf(fullPath)
+                            } else if (it.type === FileType.FOLDER) {
+                                it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
+                            } else {
+                                it.filename to emptyList()
+                            }
                         }
+                        Log.d("ExplorerViewModel#ListFiles", "Thumbnails found: $thumbnails")
+                        _thumbnails.update { thumbnails }
                     }
-                    Log.d("ExplorerViewModel#ListFiles", "Thumbnails found: $thumbnails")
-                    _thumbnails.update { thumbnails }
+
+                    tagJob = launch {
+                        tagRepository.scanTags(connectionId, forceRemote)
+                    }
                 }
             }
         }
@@ -281,30 +289,6 @@ class ExplorerViewModel(
 
     private val _tags = MutableStateFlow(emptyList<LocalTag>())
     val tagsState = _tags.asStateFlow()
-
-    private fun scanTags(connectionId: Int, path: String, forceRemote: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val files = fileRepository.listFiles(connectionId, path, null, forceRemote)
-            val tagFiles = files.filter { it.filename.endsWith(".xmp", true) }
-            tagFiles.forEach {
-                val tagPath = Paths.get(it.parentPath, it.filename).toString()
-                val tagFileHandle = fileRepository.openFileDirectly(tagPath)
-                val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
-
-                // Using Dublin Core namespace as they are the most common metadata category
-                val namespace = "http://purl.org/dc/elements/1.1/"
-                val propertyName = "subject"
-
-                // XML array starts from 1-index
-                val tags = mutableListOf<String>()
-                for (i in 1..xmpMeta.countArrayItems(namespace, propertyName)) {
-                    val tag = xmpMeta.getArrayItem(namespace, propertyName, i).value
-                    tags.add(tag)
-                }
-                fileRepository.updateFileTags(it, tags)
-            }
-        }
-    }
 
     fun getFilesWithTag(tag: LocalTag) {
         viewModelScope.launch {
