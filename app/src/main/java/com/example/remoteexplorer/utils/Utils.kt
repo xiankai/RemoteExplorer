@@ -21,7 +21,9 @@ object Utils {
 
     fun canHaveThumbnail(filename: String): Boolean {
         val iconType = guessIconType(filename)
-        return listOf(IconType.IMAGE, IconType.VIDEO).contains(iconType)
+//        return listOf(IconType.IMAGE, IconType.VIDEO).contains(iconType)
+        // TODO: Disable video thumbnails for now until I can get ffmpegmediaretriever + setdatasource + custom fetcher in sketch
+        return listOf(IconType.IMAGE).contains(iconType)
     }
 
     // https://github.com/hierynomus/smbj/pull/754/files#diff-b37109dad0e9cc457d7a4279146071eaf83a70c44557ad87a3733b4a9e1020f8
