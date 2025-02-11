@@ -16,8 +16,10 @@ class TagRepository (
     suspend fun scanTags(connectionId: Int, forceRemote: Boolean) {
         withContext(dispatcher) {
             val tagFiles = localDatabaseDataSource.getTagFiles(connectionId, forceRemote)
+            Log.d("TagRepository", "Scanning ${tagFiles.size} tags")
             tagFiles.forEach {
-                val tagPath = Paths.get(it.parentPath, it.filename).toString()
+                val tagFile = it.tagFile
+                val tagPath = Paths.get(tagFile.parentPath, tagFile.filename).toString()
                 val tagFileHandle = fileRepository.openFileDirectly(tagPath)
                 val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
 
@@ -32,17 +34,9 @@ class TagRepository (
                     tags.add(tag)
                 }
 
-                // Getting the corresponding file
-                val fileNamespace = "http://ns.adobe.com/xap/1.0/mm/"
-                val filePropertyName = "DerivedFrom"
-
-                val derivedFrom = xmpMeta.getPropertyString(fileNamespace, filePropertyName)
-                if (derivedFrom != null) {
-                    localDatabaseDataSource.updateFileTags(connectionId, it.parentPath, it.filename, derivedFrom, tags)
-                } else {
-                    Log.d("TagRepository", "No derivedFrom found for $tagPath")
-                }
+                localDatabaseDataSource.updateFileTags(connectionId, tagFile.parentPath, it.correspondingFilename, tagFile.filename, tags)
             }
+            Log.d("TagRepository", "Scanned ${tagFiles.size} tags")
         }
     }
 

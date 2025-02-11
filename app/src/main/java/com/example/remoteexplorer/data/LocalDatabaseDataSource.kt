@@ -1,6 +1,7 @@
 import com.example.remoteexplorer.data.db.LocalDatabaseDao
 import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.data.db.LocalTag
+import com.example.remoteexplorer.data.db.TagFileWithCorrespondingFilename
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -44,7 +45,7 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateFileTags(connectionId, parentPath, filename, tagFilename, tags)
     }
 
-    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean): List<LocalFile> {
+    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean): List<TagFileWithCorrespondingFilename> {
         return withContext(dispatcher) {
             if (forceRemote) {
                 localDatabaseDao.getAllTagFiles(connectionId)
