@@ -1,5 +1,6 @@
 package com.example.remoteexplorer.ui.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -69,7 +70,11 @@ fun ExplorerScreen(
                     val url = explorerViewModel.getUrl(path)
                     intent.setDataAndType(Uri.parse(url), mimeType)
 
-                    context.startActivity(intent)
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(context, "No application found for file type: $mimeType", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             else -> {}
