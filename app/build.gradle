@@ -88,11 +88,7 @@ dependencies {
     implementation libs.sketch.compose.resources
     implementation libs.sketch.animated.gif
     implementation libs.sketch.video.ffmpeg
-    implementation libs.sketch.http
-
     // Video Handling
-    implementation libs.ffmpegmediametadataretriever.core
-    implementation libs.ffmpegmediametadataretriever.native
 
     // Tagging
     implementation libs.metadata.extractor
