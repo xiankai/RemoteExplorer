@@ -87,6 +87,7 @@ dependencies {
     implementation libs.sketch.compose.resources
     implementation libs.sketch.compose.resources
     implementation libs.sketch.animated.gif
+    implementation libs.sketch.http
     implementation libs.sketch.video.ffmpeg
     // Video Handling
 
