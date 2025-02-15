@@ -21,6 +21,8 @@ import com.example.remoteexplorer.data.db.LocalDatabaseDao
 import com.example.remoteexplorer.ui.components.MainView
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.PropertiesLoader
+import com.github.panpf.sketch.Sketch
+import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
@@ -91,6 +93,14 @@ class MainActivity : ComponentActivity() {
         ).fallbackToDestructiveMigration().build()
         connectionDao = database.connectionDao()
         localDatabaseDao = database.localDatabaseDao()
+
+        Sketch.Builder(applicationContext).apply {
+            downloadCacheOptions(
+                DiskCache.Options(
+                    maxSize = 4L * 1024 * 1024 * 1024
+                )
+            )
+        }.build()
 
         setContent {
             MainView(explorerViewModel = explorerViewModel)
