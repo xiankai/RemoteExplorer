@@ -162,11 +162,11 @@ class ExplorerViewModel(
     }
 
     fun goBack() {
-        _path.update {
-            _navigationStack.value.lastOrNull().orEmpty()
-        }
         _navigationStack.update {
             it.dropLast(1)
+        }
+        _path.update {
+            _navigationStack.value.lastOrNull().orEmpty()
         }
     }
 
