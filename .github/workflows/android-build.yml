@@ -13,13 +13,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up 13JDK
-        uses: actions/setup-java@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Download dependencies
         run: ./gradlew dependencies
@@ -28,7 +28,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Debug APK
           path: app/build/outputs/apk/debug/*.apk
