@@ -3,10 +3,12 @@ package com.example.remoteexplorer.data
 import LocalDatabaseDataSource
 import android.util.Log
 import com.adobe.internal.xmp.XMPMetaFactory
-import com.example.remoteexplorer.data.db.LocalTag
+import com.example.remoteexplorer.data.db.LocalTagWithMetadata
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.nio.file.Paths
+
+const val tagPrefix = "Tag: "
 
 class TagRepository (
     private val fileRepository: FileRepository,
@@ -39,7 +41,7 @@ class TagRepository (
         }
     }
 
-    suspend fun getTags(): List<LocalTag> {
+    suspend fun getTags(): List<LocalTagWithMetadata> {
         return localDatabaseDataSource.getTags()
     }
 }

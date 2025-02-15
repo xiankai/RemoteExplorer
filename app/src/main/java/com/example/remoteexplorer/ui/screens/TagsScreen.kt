@@ -1,6 +1,5 @@
 package com.example.remoteexplorer.ui.screens
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,10 +13,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalTag
+import com.example.remoteexplorer.data.db.LocalTagWithMetadata
+import com.example.remoteexplorer.data.tagPrefix
 import com.example.remoteexplorer.ui.components.Explorer
 import com.example.remoteexplorer.ui.components.Item
 import com.example.remoteexplorer.ui.screens.header.TagButtons
@@ -30,11 +32,11 @@ fun TagsScreen(
     onDismissDialog: () -> Unit,
 ) {
     val tags = explorerViewModel.tagsState.collectAsState()
+    val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
+    val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
 
-    Log.i("TagsScreen", "Tags: ${tags.value}")
-
-    val handleItemClick = { item: Item<LocalTag> -> {
-        explorerViewModel.getFilesWithTag(item.item)
+    val handleItemClick = { item: Item<LocalTagWithMetadata> -> {
+        explorerViewModel.getFilesWithTag(LocalTag(item.item.tag))
         onDismissDialog()
     } }
 
@@ -69,15 +71,16 @@ fun TagsScreen(
                 Explorer(
                     explorerViewModel = explorerViewModel,
                     items = tags.value.map { Item(
-                        name = it.tag,
+                        name = "${it.tag} (${it.count})",
                         type = FileType.FILE, // TODO: Add FOLDER for supporting nested tags
-                        thumbnails = emptyList(), // TODO: Add the thumbnails for tags
+                        thumbnails = thumbnails.getOrDefault("${tagPrefix}${it.tag}", emptyList()),
                         item = it,
                     ) },
                     handleItemClick = handleItemClick,
                     handleLongItemClick = {{}},
                     handleRefresh = { explorerViewModel.forceRefresh() },
-                    columnCount = 2,
+                    columnCount = 4,
+                    viewType = viewType
                 )
             }
         },

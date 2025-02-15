@@ -15,7 +15,9 @@ import java.util.Date
 interface LocalDatabaseDao {
     @Query("SELECT LocalFile.* FROM LocalFile " +
             "INNER JOIN FileTagRelation " +
-            "ON LocalFile.filename = FileTagRelation.filename " +
+            "ON LocalFile.connectionId = FileTagRelation.connectionId " +
+            "AND LocalFile.parentPath = FileTagRelation.parentPath " +
+            "AND LocalFile.filename = FileTagRelation.filename " +
             "WHERE FileTagRelation.tag = :tag")
     fun getFilesWithTag(tag: String): List<LocalFile>
 
@@ -28,8 +30,10 @@ interface LocalDatabaseDao {
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND canHaveThumbnail = TRUE LIMIT :limit")
     fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int): List<LocalFile>
 
-    @Query("SELECT * FROM LocalTag")
-    fun getTags(): List<LocalTag>
+    @Query("SELECT LocalTag.tag, COUNT(FileTagRelation.filename) AS count FROM LocalTag " +
+            "LEFT JOIN FileTagRelation ON LocalTag.tag = FileTagRelation.tag " +
+            "GROUP BY LocalTag.tag")
+    fun getTags(): List<LocalTagWithMetadata>
 
     @Upsert(entity = LocalFile::class)
     fun updateFileList(files: List<LocalFile>)
@@ -100,6 +104,12 @@ data class LocalFile(
 @Entity
 data class LocalTag(
     @PrimaryKey val tag: String,
+)
+
+@Entity
+data class LocalTagWithMetadata(
+    val tag: String,
+    val count: Int,
 )
 
 @Entity(primaryKeys = [

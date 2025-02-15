@@ -84,9 +84,17 @@ class FileRepository (
             }.filter {
                 Utils.canHaveThumbnail(it.filename)
             }.map {
-                Paths.get(folder, it.filename).toString()
+                Paths.get(it.parentPath, it.filename).toString()
             }.take(limit)
         }
+    }
+
+    suspend fun getTagThumbnails(tag: LocalTag, limit: Int): List<String> {
+        return localDatabaseDataSource.getFilesWithTag(tag).filter {
+            Utils.canHaveThumbnail(it.filename)
+        }.map {
+            Paths.get(it.parentPath, it.filename).toString()
+        }.take(limit)
     }
 
     suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {

@@ -1,8 +1,11 @@
 package com.example.remoteexplorer.ui.components
 
+import ListViewItem
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -13,6 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.example.remoteexplorer.ui.viewmodels.ViewType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -31,6 +35,7 @@ fun <T>Explorer(
     handleItemClick: (Item<T>) -> () -> Unit,
     handleLongItemClick: (Item<T>) -> () -> Unit,
     handleRefresh: () -> Unit,
+    viewType: ViewType = ViewType.GRID,
     columnCount: Int,
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
@@ -47,18 +52,29 @@ fun <T>Explorer(
             }
         },
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columnCount)
-        ) {
-            items(items) { item ->
-                ExplorerItem(
+        if (viewType == ViewType.LIST) {
+            LazyColumn {
+                items(items) { item -> ListViewItem(
                     explorerViewModel,
                     item.name,
                     item.type,
                     item.thumbnails,
                     handleItemClick(item),
                     handleLongItemClick(item),
-                )
+                ) }
+            }
+        } else if (viewType == ViewType.GRID) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columnCount)
+            ) {
+                items(items) { item -> ExplorerItem(
+                    explorerViewModel,
+                    item.name,
+                    item.type,
+                    item.thumbnails,
+                    handleItemClick(item),
+                    handleLongItemClick(item),
+                ) }
             }
         }
     }

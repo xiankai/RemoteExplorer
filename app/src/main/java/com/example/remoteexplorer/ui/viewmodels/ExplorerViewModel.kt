@@ -12,6 +12,8 @@ import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.data.db.LocalTag
+import com.example.remoteexplorer.data.db.LocalTagWithMetadata
+import com.example.remoteexplorer.data.tagPrefix
 import com.example.remoteexplorer.utils.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,6 +31,11 @@ enum class SortType {
     NAME_DESC,
     LAST_MODIFIED_ASC,
     LAST_MODIFIED_DESC
+}
+
+enum class ViewType {
+    GRID,
+    LIST
 }
 
 class ExplorerViewModel(
@@ -81,6 +88,19 @@ class ExplorerViewModel(
             val tags = tagRepository.getTags()
             _tags.update {
                 tags
+            }
+            launch {
+                Log.d("ExplorerViewModel#getTags", "Starting to fetch thumbnails")
+                val thumbnails = tags.associate {
+                    val tagIdentifier = "${tagPrefix}${it.tag}"
+                    if (it.count > 0) {
+                        tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
+                    } else {
+                        tagIdentifier to emptyList()
+                    }
+                }
+                Log.d("ExplorerViewModel#getTags", "Thumbnails found: $thumbnails")
+                _thumbnails.update { thumbnails }
             }
         }
     }
@@ -184,8 +204,8 @@ class ExplorerViewModel(
 
                 // Launch a new coroutine for the new path
                 listFileJob = launch {
-                    val files = if (path.startsWith("Tag: ")) {
-                        val tag = path.substringAfter("Tag: ")
+                    val files = if (path.startsWith(tagPrefix)) {
+                        val tag = path.substringAfter(tagPrefix)
                         fileRepository.getFilesWithTag(LocalTag(tag))
                     } else {
                         fileRepository.listFiles(
@@ -287,13 +307,13 @@ class ExplorerViewModel(
         }
     }
 
-    private val _tags = MutableStateFlow(emptyList<LocalTag>())
+    private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
     val tagsState = _tags.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
         viewModelScope.launch {
             _path.update {
-                "Tag: ${tag.tag}"
+                "${tagPrefix}${tag.tag}"
             }
         }
     }
@@ -313,5 +333,14 @@ class ExplorerViewModel(
 
     fun getFileSize(fullPath: String): Long {
         return fileRepository.getFileSize(fullPath)
+    }
+
+    private val _tagScreenViewType = MutableStateFlow(ViewType.GRID)
+    val tagScreenViewTypeState = _tagScreenViewType.asStateFlow()
+
+    fun setTagScreenViewType(viewType: ViewType) {
+        _tagScreenViewType.update {
+            viewType
+        }
     }
 }

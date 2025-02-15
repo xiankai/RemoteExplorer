@@ -1,7 +1,7 @@
 import com.example.remoteexplorer.data.db.LocalDatabaseDao
 import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.data.db.LocalTag
-import com.example.remoteexplorer.data.db.TagFileWithCorrespondingFilename
+import com.example.remoteexplorer.data.db.LocalTagWithMetadata
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -23,13 +23,7 @@ class LocalDatabaseDataSource(
         }
     }
 
-    suspend fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int = 1): List<LocalFile> {
-        return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit)
-        }
-    }
-
-    suspend fun getTags(): List<LocalTag> {
+    suspend fun getTags(): List<LocalTagWithMetadata> {
         return withContext(dispatcher) {
             localDatabaseDao.getTags()
         }
