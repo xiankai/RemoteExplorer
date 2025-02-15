@@ -18,8 +18,7 @@ class TagRepository (
             val tagFiles = localDatabaseDataSource.getTagFiles(connectionId, forceRemote)
             Log.d("TagRepository", "Scanning ${tagFiles.size} tags")
             tagFiles.forEach {
-                val tagFile = it.tagFile
-                val tagPath = Paths.get(tagFile.parentPath, tagFile.filename).toString()
+                val tagPath = Paths.get(it.parentPath, it.filename).toString()
                 val tagFileHandle = fileRepository.openFileDirectly(tagPath)
                 val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
 
@@ -34,7 +33,7 @@ class TagRepository (
                     tags.add(tag)
                 }
 
-                localDatabaseDataSource.updateFileTags(connectionId, tagFile.parentPath, it.correspondingFilename, tagFile.filename, tags)
+                localDatabaseDataSource.updateFileTags(connectionId, it, tags)
             }
             Log.d("TagRepository", "Scanned ${tagFiles.size} tags")
         }

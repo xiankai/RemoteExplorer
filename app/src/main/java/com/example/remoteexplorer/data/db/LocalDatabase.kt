@@ -14,7 +14,7 @@ import java.util.Date
 @Dao
 interface LocalDatabaseDao {
     @Query("SELECT LocalFile.* FROM LocalFile " +
-            "LEFT JOIN FileTagRelation " +
+            "INNER JOIN FileTagRelation " +
             "ON LocalFile.filename = FileTagRelation.filename " +
             "WHERE FileTagRelation.tag = :tag")
     fun getFilesWithTag(tag: String): List<LocalFile>
@@ -43,63 +43,42 @@ interface LocalDatabaseDao {
     @Query("UPDATE LocalFile SET status = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
     fun updateFileStatus(connectionId: Int, parentPath: String, filename: String, status: LocalFileStatus)
 
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status")
+    fun getUnprocessedTagFiles(connectionId: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
+
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type")
+    fun getAllTagFiles(connectionId: Int, type: FileType = FileType.TAG): List<LocalFile>
+
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type != :tagFileType AND filename LIKE :filenamePattern LIMIT 1")
+    fun getCorrespondingFileForTagFile(connectionId: Int, parentPath: String, tagFileType: FileType = FileType.TAG, filenamePattern: String): LocalFile?
+
     @Transaction
-    fun updateFileTags(connectionId: Int, parentPath: String, filename: String, tagFilename: String, tags: List<String>) {
+    fun updateFileTags(connectionId: Int, tagFile: LocalFile, tags: List<String>) {
+        // Find corresponding tag file
+        val filenamePattern = tagFile.filename.substringBeforeLast('.').plus(".%")
+        val parentPath = tagFile.parentPath
+        val correspondingFile = getCorrespondingFileForTagFile(connectionId, parentPath, filenamePattern = filenamePattern)
+
+        // If cannot find, mark as REMOVED
+        if (correspondingFile == null) {
+            updateFileStatus(connectionId, parentPath, tagFile.filename, LocalFileStatus.REMOVED)
+            return
+        }
+
+        // Add tag mappings
         tags.map {
             addTag(LocalTag(it))
             addFileTagRelation(
                 FileTagRelation(
                     connectionId,
                     parentPath,
-                    filename,
+                    correspondingFile.filename,
                     it
                 )
             )
         }
-        updateFileStatus(connectionId, parentPath, tagFilename, LocalFileStatus.SUCCESS)
+        updateFileStatus(connectionId, parentPath, tagFile.filename, LocalFileStatus.SUCCESS)
     }
-
-//    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status")
-//    fun getUnprocessedTagFiles(connectionId: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
-//
-//    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type")
-//    fun getAllTagFiles(connectionId: Int, type: FileType = FileType.TAG): List<LocalFile>
-
-    // Thanks ChatGPT
-    @Query(
-        """
-            SELECT tagFile.*, correspondingFile.filename AS correspondingFilename
-            FROM LocalFile tagFile
-            INNER JOIN LocalFile correspondingFile 
-                ON tagFile.connectionId = correspondingFile.connectionId  
-                AND tagFile.filename != correspondingFile.filename
-                AND correspondingFile.filename = CASE 
-                    WHEN instr(tagFile.filename, '.') > 0 
-                    THEN substr(tagFile.filename, 1, instr(tagFile.filename, '.') - 1) 
-                    ELSE tagFile.filename 
-                END
-            WHERE tagFile.connectionId = :connectionId AND tagFile.type = :type AND tagFile.status = :status
-        """
-    )
-    fun getUnprocessedTagFiles(connectionId: Int, type: FileType = FileType.TAG, status:LocalFileStatus = LocalFileStatus.UNPROCESSED): List<TagFileWithCorrespondingFilename>
-
-    @Query(
-        """
-            SELECT tagFile.*, correspondingFile.filename AS correspondingFilename
-            FROM LocalFile tagFile
-            INNER JOIN LocalFile correspondingFile 
-                ON tagFile.connectionId = correspondingFile.connectionId  
-                AND tagFile.filename != correspondingFile.filename
-                AND correspondingFile.filename = CASE 
-                    WHEN instr(tagFile.filename, '.') > 0 
-                    THEN substr(tagFile.filename, 1, instr(tagFile.filename, '.') - 1) 
-                    ELSE tagFile.filename 
-                END
-            WHERE tagFile.connectionId = :connectionId AND tagFile.type = :type
-        """
-    )
-    fun getAllTagFiles(connectionId: Int, type: FileType = FileType.TAG): List<TagFileWithCorrespondingFilename>
-
 }
 
 @Entity(primaryKeys = [
@@ -143,11 +122,3 @@ enum class FileType {
 enum class LocalFileStatus {
     UNPROCESSED, SUCCESS, ERROR, REMOVED
 }
-
-
-@Entity
-data class TagFileWithCorrespondingFilename(
-    @Embedded
-    val tagFile: LocalFile,
-    val correspondingFilename: String,
-)

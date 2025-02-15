@@ -41,11 +41,11 @@ class LocalDatabaseDataSource(
         }
     }
 
-    fun updateFileTags(connectionId: Int, parentPath: String, filename: String, tagFilename: String, tags: List<String>) {
-        localDatabaseDao.updateFileTags(connectionId, parentPath, filename, tagFilename, tags)
+    fun updateFileTags(connectionId: Int, tagFile: LocalFile, tags: List<String>) {
+        localDatabaseDao.updateFileTags(connectionId, tagFile, tags)
     }
 
-    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean): List<TagFileWithCorrespondingFilename> {
+    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {
                 localDatabaseDao.getAllTagFiles(connectionId)
