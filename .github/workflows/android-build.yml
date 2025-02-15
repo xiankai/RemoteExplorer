@@ -24,11 +24,11 @@ jobs:
       - name: Download dependencies
         run: ./gradlew dependencies
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
 
-      - name: Upload Debug APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Debug APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: Release APK
+          path: app/build/outputs/apk/release/*.apk
