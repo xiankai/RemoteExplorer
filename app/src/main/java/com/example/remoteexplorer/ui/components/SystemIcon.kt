@@ -3,6 +3,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.VideoFile
@@ -15,6 +16,7 @@ fun SystemIcon(iconType: IconType, modifier: Modifier) {
     val icon = when(iconType) {
         IconType.CONNECTION-> Icons.Default.FolderShared
         IconType.ADD_CONNECTION -> Icons.Default.CreateNewFolder
+        IconType.FOLDER -> Icons.Default.Folder
         IconType.IMAGE -> Icons.Default.Image
         IconType.VIDEO -> Icons.Default.VideoFile
         IconType.AUDIO -> Icons.Default.AudioFile

@@ -21,6 +21,7 @@ fun ExplorerItemIcon(
         thumbnails.size >= 2 -> GalleryIcon(explorerViewModel, thumbnails, modifier)
         type === FileType.CONNECTION -> SystemIcon(IconType.CONNECTION, modifier)
         type === FileType.ADD_CONNECTION -> SystemIcon(IconType.ADD_CONNECTION, modifier)
+        type === FileType.FOLDER -> SystemIcon(IconType.FOLDER, modifier)
         else -> FallbackIcon(filename, modifier)
     }
 }
