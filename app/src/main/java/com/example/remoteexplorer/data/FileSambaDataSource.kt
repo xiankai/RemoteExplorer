@@ -1,9 +1,7 @@
 package com.example.remoteexplorer.data
 import android.util.Log
 import com.hierynomus.msdtyp.AccessMask
-import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.mssmb2.SMB2CreateDisposition
-import com.hierynomus.mssmb2.SMB2CreateOptions
 import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
@@ -40,18 +38,16 @@ class SambaFileDataSource {
     }
 
     fun openFile(path: String): com.hierynomus.smbj.share.File {
-        val accessMask = setOf(AccessMask.FILE_READ_DATA)
-        val attributes = setOf(FileAttributes.FILE_ATTRIBUTE_NORMAL)
+        val accessMask = setOf(AccessMask.GENERIC_READ)
         val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
-        val createOptions = setOf(SMB2CreateOptions.FILE_WRITE_THROUGH)
 
         try {
-            val file = this.diskShare.openFile(path, accessMask, attributes, shareAccesses, createDisposition, createOptions)
-            Log.d("FileSambaDataSource", "samba has opened the file. details: ${file.uncPath}")
+            val file = this.diskShare.openFile(path, accessMask, null, shareAccesses, createDisposition, null)
+            Log.d("FileSambaDataSource", "samba has opened file: ${file.uncPath}")
             return file
         } catch (e: Exception) {
-            Log.e("FileSambaDataSource", "samba failed to open $path. details: $e")
+            Log.e("FileSambaDataSource", "samba failed to open file: $path", e)
             throw e
         }
     }

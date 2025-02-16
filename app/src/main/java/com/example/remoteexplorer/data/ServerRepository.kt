@@ -64,9 +64,9 @@ class ServerRepository (
                                 call.response.status(HttpStatusCode.PartialContent)
                                 call.respondBytes(byteArray)
                             } catch (e: Exception) {
-                                Log.e("ServerRepository", "Error parsing range header: $e")
+                                Log.e("ServerRepository", "Error processing range header", e)
                                 call.response.status(HttpStatusCode.BadRequest)
-                                call.respondText("Invalid range")
+                                call.respondText("Error processing requested range")
                             }
                         } else {
                             call.respondOutputStream {

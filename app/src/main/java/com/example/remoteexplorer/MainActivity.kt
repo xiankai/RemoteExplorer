@@ -70,7 +70,6 @@ class ExplorerViewModelFactory(
     }
 }
 
-
 class MainActivity : ComponentActivity() {
     private lateinit var database: AppDatabase
     private lateinit var connectionDao: ConnectionDao
