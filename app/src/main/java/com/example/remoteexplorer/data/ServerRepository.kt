@@ -1,11 +1,13 @@
 package com.example.remoteexplorer.data
 
 import android.util.Log
+import com.hierynomus.smbj.share.File
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
-import io.ktor.server.response.contentRange
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
@@ -30,37 +32,28 @@ class ServerRepository (
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
                         val file = sambaFileDataSource.openFile(fullPath ?: "")
-                        val totalLength = file.fileInformation.standardInformation.allocationSize
-                        val mimeType = URLConnection.guessContentTypeFromName(file.uncPath)
-                        call.response.headers.append(HttpHeaders.ContentType, mimeType)
-                        call.response.headers.append(HttpHeaders.AcceptRanges, "bytes")
-                        call.response.headers.append(HttpHeaders.ContentLength, totalLength.toString())
+                        val totalLength = file.fileInformation.standardInformation.endOfFile
+
+                        val rangeHeader = call.request.headers[HttpHeaders.Range]
+                        val range = parseRangeHeaders(rangeHeader, totalLength)
+                        commonHeaders(file, range.first, range.last)
                     }
                     get("/{path...}") {
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         Log.d("ServerRepository", "Received GET request for $fullPath")
                         val file = sambaFileDataSource.openFile(fullPath ?: "")
-                        val totalLength = file.fileInformation.standardInformation.allocationSize
-                        val mimeType = URLConnection.guessContentTypeFromName(file.uncPath)
-                        call.response.headers.append(HttpHeaders.ContentType, mimeType)
-                        call.response.headers.append(HttpHeaders.AcceptRanges, "bytes")
-                        call.response.headers.append(HttpHeaders.ContentLength, totalLength.toString())
+                        val totalLength = file.fileInformation.standardInformation.endOfFile
 
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
+                        val range = parseRangeHeaders(rangeHeader, totalLength)
+                        commonHeaders(file, range.first, range.last)
+
                         if (rangeHeader != null) {
-                            Log.d("ServerRepository", "Received range header: $rangeHeader")
+                            Log.d("ServerRepository", "Received range request: $rangeHeader")
                             try {
-                                val range = rangeHeader.removePrefix("bytes=")
-                                val (start, end) = range.split("-").map { it.toLongOrNull() }
-
-                                val actualEnd = end?.coerceAtMost(totalLength - 1) ?: (totalLength - 1)
-                                val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
-                                val requestedLength = actualEnd - actualStart + 1
-
+                                val requestedLength = range.last - range.first + 1
                                 val byteArray = ByteArray(requestedLength.toInt())
-                                file.read(byteArray, actualStart, 0, actualEnd.toInt())
-
-                                call.response.contentRange(LongRange(actualStart, actualEnd), totalLength)
+                                file.read(byteArray, range.first, 0, range.last.toInt())
                                 call.response.status(HttpStatusCode.PartialContent)
                                 call.respondBytes(byteArray)
                             } catch (e: Exception) {
@@ -73,6 +66,8 @@ class ServerRepository (
                                 file.inputStream.transferTo(this)
                             }
                         }
+
+                        file.close()
                     }
                 }
             }.start(wait = true)
@@ -82,5 +77,34 @@ class ServerRepository (
 
     fun constructUrl(path: String): String {
         return "http://127.0.0.1:${port}/${path}"
+    }
+
+    private fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange {
+        if (rangeHeader != null) {
+            val range = rangeHeader.removePrefix("bytes=")
+            val (start, end) = range.split("-").map { it.toLongOrNull() }
+            return coerceRange(start, end, totalLength)
+        } else {
+            return coerceRange(null, null, totalLength)
+        }
+    }
+
+    private fun commonHeaders(file: File, start: Long, end: Long): Headers {
+        val mimeType = URLConnection.guessContentTypeFromName(file.uncPath)
+
+        val requestedLength = end - start + 1
+        return headersOf(
+            HttpHeaders.AcceptRanges to listOf("bytes"),
+            HttpHeaders.ContentType to listOf(mimeType),
+            HttpHeaders.ContentLength to listOf(requestedLength.toString()),
+            HttpHeaders.ContentRange to listOf("bytes $start-$end/$requestedLength"),
+        )
+    }
+
+    private fun coerceRange(start: Long?, end: Long?, totalLength: Long): LongRange {
+        val actualEnd = end?.coerceAtMost(totalLength - 1) ?: (totalLength - 1)
+        val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
+
+        return LongRange(actualStart, actualEnd)
     }
 }
