@@ -31,6 +31,7 @@ import com.example.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.example.remoteexplorer.ui.screens.header.ExplorerButtons
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.Utils
+import kotlinx.coroutines.flow.combine
 import java.net.URLConnection
 import java.nio.file.Paths
 
@@ -44,46 +45,75 @@ fun ExplorerScreen(
 
     val pathState by explorerViewModel.pathState.collectAsState()
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
-    val list = explorerViewModel.listState.collectAsState()
+    val filteredList = combine(
+        explorerViewModel.listState,
+        explorerViewModel.searchState,
+        explorerViewModel.filterState
+    ) { list, search, filter ->
+        var finalList = list
+        if (filter.isNotEmpty()) {
+            finalList = finalList.filter {
+                val extension = it.filename.substringAfterLast(".")
+                filter.contains(extension)
+            }
+        }
+
+        if (!search.isNullOrEmpty()) {
+            finalList.filter {
+                it.filename.contains(search, ignoreCase = true)
+            }
+        }
+
+        finalList
+    }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val columnCount by explorerViewModel.columnCountState.collectAsState()
 
-    val handleItemClick = { item: Item<LocalFile> -> {
-        val path = Paths.get(item.item.parentPath, item.item.filename).toString()
-        when (item.type) {
-            FileType.FOLDER -> {
-                // TODO: Make new nested route for this
-                explorerViewModel.changePath(path)
-            }
-            FileType.FILE -> {
-                val isBrowsable = { item: LocalFile ->
-                    item.canHaveThumbnail && Utils.guessIconType(item.filename) != IconType.VIDEO
+    val handleItemClick = { item: Item<LocalFile> ->
+        {
+            val path = Paths.get(item.item.parentPath, item.item.filename).toString()
+            when (item.type) {
+                FileType.FOLDER -> {
+                    explorerViewModel.changePath(path)
                 }
-                if (isBrowsable(item.item)) {
-                    val browsableImages = list.value.filter { isBrowsable(it) }
-                    val initialBrowsableImage = browsableImages.indexOf(item.item)
-                    explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
-                    navHostController.navigate(Route.ImageBrowserRoute)
-                } else {
-                    val intent = Intent(Intent.ACTION_VIEW)
-                    val mimeType = URLConnection.guessContentTypeFromName(item.name)
-                    val url = explorerViewModel.getUrl(path)
-                    intent.setDataAndType(Uri.parse(url), mimeType)
 
-                    try {
-                        context.startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
-                        Toast.makeText(context, "No application found for file type: $mimeType", Toast.LENGTH_SHORT).show()
+                FileType.FILE -> {
+                    val isBrowsable = { item: LocalFile ->
+                        Utils.guessIconType(item.filename) != IconType.VIDEO
+                    }
+                    if (isBrowsable(item.item)) {
+                        val browsableImages = filteredList.value.filter { isBrowsable(it) }
+                        val initialBrowsableImage = browsableImages.indexOf(item.item)
+                        explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
+                        navHostController.navigate(Route.ImageBrowserRoute)
+                    } else {
+                        val intent = Intent(Intent.ACTION_VIEW)
+                        val mimeType = URLConnection.guessContentTypeFromName(item.name)
+                        val url = explorerViewModel.getUrl(path)
+                        intent.setDataAndType(Uri.parse(url), mimeType)
+
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: ActivityNotFoundException) {
+                            Toast.makeText(
+                                context,
+                                "No application found for file type: $mimeType",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
-            }
-            else -> {}
-        }
-    } }
 
-    val handleLongItemClick = { item: Item<LocalFile> -> {
-        Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
-    } }
+                else -> {}
+            }
+        }
+    }
+
+    val handleLongItemClick = { item: Item<LocalFile> ->
+        {
+            Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val onOpenTagsScreen = { navHostController.navigate(Route.TagsRoute) }
 
@@ -100,7 +130,6 @@ fun ExplorerScreen(
                 ),
                 title = {
                     BreadcrumbHeader(
-                        // TODO: Make new nested route for this
                         rootPath = connectionName,
                         currentPath = pathState,
                         modifier = Modifier.wrapContentSize(Alignment.CenterStart),
@@ -108,7 +137,6 @@ fun ExplorerScreen(
                             if (path == "home") {
                                 navHostController.navigate(Route.ConnectionsRoute)
                             } else {
-                                // TODO: Make new nested route for this
                                 explorerViewModel.changePath(path)
                             }
                         },
@@ -130,12 +158,14 @@ fun ExplorerScreen(
             ) {
                 Explorer(
                     explorerViewModel = explorerViewModel,
-                    items = list.value.map { Item(
-                        name = it.filename,
-                        type = it.type,
-                        thumbnails = thumbnails.getOrDefault(it.filename, emptyList()),
-                        item = it,
-                    ) },
+                    items = filteredList.value.map {
+                        Item(
+                            name = it.filename,
+                            type = it.type,
+                            thumbnails = thumbnails.getOrDefault(it.filename, emptyList()),
+                            item = it,
+                        )
+                    },
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = { explorerViewModel.forceRefresh() },

@@ -52,11 +52,6 @@ class ExplorerViewModel(
     private val _list: MutableStateFlow<List<LocalFile>> = MutableStateFlow(emptyList())
     val listState: StateFlow<List<LocalFile>> = _list.asStateFlow()
 
-    private val _search: MutableStateFlow<String?> = MutableStateFlow(null)
-    private val searchState: StateFlow<String?> = _search.asStateFlow()
-    private val _sort = MutableStateFlow(SortType.NAME_ASC)
-    val sortState: StateFlow<SortType> = _sort.asStateFlow()
-
     private val _connection: MutableStateFlow<Connection?> = MutableStateFlow(null)
     val connectionState: StateFlow<Connection?> = _connection.asStateFlow()
     private val _connections: MutableStateFlow<List<Connection>> = MutableStateFlow(emptyList())
@@ -174,18 +169,30 @@ class ExplorerViewModel(
         return serverRepository.constructUrl(path)
     }
 
+    private val _search: MutableStateFlow<String?> = MutableStateFlow(null)
+    val searchState: StateFlow<String?> = _search.asStateFlow()
     fun search(query: String) {
         _search.update {
             query
         }
     }
 
+    private val _filter = MutableStateFlow<List<String>>(emptyList())
+    val filterState: StateFlow<List<String>> = _filter.asStateFlow()
+    fun filter(extensions: List<String>) {
+        _filter.update {
+            extensions
+        }
+    }
+
+    private val _sort = MutableStateFlow(SortType.NAME_ASC)
+    val sortState: StateFlow<SortType> = _sort.asStateFlow()
     fun sort(sortType: SortType) {
         _sort.update {
             sortType
         }
         _list.update {
-            listState.value.sortedWith(getSortFunction(sortType))
+            it.sortedWith(getSortFunction(sortType))
         }
     }
 
@@ -225,7 +232,7 @@ class ExplorerViewModel(
                         Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
                         val thumbnails = files.associate {
                             val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                            if (it.canHaveThumbnail) {
+                            if (Utils.canHaveThumbnail(it.filename)) {
                                 it.filename to listOf(fullPath)
                             } else if (it.type === FileType.FOLDER) {
                                 it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
