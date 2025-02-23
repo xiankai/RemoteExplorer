@@ -1,9 +1,14 @@
 package com.example.remoteexplorer.ui.viewmodels
 
+import TagWorker
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.ServerRepository
@@ -45,7 +50,7 @@ class ExplorerViewModel(
     private val serverRepository: ServerRepository,
     private val connectionRepository: ConnectionRepository,
     private val tagRepository: TagRepository,
-): AndroidViewModel(application) {
+) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
@@ -63,7 +68,8 @@ class ExplorerViewModel(
     private val _toast = MutableSharedFlow<String>()
     val toast = _toast.asSharedFlow()
 
-    private val _thumbnails: MutableStateFlow<Map<String, List<String>>> = MutableStateFlow(emptyMap())
+    private val _thumbnails: MutableStateFlow<Map<String, List<String>>> =
+        MutableStateFlow(emptyMap())
     val thumbnailsState = _thumbnails.asStateFlow()
 
     // On init:
@@ -235,7 +241,12 @@ class ExplorerViewModel(
                             if (Utils.canHaveThumbnail(it.filename)) {
                                 it.filename to listOf(fullPath)
                             } else if (it.type === FileType.FOLDER) {
-                                it.filename to fileRepository.getFolderThumbnails(connectionId, fullPath, 4, forceRemote)
+                                it.filename to fileRepository.getFolderThumbnails(
+                                    connectionId,
+                                    fullPath,
+                                    4,
+                                    forceRemote
+                                )
                             } else {
                                 it.filename to emptyList()
                             }
@@ -244,9 +255,7 @@ class ExplorerViewModel(
                         _thumbnails.update { thumbnails }
                     }
 
-                    tagJob = launch {
-                        tagRepository.scanTags(connectionId, forceRemote)
-                    }
+                    scanTagsJob(connectionId, forceRemote)
                 }
             }
         }
@@ -350,4 +359,17 @@ class ExplorerViewModel(
             viewType
         }
     }
+
+    private val workManager = WorkManager.getInstance(application.applicationContext)
+    private fun scanTagsJob(connectionId: Int, forceRemote: Boolean) {
+        val workRequest = OneTimeWorkRequestBuilder<TagWorker>().setInputData(
+            workDataOf(
+                "CONNECTION_ID" to connectionId,
+                "FORCE_REMOTE" to forceRemote,
+            )
+        ).build()
+
+        workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
+    }
+
 }

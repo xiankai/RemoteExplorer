@@ -39,12 +39,12 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateFileTags(connectionId, tagFile, tags)
     }
 
-    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean): List<LocalFile> {
+    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean, limit: Int): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {
-                localDatabaseDao.getAllTagFiles(connectionId)
+                localDatabaseDao.getAllTagFiles(connectionId, limit)
             } else {
-                localDatabaseDao.getUnprocessedTagFiles(connectionId)
+                localDatabaseDao.getUnprocessedTagFiles(connectionId, limit)
             }
         }
     }

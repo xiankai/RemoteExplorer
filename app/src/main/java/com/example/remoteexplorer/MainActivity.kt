@@ -2,7 +2,9 @@ package com.example.remoteexplorer
 
 import ConnectionDataSource
 import LocalDatabaseDataSource
+import TagWorker
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +12,11 @@ import androidx.activity.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
+import androidx.work.Configuration
+import androidx.work.ListenableWorker
+import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import com.example.remoteexplorer.data.ConnectionRepository
 import com.example.remoteexplorer.data.FileRepository
 import com.example.remoteexplorer.data.SambaFileDataSource
@@ -25,6 +32,24 @@ import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+
+class TagWorkerFactory(
+    private val tagRepository: TagRepository
+) : WorkerFactory() {
+
+    override fun createWorker(
+        appContext: Context,
+        workerClassName: String,
+        workerParameters: WorkerParameters
+    ): ListenableWorker? {
+        return when (workerClassName) {
+            TagWorker::class.java.name ->
+                TagWorker(appContext, workerParameters, tagRepository)
+            else -> null
+        }
+    }
+}
+
 
 class ExplorerViewModelFactory(
     private val application: Application,
@@ -51,8 +76,7 @@ class ExplorerViewModelFactory(
         )
         val tagRepository = TagRepository(
             fileRepository,
-            localDatabaseDataSource,
-            defaultDispatcher
+            localDatabaseDataSource
         )
         val connectionDataSource = ConnectionDataSource(
             db.connectionDao()
@@ -60,6 +84,13 @@ class ExplorerViewModelFactory(
         val connectionRepository = ConnectionRepository(
             connectionDataSource,
         )
+
+        // Injecting TagRepository into TagWorker
+        val myWorkerFactory = TagWorkerFactory(tagRepository)
+        val config = Configuration.Builder()
+            .setWorkerFactory(myWorkerFactory)
+            .build()
+        WorkManager.initialize(application.applicationContext, config)
 
         return ExplorerViewModel(application,
             fileRepository,

@@ -47,11 +47,11 @@ interface LocalDatabaseDao {
     @Query("UPDATE LocalFile SET status = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
     fun updateFileStatus(connectionId: Int, parentPath: String, filename: String, status: LocalFileStatus)
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status")
-    fun getUnprocessedTagFiles(connectionId: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status LIMIT :limit")
+    fun getUnprocessedTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type")
-    fun getAllTagFiles(connectionId: Int, type: FileType = FileType.TAG): List<LocalFile>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type LIMIT :limit")
+    fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type != :tagFileType AND filename LIKE :filenamePattern LIMIT 1")
     fun getCorrespondingFileForTagFile(connectionId: Int, parentPath: String, tagFileType: FileType = FileType.TAG, filenamePattern: String): LocalFile?
