@@ -1,7 +1,9 @@
 package com.example.remoteexplorer.ui.screens.header
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
@@ -20,7 +22,9 @@ fun BreadcrumbHeader(
     val pathComponents = currentPath.split("/").filter { it.isNotEmpty() }
     val rootLabel = rootPath.ifEmpty { "Root" }
 
-    Row {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState())
+    ) {
         Icon(
             Icons.Default.Home,
             contentDescription = "Home",
