@@ -6,13 +6,14 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.remoteexplorer.ui.components.IconType
 
 @Composable
-fun SystemIcon(iconType: IconType, modifier: Modifier) {
+fun SystemIcon(iconType: IconType, modifier: Modifier = Modifier) {
     val icon = when(iconType) {
         IconType.CONNECTION-> Icons.Default.FolderShared
         IconType.ADD_CONNECTION -> Icons.Default.CreateNewFolder
@@ -21,6 +22,7 @@ fun SystemIcon(iconType: IconType, modifier: Modifier) {
         IconType.VIDEO -> Icons.Default.VideoFile
         IconType.AUDIO -> Icons.Default.AudioFile
         IconType.TEXT -> Icons.Default.Description
+        IconType.TAG -> Icons.Default.Sell
         else -> Icons.AutoMirrored.Default.InsertDriveFile
     }
 

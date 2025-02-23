@@ -19,6 +19,7 @@ import com.example.remoteexplorer.data.db.LocalFile
 import com.example.remoteexplorer.data.db.LocalTag
 import com.example.remoteexplorer.data.db.LocalTagWithMetadata
 import com.example.remoteexplorer.data.tagPrefix
+import com.example.remoteexplorer.ui.components.IconType
 import com.example.remoteexplorer.utils.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -184,9 +185,9 @@ class ExplorerViewModel(
         }
     }
 
-    private val _filter = MutableStateFlow<List<String>>(emptyList())
-    val filterState: StateFlow<List<String>> = _filter.asStateFlow()
-    fun filter(extensions: List<String>) {
+    private val _filter = MutableStateFlow<List<IconType>>(emptyList())
+    val filterState: StateFlow<List<IconType>> = _filter.asStateFlow()
+    fun filter(extensions: List<IconType>) {
         _filter.update {
             extensions
         }
@@ -371,5 +372,4 @@ class ExplorerViewModel(
 
         workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
     }
-
 }

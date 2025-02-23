@@ -53,8 +53,8 @@ fun ExplorerScreen(
         var finalList = list
         if (filter.isNotEmpty()) {
             finalList = finalList.filter {
-                val extension = it.filename.substringAfterLast(".")
-                filter.contains(extension)
+                val iconType = Utils.guessIconType(it.filename)
+                filter.contains(iconType)
             }
         }
 

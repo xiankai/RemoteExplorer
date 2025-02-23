@@ -1,11 +1,17 @@
 package com.example.remoteexplorer.ui.screens.header
 
 import ExpandableSearchBar
+import SystemIcon
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
@@ -17,6 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.example.remoteexplorer.ui.components.IconType
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.ui.viewmodels.SortType
 
@@ -34,16 +44,13 @@ fun ExplorerButtons(
 
     var selectingColumnCount by remember { mutableStateOf(false) }
     val columnCountOptions = List(12) { it + 1 }
-    Box{
-        IconButton(
-            onClick = { selectingColumnCount = !selectingColumnCount },
-            content = {
-                Icon(
-                    Icons.Filled.GridOn,
-                    contentDescription = "Column Count",
-                )
-            }
-        )
+    Box {
+        IconButton(onClick = { selectingColumnCount = !selectingColumnCount }, content = {
+            Icon(
+                Icons.Filled.GridOn,
+                contentDescription = "Column Count",
+            )
+        })
         DropdownMenu(
             expanded = selectingColumnCount,
             onDismissRequest = { selectingColumnCount = false },
@@ -58,24 +65,62 @@ fun ExplorerButtons(
     }
 
     val sortState = explorerViewModel.sortState.collectAsState()
-    IconButton(
-        onClick = { explorerViewModel.sort(
+    IconButton(onClick = {
+        explorerViewModel.sort(
             if (sortState.value == SortType.NAME_ASC) SortType.NAME_DESC else SortType.NAME_ASC
-        ) },
-        content = {
-            Icon(
-                Icons.Filled.SortByAlpha,
-                contentDescription = "Sort by name",
-            )
-        }
+        )
+    }, content = {
+        Icon(
+            Icons.Filled.SortByAlpha,
+            contentDescription = "Sort by name",
+        )
+    })
+    IconButton(onClick = onOpenTagsScreen, content = {
+        Icon(
+            Icons.Filled.Sell,
+            contentDescription = "Tags",
+        )
+    })
+
+    val selectedFilters by explorerViewModel.filterState.collectAsState()
+    var selectingFilters by remember { mutableStateOf(false) }
+    val filters = listOf(
+        IconType.IMAGE, IconType.VIDEO, IconType.AUDIO, IconType.TEXT, IconType.TAG
     )
-    IconButton(
-        onClick = onOpenTagsScreen,
-        content = {
+    Box {
+        IconButton(onClick = { selectingFilters = !selectingFilters }, content = {
             Icon(
-                Icons.Filled.Sell,
-                contentDescription = "Tags",
+                Icons.Filled.FilterAlt,
+                contentDescription = "Column Count",
             )
+        })
+        DropdownMenu(
+            expanded = selectingFilters,
+            onDismissRequest = { selectingFilters = false },
+        ) {
+            filters.forEach { iconType ->
+                DropdownMenuItem(
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Checkbox(selectedFilters.contains(iconType), {})
+                            SystemIcon(iconType)
+                            Text(iconType.name)
+                        }
+                    },
+                    onClick = {
+                        val newFilters = if (selectedFilters.contains(iconType)) {
+                            selectedFilters.minus(iconType)
+                        } else {
+                            selectedFilters.plus(iconType)
+                        }
+                        explorerViewModel.filter(newFilters)
+                    },
+                )
+            }
         }
-    )
+    }
 }

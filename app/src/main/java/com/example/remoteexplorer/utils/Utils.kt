@@ -13,6 +13,7 @@ object Utils {
             Regex("audio/.*").matches(mimeType) -> IconType.AUDIO
             Regex("text/.*").matches(mimeType) -> IconType.TEXT
             Regex("application/.*").matches(mimeType) -> IconType.FILE
+            filename.endsWith(".xmp") -> IconType.TAG
             else -> IconType.FOLDER
         }
 

@@ -27,6 +27,6 @@ fun ExplorerItemIcon(
 }
 
 enum class IconType {
-    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER,
+    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER, TAG,
     CONNECTION, ADD_CONNECTION
 }
