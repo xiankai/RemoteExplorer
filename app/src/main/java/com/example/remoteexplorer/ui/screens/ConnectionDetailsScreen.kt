@@ -158,11 +158,7 @@ fun ConnectionDetailsScreen(
                     Button(onClick = { onTest(getCurrentConnection()) }) {
                         Text("Test Connection")
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onConnect(getCurrentConnection()) }) {
-                        Text("Connect")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
+                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { onSave(getCurrentConnection()) }) {
                         Text("Save")
                     }

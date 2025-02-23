@@ -15,6 +15,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.remoteexplorer.data.db.Connection
 import com.example.remoteexplorer.data.db.FileType
@@ -74,6 +76,16 @@ fun ConnectionsScreen(
         }
     } }
 
+    val configuration = LocalConfiguration.current
+    // Determine the screen width in dp
+    val screenWidth = configuration.screenWidthDp
+
+    // Define minimum size for the icons
+    val minIconSizeDp = 128.dp // Minimum size for optimal legibility
+
+    // Calculate the number of columns based on screen width
+    val columns = (screenWidth / minIconSizeDp.value).toInt().coerceIn(2, 12)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -101,7 +113,7 @@ fun ConnectionsScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = {},
-                    columnCount = 12
+                    columnCount = columns
                 )
             }
         },
