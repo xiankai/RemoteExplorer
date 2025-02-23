@@ -1,9 +1,9 @@
 package com.example.remoteexplorer.ui.screens.header
 
+import ExpandableSearchBar
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.DropdownMenu
@@ -25,14 +25,11 @@ fun ExplorerButtons(
     explorerViewModel: ExplorerViewModel,
     onOpenTagsScreen: () -> Unit,
 ) {
-    IconButton(
-        onClick = { explorerViewModel.search("") },
-        content = {
-            Icon(
-                Icons.Filled.Search,
-                contentDescription = "Search",
-            )
-        }
+    val connectionName by explorerViewModel.connectionNameState.collectAsState()
+    val path by explorerViewModel.pathState.collectAsState()
+    ExpandableSearchBar(
+        currentContext = connectionName + path,
+        onSearch = { explorerViewModel.search(it) },
     )
 
     var selectingColumnCount by remember { mutableStateOf(false) }

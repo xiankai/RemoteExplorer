@@ -43,8 +43,8 @@ fun ExplorerScreen(
 ) {
     val context = LocalContext.current
 
-    val pathState by explorerViewModel.pathState.collectAsState()
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
+    val pathState by explorerViewModel.pathState.collectAsState()
     val filteredList = combine(
         explorerViewModel.listState,
         explorerViewModel.searchState,
@@ -121,6 +121,7 @@ fun ExplorerScreen(
         explorerViewModel.goBack()
     }
 
+    val search by explorerViewModel.searchState.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -134,12 +135,14 @@ fun ExplorerScreen(
                         currentPath = pathState,
                         modifier = Modifier.wrapContentSize(Alignment.CenterStart),
                         onBreadcrumbClick = { path ->
+                            explorerViewModel.search("")
                             if (path == "home") {
                                 navHostController.navigate(Route.ConnectionsRoute)
                             } else {
                                 explorerViewModel.changePath(path)
                             }
                         },
+                        search = search
                     )
                 },
                 actions = {

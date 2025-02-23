@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.nio.file.Paths
@@ -191,9 +192,6 @@ class ExplorerViewModel(
         _sort.update {
             sortType
         }
-        _list.update {
-            it.sortedWith(getSortFunction(sortType))
-        }
     }
 
     // Job to track the running coroutine
@@ -203,7 +201,9 @@ class ExplorerViewModel(
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            pathState.collect { path ->
+            combine(pathState, searchState, sortState) { path, search, sort ->
+                Triple(path, search, sort)
+            }.collect { (path, search, sort) ->
                 // Cancel the previous coroutine if it's still running
                 listFileJob?.cancel()
                 thumbnailJob?.cancel()
@@ -218,14 +218,14 @@ class ExplorerViewModel(
                         fileRepository.listFiles(
                             connectionId,
                             path,
-                            searchState.value,
+                            search,
                             forceRemote
                         )
                     }.map {
                         it.copy(canHaveThumbnail = Utils.canHaveThumbnail(it.filename))
                     }
                     _list.update {
-                        files.sortedWith(getSortFunction(sortState.value))
+                        files.sortedWith(getSortFunction(sort))
                     }
 
                     thumbnailJob = launch {
