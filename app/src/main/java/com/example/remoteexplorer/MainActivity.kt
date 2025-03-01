@@ -6,6 +6,7 @@ import ScanTagsWorker
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -32,6 +33,7 @@ import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import java.util.concurrent.Executors
 
 class ScanTagsWorkerFactory(
     private val tagRepository: TagRepository
@@ -59,7 +61,15 @@ class ExplorerViewModelFactory(
         val db = Room.databaseBuilder(
             application.applicationContext,
             AppDatabase::class.java, "remote-explorer"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .fallbackToDestructiveMigration()
+//            .setQueryCallback(
+//                { sqlQuery, bindArgs ->
+//                    Log.d("RoomDatabase", "SQL Query: $sqlQuery SQL Args: $bindArgs")
+//                },
+//                Executors.newSingleThreadExecutor()
+//            )
+            .build()
         val sambaFileDataSource = SambaFileDataSource()
         val localDatabaseDataSource = LocalDatabaseDataSource(
             db.localDatabaseDao(),
