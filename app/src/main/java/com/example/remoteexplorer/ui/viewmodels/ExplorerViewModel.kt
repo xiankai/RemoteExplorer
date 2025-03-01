@@ -73,9 +73,14 @@ class ExplorerViewModel(
         MutableStateFlow(emptyMap())
     val thumbnailsState = _thumbnails.asStateFlow()
 
+    private val _tagThumbnails: MutableStateFlow<Map<String, List<String>>> =
+        MutableStateFlow(emptyMap())
+    val tagThumbnailsState = _tagThumbnails.asStateFlow()
+
     // On init:
     // start http server
     // find connections
+    // populate tags
     init {
         viewModelScope.launch {
             serverRepository.startup()
@@ -93,17 +98,8 @@ class ExplorerViewModel(
                 tags
             }
             launch {
-                Log.d("ExplorerViewModel#getTags", "Starting to fetch thumbnails")
-                val thumbnails = tags.associate {
-                    val tagIdentifier = "${tagPrefix}${it.tag}"
-                    if (it.count > 0) {
-                        tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
-                    } else {
-                        tagIdentifier to emptyList()
-                    }
-                }
-                Log.d("ExplorerViewModel#getTags", "Thumbnails found: $thumbnails")
-                _thumbnails.update { thumbnails }
+                val tagThumbnails = fetchTagThumbnails(tags)
+                _tagThumbnails.update { tagThumbnails }
             }
         }
     }
@@ -234,23 +230,7 @@ class ExplorerViewModel(
                     }
 
                     thumbnailJob = launch {
-                        Log.d("ExplorerViewModel#ListFiles", "Starting to fetch thumbnails")
-                        val thumbnails = files.associate {
-                            val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                            if (Utils.canHaveThumbnail(it.filename)) {
-                                it.filename to listOf(fullPath)
-                            } else if (it.type === FileType.FOLDER) {
-                                it.filename to fileRepository.getFolderThumbnails(
-                                    connectionId,
-                                    fullPath,
-                                    4,
-                                    forceRemote
-                                )
-                            } else {
-                                it.filename to emptyList()
-                            }
-                        }
-                        Log.d("ExplorerViewModel#ListFiles", "Thumbnails found: $thumbnails")
+                        val thumbnails = fetchThumbnails(connectionId, files, forceRemote)
                         _thumbnails.update { thumbnails }
                     }
 
@@ -369,5 +349,37 @@ class ExplorerViewModel(
         ).build()
 
         workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
+    }
+
+    private suspend fun fetchThumbnails(connectionId: Int, files: List<LocalFile>, forceRemote: Boolean): Map<String, List<String>> {
+        val thumbnails = files.associate {
+            val fullPath = Paths.get(it.parentPath, it.filename).toString()
+            if (Utils.canHaveThumbnail(it.filename)) {
+                it.filename to listOf(fullPath)
+            } else if (it.type === FileType.FOLDER) {
+                it.filename to fileRepository.getFolderThumbnails(
+                    connectionId,
+                    fullPath,
+                    4,
+                    forceRemote
+                )
+            } else {
+                it.filename to emptyList()
+            }
+        }
+
+        return thumbnails
+    }
+
+    private suspend fun fetchTagThumbnails(tags: List<LocalTagWithMetadata>): Map<String, List<String>> {
+        val thumbnails = tags.associate {
+            val tagIdentifier = "${tagPrefix}${it.tag}"
+            if (it.count > 0) {
+                tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
+            } else {
+                tagIdentifier to emptyList()
+            }
+        }
+        return thumbnails
     }
 }

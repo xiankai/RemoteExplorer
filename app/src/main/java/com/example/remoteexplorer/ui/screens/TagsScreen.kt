@@ -1,11 +1,14 @@
 package com.example.remoteexplorer.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -16,12 +19,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
 import com.example.remoteexplorer.data.db.FileType
 import com.example.remoteexplorer.data.db.LocalTag
 import com.example.remoteexplorer.data.db.LocalTagWithMetadata
 import com.example.remoteexplorer.data.tagPrefix
 import com.example.remoteexplorer.ui.components.Explorer
 import com.example.remoteexplorer.ui.components.Item
+import com.example.remoteexplorer.ui.components.Route
 import com.example.remoteexplorer.ui.screens.header.TagButtons
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
@@ -29,19 +34,17 @@ import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 @Composable
 fun TagsScreen(
     explorerViewModel: ExplorerViewModel,
-    onDismissDialog: () -> Unit,
+    navHostController: NavHostController,
 ) {
     val tags = explorerViewModel.tagsState.collectAsState()
-    val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
+    val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
 
-    val handleItemClick = { item: Item<LocalTagWithMetadata> -> {
-        explorerViewModel.getFilesWithTag(LocalTag(item.item.tag))
-        onDismissDialog()
-    } }
-
-    BackHandler {
-        explorerViewModel.goBack()
+    val handleItemClick = { item: Item<LocalTagWithMetadata> ->
+        {
+            explorerViewModel.getFilesWithTag(LocalTag(item.item.tag))
+            navHostController.navigate(Route.ExplorerRoute)
+        }
     }
 
     Scaffold(
@@ -53,6 +56,14 @@ fun TagsScreen(
                 ),
                 title = {
                     Text("Tags")
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navHostController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Localized description"
+                        )
+                    }
                 },
                 actions = {
                     TagButtons(explorerViewModel)
@@ -70,14 +81,19 @@ fun TagsScreen(
             ) {
                 Explorer(
                     explorerViewModel = explorerViewModel,
-                    items = tags.value.map { Item(
-                        name = "${it.tag} (${it.count})",
-                        type = FileType.FILE, // TODO: Add FOLDER for supporting nested tags
-                        thumbnails = thumbnails.getOrDefault("${tagPrefix}${it.tag}", emptyList()),
-                        item = it,
-                    ) },
+                    items = tags.value.map {
+                        Item(
+                            name = "${it.tag} (${it.count})",
+                            type = FileType.FOLDER, // TODO: Support nested tags
+                            thumbnails = tagThumbnails.getOrDefault(
+                                "${tagPrefix}${it.tag}",
+                                emptyList()
+                            ),
+                            item = it,
+                        )
+                    },
                     handleItemClick = handleItemClick,
-                    handleLongItemClick = {{}},
+                    handleLongItemClick = { {} },
                     handleRefresh = { explorerViewModel.forceRefresh() },
                     columnCount = 4,
                     viewType = viewType

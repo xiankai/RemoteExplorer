@@ -8,7 +8,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import com.example.remoteexplorer.ui.screens.ConnectionDetailsScreen
 import com.example.remoteexplorer.ui.screens.ConnectionsScreen
@@ -92,10 +91,10 @@ fun Routes(
                 explorerViewModel = explorerViewModel,
             )
         }
-        dialog<Route.TagsRoute> {
+        composable<Route.TagsRoute> {
             TagsScreen(
                 explorerViewModel = explorerViewModel,
-                onDismissDialog = { navHostController.popBackStack() },
+                navHostController = navHostController,
             )
         }
     }
