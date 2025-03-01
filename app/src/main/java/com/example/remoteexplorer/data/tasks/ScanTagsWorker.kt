@@ -9,7 +9,7 @@ import com.example.remoteexplorer.data.TagRepository
 
 const val batchSize = 100
 
-class TagWorker(
+class ScanTagsWorker(
     context: Context,
     workerParams: WorkerParameters,
     private val tagRepository: TagRepository,
@@ -27,7 +27,7 @@ class TagWorker(
             val scannedTagCount = tagRepository.scanTags(connectionId, forceRemote, batchSize)
             if (scannedTagCount == batchSize) {
                 // Since we hit the max limit, there may be more requests to process
-                val workRequest = OneTimeWorkRequestBuilder<TagWorker>()
+                val workRequest = OneTimeWorkRequestBuilder<ScanTagsWorker>()
                     .setInputData(
                         workDataOf(
                             "CONNECTION_ID" to connectionId,

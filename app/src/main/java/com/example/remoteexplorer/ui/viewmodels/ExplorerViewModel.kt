@@ -1,6 +1,6 @@
 package com.example.remoteexplorer.ui.viewmodels
 
-import TagWorker
+import ScanTagsWorker
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -363,7 +363,7 @@ class ExplorerViewModel(
 
     private val workManager = WorkManager.getInstance(application.applicationContext)
     private fun scanTagsJob(connectionId: Int, forceRemote: Boolean) {
-        val workRequest = OneTimeWorkRequestBuilder<TagWorker>().setInputData(
+        val workRequest = OneTimeWorkRequestBuilder<ScanTagsWorker>().setInputData(
             workDataOf(
                 "CONNECTION_ID" to connectionId,
                 "FORCE_REMOTE" to forceRemote,

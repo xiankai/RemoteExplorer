@@ -2,7 +2,7 @@ package com.example.remoteexplorer
 
 import ConnectionDataSource
 import LocalDatabaseDataSource
-import TagWorker
+import ScanTagsWorker
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
@@ -33,7 +33,7 @@ import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-class TagWorkerFactory(
+class ScanTagsWorkerFactory(
     private val tagRepository: TagRepository
 ) : WorkerFactory() {
 
@@ -43,8 +43,8 @@ class TagWorkerFactory(
         workerParameters: WorkerParameters
     ): ListenableWorker? {
         return when (workerClassName) {
-            TagWorker::class.java.name ->
-                TagWorker(appContext, workerParameters, tagRepository)
+            ScanTagsWorker::class.java.name ->
+                ScanTagsWorker(appContext, workerParameters, tagRepository)
             else -> null
         }
     }
@@ -85,8 +85,8 @@ class ExplorerViewModelFactory(
             connectionDataSource,
         )
 
-        // Injecting TagRepository into TagWorker
-        val myWorkerFactory = TagWorkerFactory(tagRepository)
+        // Injecting TagRepository into ScanTagsWorker
+        val myWorkerFactory = ScanTagsWorkerFactory(tagRepository)
         val config = Configuration.Builder()
             .setWorkerFactory(myWorkerFactory)
             .build()
