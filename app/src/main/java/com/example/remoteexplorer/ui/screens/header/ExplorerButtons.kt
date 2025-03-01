@@ -98,6 +98,19 @@ fun ExplorerButtons(
             expanded = selectingFilters,
             onDismissRequest = { selectingFilters = false },
         ) {
+            val onCheckedChange: (
+                iconType: IconType,
+            ) -> () -> Unit = { iconType ->
+                {
+                    val newFilters = if (selectedFilters.contains(iconType)) {
+                        selectedFilters.minus(iconType)
+                    } else {
+                        selectedFilters.plus(iconType)
+                    }
+                    explorerViewModel.filter(newFilters)
+                }
+            }
+
             filters.forEach { iconType ->
                 DropdownMenuItem(
                     text = {
@@ -106,19 +119,14 @@ fun ExplorerButtons(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Checkbox(selectedFilters.contains(iconType), {})
+                            Checkbox(selectedFilters.contains(iconType), {
+                                onCheckedChange(iconType)()
+                            })
                             SystemIcon(iconType)
                             Text(iconType.name)
                         }
                     },
-                    onClick = {
-                        val newFilters = if (selectedFilters.contains(iconType)) {
-                            selectedFilters.minus(iconType)
-                        } else {
-                            selectedFilters.plus(iconType)
-                        }
-                        explorerViewModel.filter(newFilters)
-                    },
+                    onClick = onCheckedChange(iconType),
                 )
             }
         }
