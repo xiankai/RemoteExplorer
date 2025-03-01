@@ -13,9 +13,9 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateFileList(fileList)
     }
 
-    suspend fun getFiles(connectionId: Int, parentPath: String, filter: String?): List<LocalFile> {
+    suspend fun getFiles(connectionId: Int, parentPath: String, filter: String): List<LocalFile> {
         return withContext(dispatcher) {
-            if (filter != null) {
+            if (filter.isNotBlank()) {
                 localDatabaseDao.getFilesWithFilter(connectionId, parentPath, filter)
             } else {
                 localDatabaseDao.getFiles(connectionId, parentPath)

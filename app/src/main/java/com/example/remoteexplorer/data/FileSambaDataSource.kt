@@ -10,7 +10,13 @@ import com.hierynomus.smbj.share.DiskShare
 class SambaFileDataSource {
     private lateinit var diskShare: DiskShare
 
-    fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
+    fun connect(
+        hostname: String,
+        username: String,
+        password: String,
+        domain: String,
+        shareName: String
+    ) {
         val client = SMBClient()
         val connection = client.connect(hostname)
         val authContext = AuthenticationContext(username, password.toCharArray(), domain)
@@ -20,8 +26,12 @@ class SambaFileDataSource {
         this.diskShare = share
     }
 
-    fun listFiles(currentPath: String = "", filter: String? = null): List<File> {
-        val files =  this.diskShare.list(currentPath, filter).mapNotNull {
+    fun listFiles(currentPath: String = "", filter: String = ""): List<File> {
+        val files = this.diskShare.list(
+            currentPath, filter.ifBlank {
+                null
+            }
+        ).mapNotNull {
             if (it.fileName in listOf(".", "..")) {
                 null
             } else {
@@ -43,7 +53,14 @@ class SambaFileDataSource {
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
 
         try {
-            val file = this.diskShare.openFile(path, accessMask, null, shareAccesses, createDisposition, null)
+            val file = this.diskShare.openFile(
+                path,
+                accessMask,
+                null,
+                shareAccesses,
+                createDisposition,
+                null
+            )
             Log.d("FileSambaDataSource", "samba has opened file: ${file.uncPath}")
             return file
         } catch (e: Exception) {

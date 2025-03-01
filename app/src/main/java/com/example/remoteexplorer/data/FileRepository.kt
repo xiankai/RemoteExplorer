@@ -50,7 +50,7 @@ class FileRepository (
         return mappedRemoteList
     }
 
-    suspend fun listFiles(connectionId: Int, currentPath: String = "", filter: String? = null, forceRemote: Boolean = false): List<LocalFile> {
+    suspend fun listFiles(connectionId: Int, currentPath: String = "", filter: String = "", forceRemote: Boolean = false): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {
                 fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
@@ -63,9 +63,9 @@ class FileRepository (
         }
     }
 
-    private fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String? = null): List<LocalFile> {
+    private fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String = ""): List<LocalFile> {
         val unfiltered = updateRemoteMapping(connectionId, currentPath)
-        return if (filter != null) {
+        return if (filter.isNotBlank()) {
             unfiltered.filter { it.filename.contains(filter) }
         } else {
             unfiltered
@@ -77,7 +77,7 @@ class FileRepository (
             if (forceRemote) {
                 updateRemoteMapping(connectionId, folder)
             } else {
-                val localList = localDatabaseDataSource.getFiles(connectionId, folder, null)
+                val localList = localDatabaseDataSource.getFiles(connectionId, folder, "")
                 localList.ifEmpty {
                     updateRemoteMapping(connectionId, folder)
                 }

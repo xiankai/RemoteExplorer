@@ -17,7 +17,7 @@ fun BreadcrumbHeader(
     currentPath: String,
     modifier: Modifier,
     onBreadcrumbClick: (String) -> Unit,
-    search: String?,
+    search: String,
 ) {
     val pathComponents = currentPath.split("/").filter { it.isNotEmpty() }
     val rootLabel = rootPath.ifEmpty { "Root" }
@@ -45,7 +45,7 @@ fun BreadcrumbHeader(
                 )
         )
 
-        if (!search.isNullOrBlank()) {
+        if (search.isNotBlank()) {
             Text(
                 text = "» Search: $search",
             )

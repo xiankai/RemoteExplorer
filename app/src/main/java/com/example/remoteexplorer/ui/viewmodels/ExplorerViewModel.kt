@@ -177,8 +177,8 @@ class ExplorerViewModel(
         return serverRepository.constructUrl(path)
     }
 
-    private val _search: MutableStateFlow<String?> = MutableStateFlow(null)
-    val searchState: StateFlow<String?> = _search.asStateFlow()
+    private val _search: MutableStateFlow<String> = MutableStateFlow("")
+    val searchState: StateFlow<String> = _search.asStateFlow()
     fun search(query: String) {
         _search.update {
             query
