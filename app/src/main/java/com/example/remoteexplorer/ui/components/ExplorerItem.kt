@@ -4,7 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -49,10 +49,9 @@ fun ExplorerItem(
             type,
             thumbnails,
             Modifier
-                .fillMaxHeight()
-                .aspectRatio(1f)
+                .fillMaxSize()
                 .padding(8.dp)
-                .weight(1f)
+                .weight(1f) // Needed so text can fit in
         )
         Spacer(modifier = Modifier.width((8.dp)))
         Text(

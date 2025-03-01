@@ -1,3 +1,4 @@
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.AudioFile
@@ -10,14 +11,20 @@ import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import com.example.remoteexplorer.ui.components.IconType
 
 @Composable
 fun SystemIcon(iconType: IconType, modifier: Modifier = Modifier) {
+    var colorFilter: ColorFilter? = null
     val icon = when(iconType) {
         IconType.CONNECTION-> Icons.Default.FolderShared
         IconType.ADD_CONNECTION -> Icons.Default.CreateNewFolder
-        IconType.FOLDER -> Icons.Default.Folder
+        IconType.FOLDER -> {
+            colorFilter = ColorFilter.tint(Color(0xFFFFD700))
+            Icons.Default.Folder
+        }
         IconType.IMAGE -> Icons.Default.Image
         IconType.VIDEO -> Icons.Default.VideoFile
         IconType.AUDIO -> Icons.Default.AudioFile
@@ -26,9 +33,10 @@ fun SystemIcon(iconType: IconType, modifier: Modifier = Modifier) {
         else -> Icons.AutoMirrored.Default.InsertDriveFile
     }
 
-    androidx.compose.material3.Icon(
+    Image(
         icon,
         contentDescription = iconType.name,
+        colorFilter = colorFilter,
         modifier = modifier
     )
 }
