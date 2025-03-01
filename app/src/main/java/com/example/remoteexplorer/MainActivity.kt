@@ -24,8 +24,6 @@ import com.example.remoteexplorer.data.SambaFileDataSource
 import com.example.remoteexplorer.data.ServerRepository
 import com.example.remoteexplorer.data.TagRepository
 import com.example.remoteexplorer.data.db.AppDatabase
-import com.example.remoteexplorer.data.db.ConnectionDao
-import com.example.remoteexplorer.data.db.LocalDatabaseDao
 import com.example.remoteexplorer.ui.components.MainView
 import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.PropertiesLoader
@@ -56,7 +54,7 @@ class ScanTagsWorkerFactory(
 class ExplorerViewModelFactory(
     private val application: Application,
     private val defaultDispatcher: CoroutineDispatcher
-): ViewModelProvider.Factory {
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val db = Room.databaseBuilder(
             application.applicationContext,
@@ -102,7 +100,8 @@ class ExplorerViewModelFactory(
             .build()
         WorkManager.initialize(application.applicationContext, config)
 
-        return ExplorerViewModel(application,
+        return ExplorerViewModel(
+            application,
             fileRepository,
             serverRepository,
             connectionRepository,
@@ -112,10 +111,6 @@ class ExplorerViewModelFactory(
 }
 
 class MainActivity : ComponentActivity() {
-    private lateinit var database: AppDatabase
-    private lateinit var connectionDao: ConnectionDao
-    private lateinit var localDatabaseDao: LocalDatabaseDao
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -125,14 +120,6 @@ class MainActivity : ComponentActivity() {
         val explorerViewModel: ExplorerViewModel by viewModels {
             ExplorerViewModelFactory(application, Dispatchers.IO)
         }
-
-        database = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java,
-            "app_database"
-        ).fallbackToDestructiveMigration().build()
-        connectionDao = database.connectionDao()
-        localDatabaseDao = database.localDatabaseDao()
 
         Sketch.Builder(applicationContext).apply {
             downloadCacheOptions(

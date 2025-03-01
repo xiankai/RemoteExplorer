@@ -204,7 +204,6 @@ class ExplorerViewModel(
     // Job to track the running coroutine
     private var listFileJob: Job? = null
     private var thumbnailJob: Job? = null
-    private var tagJob: Job? = null
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -214,7 +213,6 @@ class ExplorerViewModel(
                 // Cancel the previous coroutine if it's still running
                 listFileJob?.cancel()
                 thumbnailJob?.cancel()
-                tagJob?.cancel()
 
                 // Launch a new coroutine for the new path
                 listFileJob = launch {
