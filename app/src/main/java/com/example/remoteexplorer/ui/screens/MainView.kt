@@ -69,10 +69,6 @@ fun Routes(
                 onTest = {
                     explorerViewModel.testConnection(it)
                 },
-                onConnect = {
-                    explorerViewModel.connect(it)
-                    navHostController.navigate(Route.ExplorerRoute)
-                },
                 onCancel = { navHostController.navigate(Route.ConnectionsRoute) },
                 onDelete = {
                     explorerViewModel.deleteConnection(it)

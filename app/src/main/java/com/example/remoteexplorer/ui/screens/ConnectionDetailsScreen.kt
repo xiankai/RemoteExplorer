@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.Connection
@@ -40,7 +49,6 @@ fun ConnectionDetailsScreen(
     onSave: (Connection) -> Unit,
     onCancel: () -> Unit,
     onTest: (Connection) -> Unit,
-    onConnect: (Connection) -> Unit,
     onDelete: (Connection) -> Unit,
 ) {
     val id by remember { mutableIntStateOf(connection?.id ?: 0) }
@@ -87,7 +95,7 @@ fun ConnectionDetailsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = if (connection != null) {
@@ -98,53 +106,52 @@ fun ConnectionDetailsScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth()
+                val fields: List<Triple<String, (String) -> Unit, String>> = listOf(
+                    Triple(name, { name = it.trim() }, "Name"),
+                    Triple(hostname, { hostname = it.trim() }, "Hostname"),
+                    Triple(username, { username = it.trim() }, "Username"),
+                    Triple(password, { password = it.trim() }, "Password"),
+                    Triple(domain, { domain = it.trim() }, "Domain"),
+                    Triple(share, { share = it.trim() }, "Share"),
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                val localFocusManager = LocalFocusManager.current
+                val keyboardController = LocalSoftwareKeyboardController.current
 
-                OutlinedTextField(
-                    value = hostname,
-                    onValueChange = { hostname = it },
-                    label = { Text("Hostname") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn {
+                    itemsIndexed(fields) { index, field ->
+                        val imeAction = if (index == fields.lastIndex) {
+                            ImeAction.Done
+                        } else ImeAction.Next
 
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                        val keyboardActions = KeyboardActions(
+                            onNext = { localFocusManager.moveFocus(FocusDirection.Down) },
+                            onDone = {
+                                localFocusManager.clearFocus()
+                                keyboardController?.hide()
+                            }
+                        )
 
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                        val (value, onValueChange, label) = field
+                        val visualTransformation = if (label == "Password") {
+                            PasswordVisualTransformation()
+                        } else {
+                            VisualTransformation.None
+                        }
 
-                OutlinedTextField(
-                    value = domain,
-                    onValueChange = { domain = it },
-                    label = { Text("Domain") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = onValueChange,
+                            label = { Text(label) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = imeAction
+                            ),
+                            keyboardActions = keyboardActions,
+                            visualTransformation = visualTransformation
+                        )
+                    }
+                }
 
-                OutlinedTextField(
-                    value = share,
-                    onValueChange = { share = it },
-                    label = { Text("Share") },
-                    modifier = Modifier.fillMaxWidth()
-                )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
@@ -158,7 +165,7 @@ fun ConnectionDetailsScreen(
                     Button(onClick = { onTest(getCurrentConnection()) }) {
                         Text("Test Connection")
                     }
-                     Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { onSave(getCurrentConnection()) }) {
                         Text("Save")
                     }
@@ -184,17 +191,23 @@ fun PreviewConnectionDetailsScreen() {
             lastModified = Date()
         ),
         onSave = { connection ->
-            Log.d("ConnectionDetailsScreen", "Save: host=${connection.hostname}, port=${connection.username}")
+            Log.d(
+                "ConnectionDetailsScreen",
+                "Save: host=${connection.hostname}, port=${connection.username}"
+            )
         },
         onTest = { connection ->
-            Log.d("ConnectionDetailsScreen", "Test: host=${connection.hostname}, port=${connection.username}")
-        },
-        onConnect = { connection ->
-            Log.d("ConnectionDetailsScreen", "Connect: host=${connection.hostname}, port=${connection.username}")
+            Log.d(
+                "ConnectionDetailsScreen",
+                "Test: host=${connection.hostname}, port=${connection.username}"
+            )
         },
         onCancel = { Log.d("ConnectionDetailsScreen", "Cancel") },
         onDelete = { connection ->
-            Log.d("ConnectionDetailsScreen", "Delete: host=${connection.hostname}, port=${connection.username}")
+            Log.d(
+                "ConnectionDetailsScreen",
+                "Delete: host=${connection.hostname}, port=${connection.username}"
+            )
         }
     )
 }
