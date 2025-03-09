@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build APK
+    name: Build Android App Bundle
     runs-on: ubuntu-latest
 
     steps:
@@ -21,14 +21,14 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Download dependencies
-        run: ./gradlew dependencies
-
       - name: Decode Keystore
         run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > remote_explorer_keystore.jks
 
       - name: Set Keystore Settings
         run: echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
+
+      - name: Download dependencies
+        run: ./gradlew dependencies
 
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
