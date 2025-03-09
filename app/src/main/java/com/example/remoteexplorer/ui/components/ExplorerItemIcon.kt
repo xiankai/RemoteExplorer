@@ -15,8 +15,8 @@ fun ExplorerItemIcon(
     thumbnails: List<String>,
     modifier: Modifier
 ) = when {
-//        thumbnails.size == 1 -> ImageIcon(getImageUrl, thumbnails.firstOrNull(), modifier)
-    thumbnails.isNotEmpty() -> GalleryIcon(getImageUrl, thumbnails, modifier)
+    type === FileType.FOLDER && thumbnails.isNotEmpty() -> GalleryIcon(getImageUrl, thumbnails, modifier)
+    thumbnails.size == 1 -> ImageIcon(getImageUrl, thumbnails.firstOrNull(), modifier)
     type === FileType.CONNECTION -> SystemIcon(IconType.CONNECTION, modifier)
     type === FileType.ADD_CONNECTION -> SystemIcon(IconType.ADD_CONNECTION, modifier)
     type === FileType.FOLDER -> SystemIcon(IconType.FOLDER, modifier)
