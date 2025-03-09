@@ -180,7 +180,12 @@ fun ExplorerScreen(
                         Item(
                             name = it.filename,
                             type = it.type,
-                            thumbnails = thumbnails.getOrDefault(it.filename, emptyList()),
+                            thumbnails = thumbnails.getOrDefault(
+                                Paths.get(
+                                    it.parentPath,
+                                    it.filename
+                                ).toString(), emptyList()
+                            ),
                             item = it,
                         )
                     },

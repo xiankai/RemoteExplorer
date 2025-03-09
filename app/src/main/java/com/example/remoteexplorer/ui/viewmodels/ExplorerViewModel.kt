@@ -231,7 +231,7 @@ class ExplorerViewModel(
 
                     thumbnailJob = launch {
                         val thumbnails = fetchThumbnails(connectionId, files, forceRemote)
-                        _thumbnails.update { thumbnails }
+                        _thumbnails.update { it.plus(thumbnails) }
                     }
 
                     scanTagsJob(connectionId, forceRemote)
@@ -355,16 +355,16 @@ class ExplorerViewModel(
         val thumbnails = files.associate {
             val fullPath = Paths.get(it.parentPath, it.filename).toString()
             if (Utils.canHaveThumbnail(it.filename)) {
-                it.filename to listOf(fullPath)
+                fullPath to listOf(fullPath)
             } else if (it.type === FileType.FOLDER) {
-                it.filename to fileRepository.getFolderThumbnails(
+                fullPath to fileRepository.getFolderThumbnails(
                     connectionId,
                     fullPath,
                     4,
                     forceRemote
                 )
             } else {
-                it.filename to emptyList()
+                fullPath to emptyList()
             }
         }
 
