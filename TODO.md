@@ -1,5 +1,6 @@
 ## Feature Priority
 - [ ] Video playback needs to work when seeking
+- [ ] Status bar to show the current state of thumbnails / tags / etc
 
 ## Get in my hands priority
 - [ ] Figure out how to get my app actually usable on my tablet, via CI build

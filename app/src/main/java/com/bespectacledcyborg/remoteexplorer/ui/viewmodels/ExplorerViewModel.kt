@@ -123,7 +123,7 @@ class ExplorerViewModel(
 
                 listFiles(connection.id, false)
             } catch (e: Exception) {
-                _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
+                _toast.emit("Unable to connect to ${connection.hostname}")
             }
         }
 

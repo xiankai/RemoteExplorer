@@ -98,6 +98,7 @@ class ExplorerViewModelFactory(
             .build()
         WorkManager.initialize(application.applicationContext, config)
 
+        @Suppress("UNCHECKED_CAST")
         return ExplorerViewModel(
             application,
             fileRepository,
