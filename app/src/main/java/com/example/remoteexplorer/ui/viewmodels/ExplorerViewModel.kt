@@ -56,8 +56,8 @@ class ExplorerViewModel(
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
 
-    private val _list: MutableStateFlow<List<LocalFile>> = MutableStateFlow(emptyList())
-    val listState: StateFlow<List<LocalFile>> = _list.asStateFlow()
+    private val _list: MutableStateFlow<Map<String, List<LocalFile>>> = MutableStateFlow(emptyMap())
+    val listState: StateFlow<Map<String, List<LocalFile>>> = _list.asStateFlow()
 
     private val _connection: MutableStateFlow<Connection?> = MutableStateFlow(null)
     val connectionState: StateFlow<Connection?> = _connection.asStateFlow()
@@ -204,8 +204,8 @@ class ExplorerViewModel(
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             combine(pathState, searchState, sortState) { path, search, sort ->
-                Triple(path, search, sort)
-            }.collect { (path, search, sort) ->
+                Pair(path, search)
+            }.collect { (path, search) ->
                 // Cancel the previous coroutine if it's still running
                 listFileJob?.cancel()
                 thumbnailJob?.cancel()
@@ -226,7 +226,7 @@ class ExplorerViewModel(
                         it.copy(canHaveThumbnail = Utils.canHaveThumbnail(it.filename))
                     }
                     _list.update {
-                        files.sortedWith(getSortFunction(sort))
+                        it.plus(path to files)
                     }
 
                     thumbnailJob = launch {
@@ -248,7 +248,7 @@ class ExplorerViewModel(
         }
     }
 
-    private fun getSortFunction(sortType: SortType): Comparator<LocalFile> {
+    fun getSortFunction(sortType: SortType): Comparator<LocalFile> {
         return when (sortType) {
             SortType.NAME_ASC -> compareBy { it.filename }
             SortType.NAME_DESC -> compareByDescending { it.filename }

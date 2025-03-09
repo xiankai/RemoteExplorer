@@ -52,9 +52,11 @@ fun ExplorerScreen(
     val filteredList = combine(
         explorerViewModel.listState,
         explorerViewModel.searchState,
-        explorerViewModel.filterState
-    ) { list, search, filter ->
-        var finalList = list
+        explorerViewModel.filterState,
+        explorerViewModel.sortState,
+        explorerViewModel.pathState,
+    ) { list, search, filter, sort, path ->
+        var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort))
         if (filter.isNotEmpty()) {
             finalList = finalList.filter {
                 val iconType = Utils.guessIconType(it.filename)
@@ -62,7 +64,7 @@ fun ExplorerScreen(
             }
         }
 
-        if (!search.isNullOrEmpty()) {
+        if (search.isNotEmpty()) {
             finalList.filter {
                 it.filename.contains(search, ignoreCase = true)
             }
