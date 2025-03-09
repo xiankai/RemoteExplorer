@@ -9,19 +9,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.FileType
-import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import androidx.compose.material3.Text
 import com.example.remoteexplorer.ui.components.ExplorerItemIcon
+import com.example.remoteexplorer.ui.components.GetImageUrl
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ListViewItem(
-    explorerViewModel: ExplorerViewModel,
     name: String,
     type: FileType,
     thumbnails: List<String>,
     handleItemClick: () -> Unit,
     handleLongItemClick: () -> Unit,
+    getImageUrl: GetImageUrl,
 ) {
     ListItem(
         modifier = Modifier
@@ -33,7 +33,7 @@ fun ListViewItem(
         headlineContent = { Text(name) },
         leadingContent = {
             ExplorerItemIcon(
-                explorerViewModel,
+                getImageUrl,
                 name,
                 type,
                 thumbnails,

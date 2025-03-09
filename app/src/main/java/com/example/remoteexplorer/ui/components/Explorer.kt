@@ -30,7 +30,7 @@ data class Item<T> (
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T>Explorer(
-    explorerViewModel: ExplorerViewModel,
+    getImageUrl: GetImageUrl,
     items: List<Item<T>>,
     handleItemClick: (Item<T>) -> () -> Unit,
     handleLongItemClick: (Item<T>) -> () -> Unit,
@@ -55,12 +55,12 @@ fun <T>Explorer(
         if (viewType == ViewType.LIST) {
             LazyColumn {
                 items(items) { item -> ListViewItem(
-                    explorerViewModel,
                     item.name,
                     item.type,
                     item.thumbnails,
                     handleItemClick(item),
                     handleLongItemClick(item),
+                    getImageUrl,
                 ) }
             }
         } else if (viewType == ViewType.GRID) {
@@ -68,12 +68,12 @@ fun <T>Explorer(
                 columns = GridCells.Fixed(columnCount)
             ) {
                 items(items) { item -> ExplorerItem(
-                    explorerViewModel,
                     item.name,
                     item.type,
                     item.thumbnails,
                     handleItemClick(item),
                     handleLongItemClick(item),
+                    getImageUrl,
                 ) }
             }
         }

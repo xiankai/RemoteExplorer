@@ -1,11 +1,12 @@
 package com.example.remoteexplorer.utils
 
 import com.example.remoteexplorer.ui.components.IconType
+import com.github.panpf.sketch.util.MimeTypeMap
 import java.net.URLConnection
 
 object Utils {
     fun guessIconType(filename: String): IconType {
-        val mimeType = URLConnection.guessContentTypeFromName(filename) ?: "folder"
+        val mimeType = MimeTypeMap.getMimeTypeFromUrl(filename) ?: "folder"
 
         val iconType = when {
             Regex("image/.*").matches(mimeType) -> IconType.IMAGE

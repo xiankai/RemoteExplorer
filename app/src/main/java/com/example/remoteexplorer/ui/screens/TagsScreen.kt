@@ -80,7 +80,7 @@ fun TagsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
-                    explorerViewModel = explorerViewModel,
+                    getImageUrl = { explorerViewModel.getUrl(it) },
                     items = tags.value.map {
                         Item(
                             name = "${it.tag} (${it.count})",

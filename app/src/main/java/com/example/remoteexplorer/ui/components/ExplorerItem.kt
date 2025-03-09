@@ -18,17 +18,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.remoteexplorer.data.db.FileType
-import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExplorerItem(
-    explorerViewModel: ExplorerViewModel,
     name: String,
     type: FileType,
     thumbnails: List<String>,
     handleItemClick: () -> Unit,
     handleLongItemClick: () -> Unit,
+    getImageUrl: GetImageUrl,
     ) {
     Card(
         modifier = Modifier
@@ -44,7 +43,7 @@ fun ExplorerItem(
         )
     ) {
         ExplorerItemIcon(
-            explorerViewModel,
+            getImageUrl,
             name,
             type,
             thumbnails,

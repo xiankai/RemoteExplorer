@@ -4,7 +4,6 @@ import FallbackIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.remoteexplorer.R
-import com.example.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.example.remoteexplorer.utils.Utils
 import com.github.panpf.sketch.AsyncImage
 import com.github.panpf.sketch.rememberAsyncImageState
@@ -12,9 +11,11 @@ import com.github.panpf.sketch.request.ComposableImageOptions
 import com.github.panpf.sketch.request.placeholder
 import com.github.panpf.sketch.request.error
 
+typealias GetImageUrl = (fullPath: String) -> String
+
 @Composable
 fun ImageIcon(
-    explorerViewModel: ExplorerViewModel,
+    getImageUrl: GetImageUrl,
     fullPath: String?,
     modifier: Modifier = Modifier
 ) {
@@ -35,7 +36,7 @@ fun ImageIcon(
     }
 
     AsyncImage(
-        uri = explorerViewModel.getUrl(fullPath),
+        uri = getImageUrl(fullPath),
         state = rememberAsyncImageState(ComposableImageOptions {
             placeholder(fallback)
             error(R.drawable.sentiment_very_dissatisfied_24px)
