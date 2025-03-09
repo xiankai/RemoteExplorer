@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.remoteexplorer'
+    namespace 'com.bespectacledcyborg.remoteexplorer'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.example.remoteexplorer'
+        applicationId 'com.bespectacledcyborg.remoteexplorer'
         minSdk 34
         targetSdk 35
         versionCode 1
