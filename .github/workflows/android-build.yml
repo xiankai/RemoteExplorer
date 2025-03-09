@@ -22,7 +22,7 @@ jobs:
           java-version: '21'
 
       - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > remote_explorer_keystore.jks
+        run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > app/remote_explorer_keystore.jks
 
       - name: Set Keystore Settings
         run: echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
