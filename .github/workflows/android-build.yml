@@ -24,6 +24,12 @@ jobs:
       - name: Download dependencies
         run: ./gradlew dependencies
 
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > remote_explorer_keystore.jks
+
+      - name: Set Keystore Settings
+        run: echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
+
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
 
