@@ -27,8 +27,15 @@ jobs:
       - name: Set Keystore Settings
         run: echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
 
-      - name: Download dependencies
-        run: ./gradlew dependencies
+      - name: Setup Gradle Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
