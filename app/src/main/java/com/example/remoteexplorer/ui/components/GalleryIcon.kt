@@ -35,8 +35,8 @@ fun GalleryIcon(
             ),
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxSize(0.5f)
-                .offset(y = (LocalConfiguration.current.screenHeightDp * 0.05f).dp),
+                .fillMaxSize(0.5f),
+//                .offset(y = (LocalConfiguration.current.screenHeightDp * 0.05f).dp),
             userScrollEnabled = false
         ) {
             items(4) { index ->
