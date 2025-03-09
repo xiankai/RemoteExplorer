@@ -14,8 +14,33 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# Please add these rules to your existing keep rules in order to suppress warnings.
+# This is generated automatically by the Android Gradle plugin.
+-dontwarn java.lang.Module
+-dontwarn java.lang.ProcessHandle
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn java.lang.management.RuntimeMXBean
+-dontwarn javax.el.BeanELResolver
+-dontwarn javax.el.ELContext
+-dontwarn javax.el.ELResolver
+-dontwarn javax.el.ExpressionFactory
+-dontwarn javax.el.FunctionMapper
+-dontwarn javax.el.ValueExpression
+-dontwarn javax.el.VariableMapper
+-dontwarn javax.naming.ldap.LdapName
+-dontwarn javax.naming.ldap.Rdn
+-dontwarn org.eclipse.jetty.alpn.ALPN$Provider
+-dontwarn org.eclipse.jetty.alpn.ALPN$ServerProvider
+-dontwarn org.eclipse.jetty.alpn.ALPN
+-dontwarn org.ietf.jgss.GSSContext
+-dontwarn org.ietf.jgss.GSSCredential
+-dontwarn org.ietf.jgss.GSSException
+-dontwarn org.ietf.jgss.GSSManager
+-dontwarn org.ietf.jgss.GSSName
+-dontwarn org.ietf.jgss.Oid

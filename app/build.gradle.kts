@@ -1,3 +1,5 @@
+import java.time.Instant
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,7 +18,7 @@ android {
         applicationId = "com.bespectacledcyborg.remoteexplorer"
         minSdk = 34
         targetSdk = 35
-        versionCode = 1
+        versionCode = Instant.now().epochSecond.toInt()
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -30,8 +32,14 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            setProguardFiles(listOf(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"))
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            )
+            ndk {
+                debugSymbolLevel = "full"
+            }
         }
     }
     compileOptions {
@@ -52,6 +60,12 @@ android {
             excludes += "/META-INF/*"
         }
     }
+}
+
+composeCompiler {
+    stabilityConfigurationFiles = listOf(
+        rootProject.layout.projectDirectory.file("stability/sketch_compose_compiler_config.conf")
+    )
 }
 
 dependencies {

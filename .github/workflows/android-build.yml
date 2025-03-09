@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android App Bundle
 
 on:
   push:
@@ -24,11 +24,16 @@ jobs:
       - name: Download dependencies
         run: ./gradlew dependencies
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+      - name: Build Release Bundle
+        run: ./gradlew bundleRelease
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
         with:
-          name: Release APK
-          path: app/build/outputs/apk/release/*.apk
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.bespectacledcyborg.remoteexplorer
+          releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          track: production
+          status: draft
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
+          debugSymbols: app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
