@@ -31,7 +31,7 @@ android {
         minSdk = 34
         targetSdk = 35
         versionCode = Instant.now().epochSecond.toInt()
-        versionName = "1.0"
+        versionName = Instant.now().epochSecond.toString()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
