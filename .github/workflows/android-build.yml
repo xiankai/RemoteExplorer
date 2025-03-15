@@ -29,6 +29,8 @@ jobs:
 
       - name: Setup Gradle Cache
         uses: burrunan/gradle-cache-action@v1
+        with:
+          gradle-distribution-sha-256-sum-warning: false
 
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
