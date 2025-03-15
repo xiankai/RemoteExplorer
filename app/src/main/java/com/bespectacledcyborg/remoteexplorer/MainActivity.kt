@@ -25,7 +25,6 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
-import com.bespectacledcyborg.remoteexplorer.utils.PropertiesLoader
 import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
@@ -114,7 +113,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // For local dev
-        PropertiesLoader.loadProperties(this)
+        // PropertiesLoader.loadProperties(this)
 
         val explorerViewModel: ExplorerViewModel by viewModels {
             ExplorerViewModelFactory(application, Dispatchers.IO)
