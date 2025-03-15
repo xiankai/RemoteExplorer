@@ -47,7 +47,8 @@ fun GalleryIcon(
                     val filename = thumbnailUrls.getOrNull(index)
                     if (filename != null) {
                         ImageIcon(
-                            getImageUrl, thumbnailUrls[index],
+                            getImageUrl,
+                            thumbnailUrls[index],
                             Modifier
                                 .align(Alignment.Center)
                                 .fillMaxWidth()
