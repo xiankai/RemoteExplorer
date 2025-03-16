@@ -1,6 +1,8 @@
 import java.time.Instant
 import java.util.Properties
 import java.io.FileInputStream
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 // Create a variable called keystorePropertiesFile, and initialize it to your
 // keystore.properties file, in the rootProject folder.
@@ -30,7 +32,7 @@ android {
         minSdk = 34
         targetSdk = 35
         versionCode = Instant.now().epochSecond.toInt()
-        versionName = Instant.now().epochSecond.toString()
+        versionName = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
