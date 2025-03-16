@@ -19,6 +19,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.net.ServerSocket
 import java.net.URLConnection
+import java.net.URLDecoder
+import java.net.URLEncoder
+
+const val ENCODING = "UTF-8"
 
 class ServerRepository (
     private val sambaFileDataSource: SambaFileDataSource,
@@ -42,8 +46,9 @@ class ServerRepository (
                     }
                     get("/{path...}") {
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
-                        Log.d("ServerRepository", "Received GET request for $fullPath")
-                        val file = sambaFileDataSource.openFile(fullPath ?: "")
+                        val decodedPath = URLDecoder.decode(fullPath, ENCODING)
+                        Log.d("ServerRepository", "Received GET request for $decodedPath")
+                        val file = sambaFileDataSource.openFile(decodedPath ?: "")
                         val totalLength = file.fileInformation.standardInformation.endOfFile
 
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
@@ -78,7 +83,8 @@ class ServerRepository (
     }
 
     fun constructUrl(path: String): String {
-        return "http://127.0.0.1:${port}/${path}"
+        val encodedPath = URLEncoder.encode(path, ENCODING)
+        return "http://127.0.0.1:${port}/${encodedPath}"
     }
 
     private fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange {
