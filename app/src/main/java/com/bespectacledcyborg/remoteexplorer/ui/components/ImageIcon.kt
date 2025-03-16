@@ -10,6 +10,8 @@ import com.github.panpf.sketch.rememberAsyncImageState
 import com.github.panpf.sketch.request.ComposableImageOptions
 import com.github.panpf.sketch.request.error
 import com.github.panpf.sketch.request.placeholder
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 
 typealias GetImageUrl = (fullPath: String) -> String
 
@@ -35,12 +37,24 @@ fun ImageIcon(
         else -> R.drawable.draft_24px
     }
 
+    val state = rememberAsyncImageState(ComposableImageOptions {
+        placeholder(fallback)
+        error(R.drawable.sentiment_very_dissatisfied_24px)
+    })
+    val loadState = state.loadState
+    when (loadState) {
+        is Error -> {
+            Sentry.captureMessage("Failed to load", SentryLevel.INFO, {
+                it.setExtra("fullPath", fullPath)
+                it.setExtra("getImageUrl", getImageUrl(fullPath))
+            })
+        }
+        else -> {}
+    }
+
     AsyncImage(
         uri = getImageUrl(fullPath),
-        state = rememberAsyncImageState(ComposableImageOptions {
-            placeholder(fallback)
-            error(R.drawable.sentiment_very_dissatisfied_24px)
-        }),
+        state = state,
         contentDescription = filename,
         modifier = modifier,
     )
