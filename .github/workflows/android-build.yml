@@ -45,6 +45,6 @@ jobs:
           packageName: com.bespectacledcyborg.remoteexplorer
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: internal
-          status: draft
+          status: completed
           mappingFile: app/build/outputs/mapping/release/mapping.txt
           debugSymbols: app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
