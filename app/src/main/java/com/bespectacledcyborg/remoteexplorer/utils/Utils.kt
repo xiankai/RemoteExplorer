@@ -1,11 +1,14 @@
 package com.bespectacledcyborg.remoteexplorer.utils
 
+import com.bespectacledcyborg.remoteexplorer.data.ENCODING
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.github.panpf.sketch.util.MimeTypeMap
+import java.net.URLEncoder
 
 object Utils {
     fun guessIconType(filename: String): IconType {
-        val mimeType = MimeTypeMap.getMimeTypeFromUrl(filename) ?: "folder"
+        val encodedFilename = URLEncoder.encode(filename, ENCODING)
+        val mimeType = MimeTypeMap.getMimeTypeFromUrl(encodedFilename) ?: "folder"
 
         val iconType = when {
             Regex("image/.*").matches(mimeType) -> IconType.IMAGE

@@ -128,6 +128,8 @@ dependencies {
     implementation(libs.sketch.compose)
     implementation(libs.sketch.compose.resources)
     implementation(libs.sketch.animated.gif)
+    implementation(libs.sketch.animated.webp)
+    implementation(libs.sketch.svg)
     implementation(libs.sketch.http.ktor3)
     // Video Handling
     implementation(libs.sketch.video.ffmpeg)
