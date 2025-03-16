@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
+import io.ktor.server.request.uri
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
@@ -16,13 +17,14 @@ import io.ktor.server.routing.head
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import java.net.ServerSocket
 import java.net.URLConnection
 
 class ServerRepository (
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
-    private var port = 8080
+    private var port = findAvailablePort()
 
     suspend fun startup() {
         return withContext(dispatcher) {
@@ -106,5 +108,16 @@ class ServerRepository (
         val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
 
         return LongRange(actualStart, actualEnd)
+    }
+
+    /**
+     * Finds an available port by creating a ServerSocket with port 0,
+     * which makes the system allocate an available port.
+     * The socket is immediately closed after getting the port.
+     */
+    fun findAvailablePort(): Int {
+        return ServerSocket(0).use { socket ->
+            socket.localPort
+        }
     }
 }
