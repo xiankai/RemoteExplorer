@@ -27,6 +27,9 @@ jobs:
       - name: Set Keystore Settings
         run: echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
 
+      - name: Set Sentry Settings
+        run: echo "${{ secrets.SENTRY_PROPERTIES }}" > sentry.properties
+
       - name: Setup Gradle Cache
         uses: burrunan/gradle-cache-action@v1
         with:
