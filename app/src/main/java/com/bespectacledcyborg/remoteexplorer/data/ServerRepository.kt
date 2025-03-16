@@ -8,7 +8,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
-import io.ktor.server.request.uri
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
@@ -121,7 +120,7 @@ class ServerRepository (
      * which makes the system allocate an available port.
      * The socket is immediately closed after getting the port.
      */
-    fun findAvailablePort(): Int {
+    private fun findAvailablePort(): Int {
         return ServerSocket(0).use { socket ->
             socket.localPort
         }

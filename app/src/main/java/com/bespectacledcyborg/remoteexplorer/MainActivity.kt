@@ -112,9 +112,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // For local dev
-        // PropertiesLoader.loadProperties(this)
-
         val explorerViewModel: ExplorerViewModel by viewModels {
             ExplorerViewModelFactory(application, Dispatchers.IO)
         }

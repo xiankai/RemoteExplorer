@@ -5,7 +5,8 @@ coreKtx = "1.15.0"
 espressoCore = "3.6.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
-kotlinBom = "1.8.0"
+kotlinBom = "1.8.22"
+kotlinJson = "1.8.22"
 kotlinxCoroutinesAndroid = "1.10.1"
 ktor = "3.1.1"
 lifecycleRuntime = "2.8.7"
@@ -15,7 +16,6 @@ smbj = "0.14.0"
 kotlin = "2.0.0"
 room = "2.6.1"
 navigationCompose = "2.8.9"
-googleGmsGoogleServices = "4.4.2"
 workRuntimeKtx = "2.10.0"
 
 [libraries]
@@ -27,7 +27,7 @@ ext-junit = { module = "androidx.test.ext:junit", version.ref = "junitVersion" }
 junit = { module = "junit:junit", version.ref = "junit" }
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlinBom" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinBom" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinJson" }
 ktor-server-auto-head-response = { module = "io.ktor:ktor-server-auto-head-response", version.ref = "ktor" }
 ktor-server-jetty-jakarta = { module = "io.ktor:ktor-server-jetty-jakarta", version.ref = "ktor" }
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntime" }
