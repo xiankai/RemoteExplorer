@@ -18,8 +18,7 @@ plugins {
     id("com.google.devtools.ksp")
     alias(libs.plugins.compose.compiler)
     id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
-    id("com.google.firebase.crashlytics")
-//    alias(libs.plugins.google.gms.google.services)
+    id("io.sentry.android.gradle") version "5.3.0"
 }
 
 android {
@@ -143,9 +142,13 @@ dependencies {
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
+}
 
-    // Crash Reporting
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.analytics)
+sentry {
+    org.set("kj")
+    projectName.set("remote-explorer")
+
+    // this will upload your source code to Sentry to show it as part of the stack traces
+    // disable if you don't want to expose your sources
+    includeSourceContext.set(true)
 }

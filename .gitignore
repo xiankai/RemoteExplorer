@@ -13,3 +13,5 @@
 .cxx
 *.properties
 *.jks
+# Sentry Config File
+sentry.properties
