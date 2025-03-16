@@ -203,7 +203,7 @@ class ExplorerViewModel(
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            combine(pathState, searchState, sortState) { path, search, sort ->
+            combine(pathState, searchState) { path, search ->
                 Pair(path, search)
             }.collect { (path, search) ->
                 // Cancel the previous coroutine if it's still running
