@@ -19,7 +19,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
     id("com.google.firebase.crashlytics")
-    alias(libs.plugins.google.gms.google.services)
+//    alias(libs.plugins.google.gms.google.services)
 }
 
 android {
@@ -62,6 +62,9 @@ android {
             ndk {
                 debugSymbolLevel = "full"
             }
+        }
+        debug {
+            applicationIdSuffix = ".debug"
         }
     }
     compileOptions {
