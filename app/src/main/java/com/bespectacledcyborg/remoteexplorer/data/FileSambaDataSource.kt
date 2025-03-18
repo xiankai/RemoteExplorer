@@ -6,6 +6,9 @@ import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
+import io.sentry.Sentry
+import io.sentry.SentryLevel
+import java.nio.file.Paths
 
 typealias ConnectionId = Int
 
@@ -77,7 +80,8 @@ class SambaFileDataSource {
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
 
         try {
-            val file = accessDiskShare(connectionId).openFile(
+            val diskShare = accessDiskShare(connectionId)
+            val file = diskShare.openFile(
                 path,
                 accessMask,
                 null,
@@ -89,6 +93,11 @@ class SambaFileDataSource {
             return file
         } catch (e: Exception) {
             Log.e("FileSambaDataSource", "samba failed to open file: $path", e)
+            Sentry.captureMessage("Failed to open", SentryLevel.INFO, {
+                val diskShare = accessDiskShare(connectionId)
+                it.setExtra("shareName", diskShare.smbPath.toString())
+                it.setExtra("fullPath", path)
+            })
             throw e
         }
     }
