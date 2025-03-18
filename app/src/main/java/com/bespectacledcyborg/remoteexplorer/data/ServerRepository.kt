@@ -14,6 +14,8 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.routing
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.net.ServerSocket
@@ -51,6 +53,10 @@ class ServerRepository(
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         val decodedPath = URLDecoder.decode(fullPath, ENCODING)
                         Log.d("ServerRepository", "Received GET request for $decodedPath")
+                        Sentry.captureMessage("Received GET request", SentryLevel.INFO, {
+                            it.setExtra("connectionId", connectionId.toString())
+                            it.setExtra("fullPath", decodedPath)
+                        })
                         val file = sambaFileDataSource.openFile(connectionId, decodedPath ?: "")
                         val totalLength = file.fileInformation.standardInformation.endOfFile
 
