@@ -8,6 +8,7 @@ import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.github.panpf.sketch.AsyncImage
 import com.github.panpf.sketch.rememberAsyncImageState
 import com.github.panpf.sketch.request.ComposableImageOptions
+import com.github.panpf.sketch.request.LoadState
 import com.github.panpf.sketch.request.error
 import com.github.panpf.sketch.request.placeholder
 import io.sentry.Sentry
@@ -43,10 +44,10 @@ fun ImageIcon(
     })
     val loadState = state.loadState
     when (loadState) {
-        is Error -> {
+        is LoadState.Error -> {
             Sentry.captureMessage("Failed to load", SentryLevel.INFO, {
                 it.setExtra("fullPath", fullPath)
-                it.setExtra("getImageUrl", getImageUrl(fullPath))
+                it.setExtra("url", getImageUrl(fullPath))
             })
         }
         else -> {}
