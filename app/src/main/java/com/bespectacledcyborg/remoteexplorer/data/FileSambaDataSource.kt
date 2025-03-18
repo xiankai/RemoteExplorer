@@ -8,7 +8,6 @@ import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
 import io.sentry.Sentry
 import io.sentry.SentryLevel
-import java.nio.file.Paths
 
 typealias ConnectionId = Int
 
