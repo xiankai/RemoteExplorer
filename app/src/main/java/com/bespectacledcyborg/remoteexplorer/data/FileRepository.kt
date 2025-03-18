@@ -24,14 +24,17 @@ class FileRepository (
     private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
-    suspend fun connect(hostname: String, username: String, password: String, domain: String, shareName: String) {
+    suspend fun connect(connectionId: Int, hostname: String, username: String, password: String, domain: String, shareName: String) {
         return withContext(dispatcher) {
-            sambaFileDataSource.connect(hostname, username, password, domain, shareName)
+            sambaFileDataSource.connect(
+                ConnectionDetails(
+                    connectionId, hostname, username, password, domain, shareName
+            ))
         }
     }
 
     private fun updateRemoteMapping(connectionId: Int, parentPath: String): List<LocalFile> {
-        val remoteList = sambaFileDataSource.listFiles(parentPath)
+        val remoteList = sambaFileDataSource.listFiles(connectionId, parentPath)
         val mappedRemoteList = remoteList.map {
             LocalFile(
                 connectionId = connectionId,
@@ -101,18 +104,18 @@ class FileRepository (
         return localDatabaseDataSource.getFilesWithTag(tag)
     }
 
-    fun openFileDirectly(fullPath: String): File {
-        return sambaFileDataSource.openFile(fullPath)
+    fun openFileDirectly(connectionId: Int, fullPath: String): File {
+        return sambaFileDataSource.openFile(connectionId, fullPath)
     }
 
-    fun openFileRange(fullPath: String, buffer: ByteArray, start: Int, len: Int): Int {
-        val inputStream = sambaFileDataSource.openFile(fullPath).inputStream
+    fun openFileRange(connectionId: Int, fullPath: String, buffer: ByteArray, start: Int, len: Int): Int {
+        val inputStream = sambaFileDataSource.openFile(connectionId, fullPath).inputStream
         inputStream.skipNBytes(start.toLong())
         return inputStream.readNBytes(buffer, 0, len)
     }
 
-    fun getFileSize(fullPath: String): Long {
-        val file = sambaFileDataSource.openFile(fullPath)
+    fun getFileSize(connectionId: Int, fullPath: String): Long {
+        val file = sambaFileDataSource.openFile(connectionId, fullPath)
         return file.fileInformation.standardInformation.allocationSize
     }
 }

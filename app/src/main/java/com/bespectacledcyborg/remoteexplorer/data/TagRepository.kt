@@ -17,7 +17,7 @@ class TagRepository (
         Log.d("TagRepository", "Scanning ${tagFiles.size} tags")
         tagFiles.forEach {
             val tagPath = Paths.get(it.parentPath, it.filename).toString()
-            val tagFileHandle = fileRepository.openFileDirectly(tagPath)
+            val tagFileHandle = fileRepository.openFileDirectly(connectionId, tagPath)
             val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
 
             // Using Dublin Core namespace as they are the most common metadata category

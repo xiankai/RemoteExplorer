@@ -114,6 +114,7 @@ class ExplorerViewModel(
                 }
 
                 fileRepository.connect(
+                    connection.id,
                     connection.hostname,
                     connection.username,
                     connection.password,
@@ -138,6 +139,7 @@ class ExplorerViewModel(
         viewModelScope.launch {
             try {
                 fileRepository.connect(
+                    connection.id,
                     connection.hostname,
                     connection.username,
                     connection.password,
@@ -170,7 +172,9 @@ class ExplorerViewModel(
     }
 
     fun getUrl(path: String): String {
-        return serverRepository.constructUrl(path)
+        val connectionId = _connection.value?.id
+            ?: throw IllegalStateException("Constructing a URL when connectionId is null")
+        return serverRepository.constructUrl(connectionId, path)
     }
 
     private val _search: MutableStateFlow<String> = MutableStateFlow("")
@@ -322,12 +326,12 @@ class ExplorerViewModel(
         }
     }
 
-    fun openFileRange(fullPath: String, buffer: ByteArray, start: Int, end: Int): Int {
-        return fileRepository.openFileRange(fullPath, buffer, start, end)
+    fun openFileRange(connectionId: Int, fullPath: String, buffer: ByteArray, start: Int, end: Int): Int {
+        return fileRepository.openFileRange(connectionId, fullPath, buffer, start, end)
     }
 
-    fun getFileSize(fullPath: String): Long {
-        return fileRepository.getFileSize(fullPath)
+    fun getFileSize(connectionId: Int, fullPath: String): Long {
+        return fileRepository.getFileSize(connectionId, fullPath)
     }
 
     private val _tagScreenViewType = MutableStateFlow(ViewType.GRID)

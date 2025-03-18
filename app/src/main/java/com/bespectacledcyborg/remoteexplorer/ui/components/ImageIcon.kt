@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import FallbackIcon
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.bespectacledcyborg.remoteexplorer.R
@@ -43,18 +44,20 @@ fun ImageIcon(
         error(R.drawable.sentiment_very_dissatisfied_24px)
     })
     val loadState = state.loadState
+    val uri = getImageUrl(fullPath)
     when (loadState) {
         is LoadState.Error -> {
+            Log.e("ImageIcon", "Failed to load: $fullPath, uri: $uri")
             Sentry.captureMessage("Failed to load", SentryLevel.INFO, {
                 it.setExtra("fullPath", fullPath)
-                it.setExtra("url", getImageUrl(fullPath))
+                it.setExtra("uri", uri)
             })
         }
         else -> {}
     }
 
     AsyncImage(
-        uri = getImageUrl(fullPath),
+        uri = uri,
         state = state,
         contentDescription = filename,
         modifier = modifier,

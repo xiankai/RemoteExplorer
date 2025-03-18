@@ -7,27 +7,51 @@ import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
 
+typealias ConnectionId = Int
+
+data class ConnectionDetails(
+    var connectionId: ConnectionId,
+    var hostname: String,
+    var username: String,
+    var password: String,
+    var domain: String,
+    var shareName: String,
+)
+
+data class DiskShareEntry(
+    val details: ConnectionDetails,
+    val share: DiskShare?
+)
+
 class SambaFileDataSource {
-    private lateinit var diskShare: DiskShare
+    private var diskShares: MutableMap<ConnectionId, DiskShareEntry> = mutableMapOf()
 
     fun connect(
-        hostname: String,
-        username: String,
-        password: String,
-        domain: String,
-        shareName: String
-    ) {
+        details: ConnectionDetails
+    ): DiskShare {
         val client = SMBClient()
-        val connection = client.connect(hostname)
-        val authContext = AuthenticationContext(username, password.toCharArray(), domain)
+        val connection = client.connect(details.hostname)
+        val authContext = AuthenticationContext(details.username, details.password.toCharArray(), details.domain)
         val session = connection.authenticate(authContext)
-        val share = session.connectShare(shareName)
+        val share = session.connectShare(details.shareName)
         if (share !is DiskShare) throw IllegalStateException("Not a file share")
-        this.diskShare = share
+        this.diskShares[details.connectionId] = DiskShareEntry(details, share)
+        return share
     }
 
-    fun listFiles(currentPath: String = "", filter: String = ""): List<File> {
-        val files = this.diskShare.list(
+    private fun accessDiskShare(connectionId: ConnectionId): DiskShare {
+        val diskShareEntry = this.diskShares[connectionId]
+            ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
+
+        if (diskShareEntry.share == null) {
+            return connect(diskShareEntry.details)
+        }
+
+        return diskShareEntry.share
+    }
+
+    fun listFiles(connectionId: ConnectionId, currentPath: String = "", filter: String = ""): List<File> {
+        val files = accessDiskShare(connectionId).list(
             currentPath, filter.ifBlank {
                 null
             }
@@ -47,13 +71,13 @@ class SambaFileDataSource {
         return files
     }
 
-    fun openFile(path: String): com.hierynomus.smbj.share.File {
+    fun openFile(connectionId: ConnectionId, path: String): com.hierynomus.smbj.share.File {
         val accessMask = setOf(AccessMask.GENERIC_READ)
         val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
 
         try {
-            val file = this.diskShare.openFile(
+            val file = accessDiskShare(connectionId).openFile(
                 path,
                 accessMask,
                 null,

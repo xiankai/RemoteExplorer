@@ -3,6 +3,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
 class VideoDataSource(
     private val explorerViewModel: ExplorerViewModel,
+    private val connectionId: Int,
     private val fullPath: String,
     private val closeHandler: () -> Unit,
 ): MediaDataSource() {
@@ -14,10 +15,10 @@ class VideoDataSource(
         if (buffer == null) {
             return -1
         }
-        return explorerViewModel.openFileRange(fullPath, buffer, position.toInt(), size)
+        return explorerViewModel.openFileRange(connectionId, fullPath, buffer, position.toInt(), size)
     }
 
     override fun getSize(): Long {
-        return explorerViewModel.getFileSize(fullPath)
+        return explorerViewModel.getFileSize(connectionId, fullPath)
     }
 }

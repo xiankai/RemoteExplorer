@@ -19,9 +19,9 @@ class ThumbnailRepository (
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
-    suspend fun generateImageThumbnail(path: String) {
+    suspend fun generateImageThumbnail(connectionId: Int, path: String) {
         return withContext(dispatcher) {
-            val file = sambaFileDataSource.openFile(path)
+            val file = sambaFileDataSource.openFile(connectionId, path)
             val thumbnail = createThumbnailFromStream(file.inputStream, Size(480, 640))
             val thumbnailFile = File(context.filesDir, path)
             FileOutputStream(thumbnailFile).use { out ->

@@ -23,7 +23,7 @@ import java.net.URLEncoder
 
 const val ENCODING = "UTF-8"
 
-class ServerRepository (
+class ServerRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
@@ -31,12 +31,14 @@ class ServerRepository (
 
     suspend fun startup() {
         return withContext(dispatcher) {
-            embeddedServer(Jetty, port, host="0.0.0.0") {
+            embeddedServer(Jetty, port, host = "0.0.0.0") {
                 routing {
                     head("/{path...}") {
+                        val connectionId: Int = call.queryParameters["connectionId"]?.toInt()
+                            ?: throw IllegalArgumentException("Invalid connectionId parameter")
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
-                        val file = sambaFileDataSource.openFile(fullPath ?: "")
+                        val file = sambaFileDataSource.openFile(connectionId, fullPath ?: "")
                         val totalLength = file.fileInformation.standardInformation.endOfFile
 
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
@@ -44,10 +46,12 @@ class ServerRepository (
                         commonHeaders(file, range.first, range.last)
                     }
                     get("/{path...}") {
+                        val connectionId: Int = call.queryParameters["connectionId"]?.toInt()
+                            ?: throw IllegalArgumentException("Invalid connectionId parameter ${call.queryParameters["connectionId"]}")
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         val decodedPath = URLDecoder.decode(fullPath, ENCODING)
                         Log.d("ServerRepository", "Received GET request for $decodedPath")
-                        val file = sambaFileDataSource.openFile(decodedPath ?: "")
+                        val file = sambaFileDataSource.openFile(connectionId, decodedPath ?: "")
                         val totalLength = file.fileInformation.standardInformation.endOfFile
 
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
@@ -81,9 +85,9 @@ class ServerRepository (
         }
     }
 
-    fun constructUrl(path: String): String {
+    fun constructUrl(connectionId: Int, path: String): String {
         val encodedPath = URLEncoder.encode(path, ENCODING)
-        return "http://127.0.0.1:${port}/${encodedPath}"
+        return "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
     }
 
     private fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange {
