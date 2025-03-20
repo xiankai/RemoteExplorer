@@ -14,8 +14,6 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.routing
-import io.sentry.Sentry
-import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.net.ServerSocket
@@ -54,41 +52,36 @@ class ServerRepository(
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         val decodedPath = URLDecoder.decode(fullPath, ENCODING)
                         Log.d("ServerRepository", "Received GET request for $decodedPath")
-                        Sentry.captureMessage("Received GET request", SentryLevel.INFO, {
-                            it.setExtra("connectionId", connectionId.toString())
-                            it.setExtra("fullPath", decodedPath)
-                        })
                         val file = sambaFileDataSource.openFile(connectionId, decodedPath ?: "")
-                        val totalLength = file.fileInformation.standardInformation.endOfFile
+                        file.use {
+                            val totalLength = file.fileInformation.standardInformation.endOfFile
 
-                        val rangeHeader = call.request.headers[HttpHeaders.Range]
-                        val range = parseRangeHeaders(rangeHeader, totalLength)
-                        commonHeaders(file, range.first, range.last)
+                            val rangeHeader = call.request.headers[HttpHeaders.Range]
+                            val range = parseRangeHeaders(rangeHeader, totalLength)
+                            commonHeaders(file, range.first, range.last)
 
-                        if (rangeHeader != null) {
-                            Log.d("ServerRepository", "Received range request: $rangeHeader")
-                            try {
-                                val requestedLength = range.last - range.first + 1
-                                val byteArray = ByteArray(requestedLength.toInt())
-                                file.read(byteArray, range.first, 0, range.last.toInt())
-                                call.response.status(HttpStatusCode.PartialContent)
-                                call.respondBytes(byteArray)
-                            } catch (e: Exception) {
-                                Log.e("ServerRepository", "Error processing range header", e)
-                                call.response.status(HttpStatusCode.BadRequest)
-                                call.respondText("Error processing requested range")
-                            }
-                        } else {
-                            call.respondOutputStream {
-                                file.inputStream.transferTo(this)
+                            if (rangeHeader != null) {
+                                Log.d("ServerRepository", "Received range request: $rangeHeader")
+                                try {
+                                    val requestedLength = range.last - range.first + 1
+                                    val byteArray = ByteArray(requestedLength.toInt())
+                                    file.read(byteArray, range.first, 0, range.last.toInt())
+                                    call.response.status(HttpStatusCode.PartialContent)
+                                    call.respondBytes(byteArray)
+                                } catch (e: Exception) {
+                                    Log.e("ServerRepository", "Error processing range header", e)
+                                    call.response.status(HttpStatusCode.BadRequest)
+                                    call.respondText("Error processing requested range")
+                                }
+                            } else {
+                                call.respondOutputStream {
+                                    file.inputStream.transferTo(this)
+                                }
                             }
                         }
-
-                        file.close()
                     }
                 }
             }.start(wait = true)
-
         }
     }
 
