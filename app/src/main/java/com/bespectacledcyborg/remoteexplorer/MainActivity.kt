@@ -95,7 +95,9 @@ class ExplorerViewModelFactory(
         val config = Configuration.Builder()
             .setWorkerFactory(myWorkerFactory)
             .build()
-        WorkManager.initialize(application.applicationContext, config)
+        if (!WorkManager.isInitialized()) {
+            WorkManager.initialize(application.applicationContext, config)
+        }
 
         @Suppress("UNCHECKED_CAST")
         return ExplorerViewModel(
