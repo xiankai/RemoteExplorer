@@ -29,9 +29,10 @@ class ServerRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
-    private var port = findAvailablePort()
+    private var port = 0
 
     suspend fun startup() {
+        port = findAvailablePort()
         return withContext(dispatcher) {
             embeddedServer(Jetty, port, host = "0.0.0.0") {
                 routing {
