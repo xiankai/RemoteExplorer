@@ -1,7 +1,6 @@
 import java.time.Instant
 import java.util.Properties
 import java.io.FileInputStream
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -56,8 +55,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+//            isDebuggable = false
+//            isMinifyEnabled = true
+//            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
@@ -68,6 +68,11 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+        }
+
+        register("releaseDebug") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".releasedebug"
         }
     }
     compileOptions {
@@ -118,6 +123,7 @@ dependencies {
     // Server
     implementation(libs.smbj)
     implementation(libs.ktor.server.jetty.jakarta)
+//    implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.auto.head.response)
 
     // DB
