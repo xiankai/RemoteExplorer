@@ -33,7 +33,8 @@ android {
         minSdk = 34
         targetSdk = 35
         versionCode = Instant.now().epochSecond.toInt()
-        versionName = ZonedDateTime.now(ZoneId.of("Asia/Tokyo")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        versionName = ZonedDateTime.now(ZoneId.of("Asia/Tokyo"))
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -91,6 +92,18 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/*"
+        }
+        jniLibs {
+            keepDebugSymbols.add("libandroidx.graphics.path.so")
+            keepDebugSymbols.add("libavcodec.so")
+            keepDebugSymbols.add("libavformat.so")
+            keepDebugSymbols.add("libavutil.so")
+            keepDebugSymbols.add("libcrypto.so")
+            keepDebugSymbols.add("libffmpeg_mediametadataretriever_jni.so")
+            keepDebugSymbols.add("libsentry-android.so")
+            keepDebugSymbols.add("libsentry.so")
+            keepDebugSymbols.add("libssl.so")
+            keepDebugSymbols.add("libswscale.so.")
         }
     }
 }
