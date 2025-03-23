@@ -30,7 +30,7 @@ class ThumbnailManager(
     }
 
     fun getThumbnailPath(originalPath: String): File {
-        val hash = originalPath.hashCode().toString()
+        val hash = originalPath.hashCode().toString() + ".jpg"
         return File(thumbnailCache, hash)
     }
 

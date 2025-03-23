@@ -1,7 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
-import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.hierynomus.smbj.share.File
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
@@ -59,7 +58,12 @@ class ServerRepository(
 
                         val rangeHeader = call.request.headers[HttpHeaders.Range]
                         val range = parseRangeHeaders(rangeHeader, totalLength)
-                        commonHeaders(file, range.first, range.last)
+                        val standardHeaders = commonHeaders(file, range.first, range.last)
+                        for (name in standardHeaders.names()) {
+                            standardHeaders.getAll(name)?.forEach { value ->
+                                call.response.headers.append(name, value)
+                            }
+                        }
                     }
                     get("/{path...}") {
                         val connectionId = extractConnectionId(call)
@@ -113,7 +117,13 @@ class ServerRepository(
 
                             val rangeHeader = call.request.headers[HttpHeaders.Range]
                             val range = parseRangeHeaders(rangeHeader, totalLength)
-                            commonHeaders(file, range.first, range.last)
+
+                            val standardHeaders = commonHeaders(file, range.first, range.last)
+                            for (name in standardHeaders.names()) {
+                                standardHeaders.getAll(name)?.forEach { value ->
+                                    call.response.headers.append(name, value)
+                                }
+                            }
 
                             if (rangeHeader != null) {
                                 Log.d(
@@ -172,7 +182,7 @@ class ServerRepository(
             HttpHeaders.AcceptRanges to listOf("bytes"),
             HttpHeaders.ContentType to listOf(mimeType),
             HttpHeaders.ContentLength to listOf(requestedLength.toString()),
-            HttpHeaders.ContentRange to listOf("bytes $start-$end/$requestedLength"),
+            HttpHeaders.ContentRange to listOf("bytes $start-$end"),
         )
     }
 
@@ -188,6 +198,7 @@ class ServerRepository(
      * allocate an available port. The socket is immediately closed after getting the port.
      */
     private fun findAvailablePort(): Int {
+        return 45454
         return ServerSocket(0).use { socket -> socket.localPort }
     }
 }
