@@ -80,7 +80,7 @@ fun PreviewGalleryIcon(
     @PreviewParameter(GalleryPreviewParameterProvider::class) thumbnailUrls: List<String>
 ) {
     GalleryIcon(
-        getImageUrl = { it },
+        getImageUrl = ({ url, _ -> url }),
         thumbnailUrls = thumbnailUrls
     )
 }

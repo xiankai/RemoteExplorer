@@ -1,28 +1,36 @@
 package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 
-import ScanTagsWorker
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.WorkQuery
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
+import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
+import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_GENERATION_WORK_TAG
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_FULL_PATH
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_PARENT_PATH
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import java.nio.file.Paths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +39,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.nio.file.Paths
 
 enum class SortType {
     NAME_ASC,
@@ -45,12 +52,15 @@ enum class ViewType {
     LIST
 }
 
+typealias ThumbnailsMap = Map<String, List<String>>
+
 class ExplorerViewModel(
     application: Application,
     private val fileRepository: FileRepository,
     private val serverRepository: ServerRepository,
     private val connectionRepository: ConnectionRepository,
     private val tagRepository: TagRepository,
+    private val thumbnailManager: ThumbnailManager = ThumbnailManager(application)
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -69,11 +79,11 @@ class ExplorerViewModel(
     private val _toast = MutableSharedFlow<String>()
     val toast = _toast.asSharedFlow()
 
-    private val _thumbnails: MutableStateFlow<Map<String, List<String>>> =
+    private val _thumbnails: MutableStateFlow<ThumbnailsMap> =
         MutableStateFlow(emptyMap())
     val thumbnailsState = _thumbnails.asStateFlow()
 
-    private val _tagThumbnails: MutableStateFlow<Map<String, List<String>>> =
+    private val _tagThumbnails: MutableStateFlow<ThumbnailsMap> =
         MutableStateFlow(emptyMap())
     val tagThumbnailsState = _tagThumbnails.asStateFlow()
 
@@ -82,21 +92,15 @@ class ExplorerViewModel(
     // find connections
     // populate tags
     init {
-        viewModelScope.launch {
-            serverRepository.startup()
-        }
+        viewModelScope.launch { serverRepository.startup() }
         viewModelScope.launch {
             connectionRepository.getConnections().collect { connections ->
-                _connections.update {
-                    connections
-                }
+                _connections.update { connections }
             }
         }
         viewModelScope.launch {
             val tags = tagRepository.getTags()
-            _tags.update {
-                tags
-            }
+            _tags.update { tags }
             launch {
                 val tagThumbnails = fetchTagThumbnails(tags)
                 _tagThumbnails.update { tagThumbnails }
@@ -109,9 +113,7 @@ class ExplorerViewModel(
     fun connect(connection: Connection) {
         viewModelScope.launch {
             try {
-                _connection.update {
-                    connection
-                }
+                _connection.update { connection }
 
                 fileRepository.connect(
                     connection.id,
@@ -129,9 +131,7 @@ class ExplorerViewModel(
         }
 
         viewModelScope.launch {
-            _connectionName.update {
-                connection.name + " » " + connection.share
-            }
+            _connectionName.update { connection.name + " » " + connection.share }
         }
     }
 
@@ -154,65 +154,55 @@ class ExplorerViewModel(
     }
 
     fun changePath(path: String) {
-        _path.update {
-            path
-        }
-        _navigationStack.update {
-            it.plus(path)
-        }
+        _path.update { path }
+        _navigationStack.update { it.plus(path) }
     }
 
     fun goBack() {
-        _navigationStack.update {
-            it.dropLast(1)
-        }
-        _path.update {
-            _navigationStack.value.lastOrNull().orEmpty()
-        }
+        _navigationStack.update { it.dropLast(1) }
+        _path.update { _navigationStack.value.lastOrNull().orEmpty() }
     }
 
-    fun getUrl(path: String): String {
-        val connectionId = _connection.value?.id
-            ?: throw IllegalStateException("Constructing a URL when connectionId is null")
-        return serverRepository.constructUrl(connectionId, path)
+    fun getUrl(path: String, thumbnail: Boolean = false): String {
+        val connectionId =
+            _connection.value?.id
+                ?: throw IllegalStateException(
+                    "Constructing a URL when connectionId is null"
+                )
+        return serverRepository.constructUrl(connectionId, path, thumbnail)
     }
 
     private val _search: MutableStateFlow<String> = MutableStateFlow("")
     val searchState: StateFlow<String> = _search.asStateFlow()
     fun search(query: String) {
-        _search.update {
-            query
-        }
+        _search.update { query }
     }
 
     private val _filter = MutableStateFlow<List<IconType>>(emptyList())
     val filterState: StateFlow<List<IconType>> = _filter.asStateFlow()
     fun filter(extensions: List<IconType>) {
-        _filter.update {
-            extensions
-        }
+        _filter.update { extensions }
     }
 
     private val _sort = MutableStateFlow(SortType.NAME_ASC)
     val sortState: StateFlow<SortType> = _sort.asStateFlow()
     fun sort(sortType: SortType) {
-        _sort.update {
-            sortType
-        }
+        _sort.update { sortType }
     }
 
     // Job to track the running coroutine
     private var listFileJob: Job? = null
-    private var thumbnailJob: Job? = null
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             combine(pathState, searchState) { path, search ->
-                Pair(path, search)
+                Pair(
+                    path,
+                    search
+                )
             }.collect { (path, search) ->
                 // Cancel the previous coroutine if it's still running
                 listFileJob?.cancel()
-                thumbnailJob?.cancel()
 
                 // Launch a new coroutine for the new path
                 listFileJob = launch {
@@ -227,17 +217,17 @@ class ExplorerViewModel(
                             forceRemote
                         )
                     }.map {
-                        it.copy(canHaveThumbnail = Utils.canHaveThumbnail(it.filename))
+                        it.copy(
+                            canHaveThumbnail =
+                            Utils.canHaveThumbnail(it.filename)
+                        )
                     }
-                    _list.update {
-                        it.plus(path to files)
-                    }
+                    _list.update { it.plus(path to files) }
 
-                    thumbnailJob = launch {
-                        val thumbnails = fetchThumbnails(connectionId, files, forceRemote)
-                        _thumbnails.update { it.plus(thumbnails) }
+                    _thumbnails.update {
+                        fetchThumbnails(connectionId, files, forceRemote)
                     }
-
+//                    thumbnailsJob(connectionId, files, forceRemote)
                     scanTagsJob(connectionId, forceRemote)
                 }
             }
@@ -264,29 +254,19 @@ class ExplorerViewModel(
     fun addConnection(connection: Connection) {
         viewModelScope.launch {
             connectionRepository.addConnection(connection)
-            _connections.update {
-                it.plus(connection)
-            }
-            _connection.update {
-                connection
-            }
+            _connections.update { it.plus(connection) }
+            _connection.update { connection }
         }
     }
 
     fun editConnection(connection: Connection?) {
-        viewModelScope.launch {
-            _connection.update {
-                connection
-            }
-        }
+        viewModelScope.launch { _connection.update { connection } }
     }
 
     fun deleteConnection(connection: Connection) {
         viewModelScope.launch {
             connectionRepository.deleteConnection(connection)
-            _connections.update {
-                it.minus(connection)
-            }
+            _connections.update { it.minus(connection) }
         }
     }
 
@@ -297,12 +277,8 @@ class ExplorerViewModel(
 
     fun browseImages(browsableImages: List<LocalFile>, initialBrowsableImage: Int) {
         viewModelScope.launch {
-            _browsableImages.update {
-                browsableImages
-            }
-            _initialBrowsableImage.update {
-                initialBrowsableImage
-            }
+            _browsableImages.update { browsableImages }
+            _initialBrowsableImage.update { initialBrowsableImage }
         }
     }
 
@@ -310,23 +286,23 @@ class ExplorerViewModel(
     val tagsState = _tags.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
-        viewModelScope.launch {
-            _path.update {
-                "${tagPrefix}${tag.tag}"
-            }
-        }
+        viewModelScope.launch { _path.update { "${tagPrefix}${tag.tag}" } }
     }
 
     private val _columnCount = MutableStateFlow(4)
     val columnCountState: StateFlow<Int> = _columnCount.asStateFlow()
 
     fun setColumnCount(columnCount: Int) {
-        _columnCount.update {
-            columnCount
-        }
+        _columnCount.update { columnCount }
     }
 
-    fun openFileRange(connectionId: Int, fullPath: String, buffer: ByteArray, start: Int, end: Int): Int {
+    fun openFileRange(
+        connectionId: Int,
+        fullPath: String,
+        buffer: ByteArray,
+        start: Int,
+        end: Int
+    ): Int {
         return fileRepository.openFileRange(connectionId, fullPath, buffer, start, end)
     }
 
@@ -338,52 +314,130 @@ class ExplorerViewModel(
     val tagScreenViewTypeState = _tagScreenViewType.asStateFlow()
 
     fun setTagScreenViewType(viewType: ViewType) {
-        _tagScreenViewType.update {
-            viewType
-        }
+        _tagScreenViewType.update { viewType }
     }
 
     private val workManager = WorkManager.getInstance(application.applicationContext)
     private fun scanTagsJob(connectionId: Int, forceRemote: Boolean) {
-        val workRequest = OneTimeWorkRequestBuilder<ScanTagsWorker>().setInputData(
-            workDataOf(
-                "CONNECTION_ID" to connectionId,
-                "FORCE_REMOTE" to forceRemote,
-            )
-        ).build()
+        val workRequest =
+            OneTimeWorkRequestBuilder<ScanTagsWorker>()
+                .setInputData(
+                    workDataOf(
+                        "CONNECTION_ID" to connectionId,
+                        "FORCE_REMOTE" to forceRemote,
+                    )
+                )
+                .build()
 
         workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
     }
 
-    private suspend fun fetchThumbnails(connectionId: Int, files: List<LocalFile>, forceRemote: Boolean): Map<String, List<String>> {
-        val thumbnails = files.associate {
-            val fullPath = Paths.get(it.parentPath, it.filename).toString()
-            if (Utils.canHaveThumbnail(it.filename)) {
-                fullPath to listOf(fullPath)
-            } else if (it.type === FileType.FOLDER) {
-                fullPath to fileRepository.getFolderThumbnails(
-                    connectionId,
-                    fullPath,
-                    4,
-                    forceRemote
-                )
-            } else {
-                fullPath to emptyList()
-            }
+    private fun thumbnailsJob(connectionId: Int, files: List<LocalFile>, forceRemote: Boolean) {
+        viewModelScope.launch {
+            val thumbnails = fetchThumbnails(connectionId, files, forceRemote)
+            thumbnailManager.queueBatchThumbnailGeneration(
+                connectionId,
+                thumbnails
+            )
+
+            updateThumbnails()
         }
+    }
+
+    private suspend fun fetchThumbnails(
+        connectionId: Int,
+        files: List<LocalFile>,
+        forceRemote: Boolean
+    ): Map<String, List<String>> {
+        val thumbnails =
+            files.associate {
+                val fullPath = Paths.get(it.parentPath, it.filename).toString()
+                if (Utils.canHaveThumbnail(it.filename)) {
+                    fullPath to listOf(fullPath)
+                } else if (it.type === FileType.FOLDER) {
+                    fullPath to
+                            fileRepository.getFolderThumbnails(
+                                connectionId,
+                                fullPath,
+                                4,
+                                forceRemote
+                            )
+                } else {
+                    fullPath to emptyList()
+                }
+            }
 
         return thumbnails
     }
 
-    private suspend fun fetchTagThumbnails(tags: List<LocalTagWithMetadata>): Map<String, List<String>> {
-        val thumbnails = tags.associate {
-            val tagIdentifier = "${tagPrefix}${it.tag}"
-            if (it.count > 0) {
-                tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
-            } else {
-                tagIdentifier to emptyList()
+    private suspend fun fetchTagThumbnails(
+        tags: List<LocalTagWithMetadata>
+    ): Map<String, List<String>> {
+        val thumbnails =
+            tags.associate {
+                val tagIdentifier = "${tagPrefix}${it.tag}"
+                if (it.count > 0) {
+                    tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
+                } else {
+                    tagIdentifier to emptyList()
+                }
+            }
+        return thumbnails
+    }
+
+    private var isUpdating = false
+    private fun updateThumbnails() {
+        if (!isUpdating) {
+            isUpdating = true
+            viewModelScope.launch {
+                workManager.getWorkInfosFlow(WorkQuery.fromTags(listOf(THUMBNAIL_GENERATION_WORK_TAG)))
+                    .collect { workInfoList ->
+                        val generatedThumbnails = workInfoList
+                            .filter { it.state == WorkInfo.State.SUCCEEDED }
+                            .map { workInfo ->
+                                val parentPath = workInfo.outputData.getString(
+                                    THUMBNAIL_WORKER_OUTPUT_PARENT_PATH
+                                )
+                                val fullPath = workInfo.outputData.getString(
+                                    THUMBNAIL_WORKER_OUTPUT_FULL_PATH
+                                )
+
+                                if (parentPath.isNullOrBlank() || fullPath.isNullOrBlank()) {
+                                    return@map null
+                                }
+
+                                parentPath to fullPath
+                            }
+                            .filterNotNull()
+
+                        if (generatedThumbnails.isNotEmpty()) {
+                            _thumbnails.update { thumbnails ->
+                                val mutableThumbnails = HashMap(thumbnails.toMutableMap())
+
+                                val generatedThumbnailsMap: ThumbnailsMap =
+                                    generatedThumbnails.groupBy({ it.first }, { it.second })
+                                for ((key, value) in generatedThumbnailsMap) {
+                                    mutableThumbnails[key] =
+                                        mutableThumbnails.getOrDefault(key, emptyList()) + value
+                                }
+
+                                mutableThumbnails
+                            }
+                        }
+
+                        if (workInfoList.any {
+                                it.state in listOf(
+                                    WorkInfo.State.ENQUEUED,
+                                    WorkInfo.State.RUNNING
+                                )
+                            }) {
+                            delay(1000)
+                            updateThumbnails()
+                        } else {
+                            isUpdating = false
+                        }
+                    }
             }
         }
-        return thumbnails
     }
 }

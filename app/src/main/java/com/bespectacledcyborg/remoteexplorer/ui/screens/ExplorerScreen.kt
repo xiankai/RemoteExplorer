@@ -175,7 +175,7 @@ fun ExplorerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
-                    getImageUrl = { explorerViewModel.getUrl(it) },
+                    getImageUrl = { fullPath, thumbnail -> explorerViewModel.getUrl(fullPath, thumbnail) },
                     items = filteredList.value.map {
                         Item(
                             name = it.filename,

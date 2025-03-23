@@ -2,7 +2,6 @@ package com.bespectacledcyborg.remoteexplorer
 
 import ConnectionDataSource
 import LocalDatabaseDataSource
-import ScanTagsWorker
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
@@ -22,7 +21,10 @@ import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
+import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
+import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
+import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.github.panpf.sketch.Sketch
@@ -30,10 +32,10 @@ import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-class ScanTagsWorkerFactory(
-    private val tagRepository: TagRepository
+class CustomWorkerFactory(
+    private val tagRepository: TagRepository,
+    private val fileRepository: FileRepository
 ) : WorkerFactory() {
-
     override fun createWorker(
         appContext: Context,
         workerClassName: String,
@@ -42,11 +44,12 @@ class ScanTagsWorkerFactory(
         return when (workerClassName) {
             ScanTagsWorker::class.java.name ->
                 ScanTagsWorker(appContext, workerParameters, tagRepository)
+            ThumbnailGenerationWorker::class.java.name ->
+                ThumbnailGenerationWorker(appContext, workerParameters, fileRepository)
             else -> null
         }
     }
 }
-
 
 class ExplorerViewModelFactory(
     private val application: Application,
@@ -75,10 +78,6 @@ class ExplorerViewModelFactory(
             localDatabaseDataSource,
             defaultDispatcher
         )
-        val serverRepository = ServerRepository(
-            sambaFileDataSource,
-            defaultDispatcher
-        )
         val tagRepository = TagRepository(
             fileRepository,
             localDatabaseDataSource
@@ -90,14 +89,22 @@ class ExplorerViewModelFactory(
             connectionDataSource,
         )
 
-        // Injecting TagRepository into ScanTagsWorker
-        val myWorkerFactory = ScanTagsWorkerFactory(tagRepository)
-        val config = Configuration.Builder()
-            .setWorkerFactory(myWorkerFactory)
+        // Injecting the needed repositories
+        val workerFactory = CustomWorkerFactory(tagRepository, fileRepository)
+        val workManagerConfig = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
             .build()
         if (!WorkManager.isInitialized()) {
-            WorkManager.initialize(application.applicationContext, config)
+            WorkManager.initialize(application.applicationContext, workManagerConfig)
         }
+
+        // ThumbnailRepository needs WorkManager up and running
+        val thumbnailManager = ThumbnailManager(application.applicationContext)
+        val serverRepository = ServerRepository(
+            sambaFileDataSource,
+            defaultDispatcher,
+            thumbnailManager
+        )
 
         @Suppress("UNCHECKED_CAST")
         return ExplorerViewModel(

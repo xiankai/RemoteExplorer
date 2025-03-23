@@ -108,7 +108,7 @@ fun ConnectionsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
-                    getImageUrl = { explorerViewModel.getUrl(it) },
+                    getImageUrl = ({ url, _ -> url }),
                     items = connectionItems.plus(newConnection),
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
