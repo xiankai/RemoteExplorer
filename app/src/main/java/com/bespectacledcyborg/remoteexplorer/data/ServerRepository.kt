@@ -131,19 +131,31 @@ class ServerRepository(
                                     "Received range request: $rangeHeader"
                                 )
                                 try {
-                                    val requestedLength = range.last - range.first + 1
-                                    val byteArray = ByteArray(requestedLength.toInt())
-                                    file.read(byteArray, range.first, 0, range.last.toInt())
-                                    call.response.status(HttpStatusCode.PartialContent)
-                                    call.respondBytes(byteArray)
+                                    call.respondOutputStream {
+                                        val input = file.inputStream.buffered()
+                                        input.skip(range.first)
+                                        val buffer = ByteArray(8192)
+                                        var bytesRemaining = range.last - range.first + 1
+
+                                        while (bytesRemaining > 0) {
+                                            // Let the buffered stream handle efficient reading
+                                            val bytesToRead = minOf(buffer.size.toLong(), bytesRemaining).toInt()
+                                            val bytesRead = input.read(buffer, 0, bytesToRead)
+
+                                            if (bytesRead <= 0) break
+
+                                            write(buffer, 0, bytesRead)
+                                            bytesRemaining -= bytesRead
+                                        }
+                                    }
                                 } catch (e: Exception) {
                                     Log.e(
                                         "ServerRepository",
-                                        "Error processing range header",
+                                        "Error processing partial request",
                                         e
                                     )
                                     call.response.status(HttpStatusCode.BadRequest)
-                                    call.respondText("Error processing requested range")
+                                    call.respondText("Error processing partial request")
                                 }
                             } else {
                                 call.respondOutputStream {
