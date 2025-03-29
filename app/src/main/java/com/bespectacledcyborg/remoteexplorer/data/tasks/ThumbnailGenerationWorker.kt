@@ -12,6 +12,10 @@ import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
+import androidx.core.graphics.scale
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import java.io.File
 
 const val THUMBNAIL_SIZE = 128
 const val THUMBNAIL_GENERATION_WORK_TAG = "generateThumbnail"
@@ -55,47 +59,15 @@ class ThumbnailGenerationWorker(
                     return@withContext Result.success(outputData)
                 }
 
-                // Generate thumbnail
                 val thumbnailFile = thumbnailManager.getThumbnailPath(path)
 
                 // Open the original file
                 fileRepository.openFileDirectly(connectionId, path).use { file ->
-                    // Read the file into a bitmap
-                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-
-                    // Calculate sample size for 128x128
-                    val sampleSize =
-                        calculateSampleSize(options, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-
-                    val decodingOptions =
-                        BitmapFactory.Options().apply { inSampleSize = sampleSize }
-
-                    val bitmap =
-                        BitmapFactory.decodeStream(file.inputStream, null, decodingOptions)
-                            ?: throw IllegalStateException("Bitmap is null")
-
-                    // Scale to exact size if needed
-                    val scaledBitmap =
-                        if (bitmap.width != THUMBNAIL_SIZE || bitmap.height != THUMBNAIL_SIZE) {
-                            Bitmap.createScaledBitmap(
-                                bitmap,
-                                THUMBNAIL_SIZE,
-                                THUMBNAIL_SIZE,
-                                true
-                            )
-                        } else {
-                            bitmap
-                        }
-
-                    // Save to cache
-                    FileOutputStream(thumbnailFile).use { out ->
-                        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                    when (Utils.guessIconType(path)) {
+                        IconType.IMAGE -> generateImageThumbnail(thumbnailFile, file)
+                        IconType.VIDEO -> generateVideoThumbnail(thumbnailFile, file)
+                        else -> {}
                     }
-
-                    if (bitmap != scaledBitmap) {
-                        bitmap.recycle()
-                    }
-                    scaledBitmap.recycle()
                 }
 
                 Result.success(outputData)
@@ -124,5 +96,45 @@ class ThumbnailGenerationWorker(
         }
 
         return inSampleSize
+    }
+
+    private fun generateImageThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
+        // Read the file into a bitmap
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+
+        // Calculate sample size for 128x128
+        val sampleSize =
+            calculateSampleSize(options, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+
+        val decodingOptions =
+            BitmapFactory.Options().apply { inSampleSize = sampleSize }
+
+        val bitmap =
+            BitmapFactory.decodeStream(file.inputStream, null, decodingOptions)
+                ?: throw IllegalStateException("Bitmap is null")
+
+        // Scale to exact size if needed
+        val scaledBitmap =
+            if (bitmap.width != THUMBNAIL_SIZE || bitmap.height != THUMBNAIL_SIZE) {
+                bitmap.scale(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+            } else {
+                bitmap
+            }
+
+        // Save to cache
+        FileOutputStream(thumbnailFile).use { out ->
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        }
+
+        if (bitmap != scaledBitmap) {
+            bitmap.recycle()
+        }
+        scaledBitmap.recycle()
+    }
+
+    private fun generateVideoThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
+        // MediaMetadataRetriever?
+        // FFmpegMediaMetadataRetriver?
+        // call ffmpeg directly via JNI?
     }
 }
