@@ -8,13 +8,14 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
-import io.ktor.server.response.respondBytes
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
 import io.ktor.server.response.respondOutputStream
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.RoutingCall
 import io.ktor.server.routing.get
 import io.ktor.server.routing.head
+import io.ktor.server.routing.options
 import io.ktor.server.routing.routing
 import java.net.ServerSocket
 import java.net.URLConnection
@@ -48,6 +49,24 @@ class ServerRepository(
         return withContext(dispatcher) {
             embeddedServer(Jetty, port, host = "0.0.0.0") {
                 routing {
+                    options("/{path...}") {
+                        val fullPath = call.parameters.getAll("path")?.joinToString("/")
+                        Log.d("ServerRepository", "Received OPTIONS request for $fullPath")
+                        // Set CORS headers manually
+                        call.response.headers.append(HttpHeaders.AccessControlAllowOrigin, "*")
+                        call.response.headers.append(
+                            HttpHeaders.AccessControlAllowMethods,
+                            "GET, HEAD, OPTIONS"
+                        )
+//                        call.response.headers.append(HttpHeaders.AccessControlAllowHeaders, "Content-Type, Authorization")
+                        call.response.headers.append(
+                            HttpHeaders.AccessControlMaxAge,
+                            "86400"
+                        ) // 24 hours in seconds
+
+                        // Respond with 200 OK status
+                        call.respond(HttpStatusCode.OK)
+                    }
                     head("/{path...}") {
                         val connectionId = extractConnectionId(call)
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
@@ -139,7 +158,8 @@ class ServerRepository(
 
                                         while (bytesRemaining > 0) {
                                             // Let the buffered stream handle efficient reading
-                                            val bytesToRead = minOf(buffer.size.toLong(), bytesRemaining).toInt()
+                                            val bytesToRead =
+                                                minOf(buffer.size.toLong(), bytesRemaining).toInt()
                                             val bytesRead = input.read(buffer, 0, bytesToRead)
 
                                             if (bytesRead <= 0) break
@@ -165,8 +185,7 @@ class ServerRepository(
                         }
                     }
                 }
-            }
-                .start(wait = true)
+            }.start(wait = true)
         }
     }
 
@@ -210,7 +229,6 @@ class ServerRepository(
      * allocate an available port. The socket is immediately closed after getting the port.
      */
     private fun findAvailablePort(): Int {
-        return 45454
         return ServerSocket(0).use { socket -> socket.localPort }
     }
 }
