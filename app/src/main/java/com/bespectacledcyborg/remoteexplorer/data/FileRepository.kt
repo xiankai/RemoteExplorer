@@ -1,6 +1,8 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import LocalDatabaseDataSource
+import android.media.MediaDataSource
+import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -118,4 +120,71 @@ class FileRepository (
         val file = sambaFileDataSource.openFile(connectionId, fullPath)
         return file.fileInformation.standardInformation.allocationSize
     }
+
+    fun getDataSource(connectionId: Int, fullPath: String): MediaDataSource {
+        return object : MediaDataSource() {
+            val fileSize = sambaFileDataSource.openFile(connectionId, fullPath).use {
+                it.fileInformation.standardInformation.allocationSize
+            }
+
+            // Lock for thread safety
+            private val lock = Any()
+
+            override fun close() {
+                // Nothing to close at the class level
+                // Each readAt operation uses and closes its own stream
+            }
+
+            override fun readAt(position: Long, buffer: ByteArray?, offset: Int, size: Int): Int {
+                if (buffer == null) {
+                    Log.e("MediaDataSource", "Buffer is null")
+                    return -1
+                }
+
+                if (position < 0 || position >= fileSize) {
+                    Log.d("MediaDataSource", "Invalid position request: $position (size: $fileSize)")
+                    return 0  // EOF
+                }
+
+                synchronized(lock) {
+                    try {
+                        // For each readAt call, open a new stream and seek to the position
+                        val file = sambaFileDataSource.openFile(connectionId, fullPath)
+                        file.inputStream.use { stream ->
+                            // Skip to the requested position
+                            stream.skipNBytes(position)
+
+                            // Calculate how many bytes we can actually read
+                            val bytesToRead = minOf(size.toLong(), fileSize - position).toInt()
+
+                            // Read directly into the provided buffer at the specified offset
+                            var totalRead = 0
+                            var bytesRead: Int
+
+                            while (totalRead < bytesToRead) {
+                                bytesRead = stream.read(buffer, offset + totalRead, bytesToRead - totalRead)
+
+                                if (bytesRead == -1) {
+                                    // End of file reached
+                                    break
+                                }
+
+                                totalRead += bytesRead
+                            }
+
+                            return totalRead
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MediaDataSource", "Error reading at position $position: ${e.message}", e)
+                        return -1
+                    }
+                }
+            }
+
+            override fun getSize(): Long {
+                return fileSize
+            }
+        }
+    }
+
 }

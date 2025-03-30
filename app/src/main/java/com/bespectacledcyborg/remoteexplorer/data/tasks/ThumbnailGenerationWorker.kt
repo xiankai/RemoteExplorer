@@ -3,6 +3,8 @@ package com.bespectacledcyborg.remoteexplorer.data.tasks
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaDataSource
+import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -62,12 +64,17 @@ class ThumbnailGenerationWorker(
                 val thumbnailFile = thumbnailManager.getThumbnailPath(path)
 
                 // Open the original file
-                fileRepository.openFileDirectly(connectionId, path).use { file ->
-                    when (Utils.guessIconType(path)) {
-                        IconType.IMAGE -> generateImageThumbnail(thumbnailFile, file)
-                        IconType.VIDEO -> generateVideoThumbnail(thumbnailFile, file)
-                        else -> {}
+                when (Utils.guessIconType(path)) {
+                    IconType.IMAGE -> {
+                        val file = fileRepository.openFileDirectly(connectionId, path)
+                        generateImageThumbnail(thumbnailFile, file)
                     }
+                    IconType.VIDEO -> {
+                        val dataSource = fileRepository.getDataSource(connectionId, path)
+
+                        generateVideoThumbnail(thumbnailFile, dataSource)
+                    }
+                    else -> {}
                 }
 
                 Result.success(outputData)
@@ -98,22 +105,7 @@ class ThumbnailGenerationWorker(
         return inSampleSize
     }
 
-    private fun generateImageThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
-        // Read the file into a bitmap
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-
-        // Calculate sample size for 128x128
-        val sampleSize =
-            calculateSampleSize(options, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-
-        val decodingOptions =
-            BitmapFactory.Options().apply { inSampleSize = sampleSize }
-
-        val bitmap =
-            BitmapFactory.decodeStream(file.inputStream, null, decodingOptions)
-                ?: throw IllegalStateException("Bitmap is null")
-
-        // Scale to exact size if needed
+    private fun resizeBitmap(bitmap: Bitmap, thumbnailFile: File) {
         val scaledBitmap =
             if (bitmap.width != THUMBNAIL_SIZE || bitmap.height != THUMBNAIL_SIZE) {
                 bitmap.scale(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
@@ -132,9 +124,30 @@ class ThumbnailGenerationWorker(
         scaledBitmap.recycle()
     }
 
-    private fun generateVideoThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
-        // MediaMetadataRetriever?
-        // FFmpegMediaMetadataRetriver?
-        // call ffmpeg directly via JNI?
+    private fun generateImageThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
+        // Read the file into a bitmap
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+
+        // Calculate sample size for 128x128
+        val sampleSize =
+            calculateSampleSize(options, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+
+        val decodingOptions =
+            BitmapFactory.Options().apply { inSampleSize = sampleSize }
+
+        val bitmap =
+            BitmapFactory.decodeStream(file.inputStream, null, decodingOptions)
+                ?: throw IllegalStateException("Bitmap is null")
+
+        // Scale to exact size if needed
+        resizeBitmap(bitmap, thumbnailFile)
+    }
+
+    private fun generateVideoThumbnail(thumbnailFile: File, datasource: MediaDataSource) {
+        val retriever = MediaMetadataRetriever()
+        retriever.setDataSource(datasource)
+        val bitmap = retriever.getFrameAtIndex(0) ?: throw IllegalStateException("Bitmap is null")
+
+        resizeBitmap(bitmap, thumbnailFile)
     }
 }
