@@ -73,6 +73,7 @@ class ThumbnailGenerationWorker(
                         val file = fileRepository.openFileDirectly(connectionId, path)
                         generateImageThumbnail(thumbnailFile, file)
                     }
+
                     IconType.VIDEO -> {
 //                        val dataSource = fileRepository.getDataSource(connectionId, path)
 
@@ -81,6 +82,7 @@ class ThumbnailGenerationWorker(
                         val stream = fileRepository.openFileDirectly(connectionId, path).inputStream
                         generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
                     }
+
                     else -> {}
                 }
 
@@ -158,12 +160,31 @@ class ThumbnailGenerationWorker(
         resizeBitmap(bitmap, thumbnailFile)
     }
 
-    private fun generateFfmpegVideoThumbnailViaLibraries(thumbnailFile: File, inputStream: InputStream) {
+    private fun generateFfmpegVideoThumbnailViaLibraries(
+        thumbnailFile: File,
+        inputStream: InputStream
+    ) {
         val decoder = VideoDecoder()
         decoder.init()
-        val initialBytes = inputStream.readNBytes(4 * 1024 * 1024)
-        val bitmap = decoder.decodeVideoFrame(initialBytes) ?: throw IllegalStateException("Bitmap is null")
+        val bufferSize = 4 * 1024 * 1024
+        val maxTries = 10
+        var nthTry = 1
+        var bytes = inputStream.readNBytes(bufferSize)
+        var bitmap: Bitmap? = null
+        while (nthTry < maxTries) {
+            bitmap = decoder.decodeVideoFrame(bytes)
+            if (bitmap == null) {
+                nthTry++
+                bytes += inputStream.readNBytes(bufferSize)
+            } else {
+                break
+            }
+        }
 
-        resizeBitmap(bitmap, thumbnailFile)
+        resizeBitmap(
+            bitmap
+                ?: throw java.lang.IllegalStateException("Failed to decode video frame after $maxTries"),
+            thumbnailFile
+        )
     }
 }
