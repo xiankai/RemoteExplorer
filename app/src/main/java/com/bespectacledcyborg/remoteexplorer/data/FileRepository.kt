@@ -6,6 +6,8 @@ import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
+import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.hierynomus.smbj.share.File
 import kotlinx.coroutines.CoroutineDispatcher
@@ -47,6 +49,7 @@ class FileRepository (
                     it.filename.endsWith(".xmp", true) -> FileType.TAG
                     else -> FileType.FILE
                 },
+                thumbnailStatus = if (Utils.canHaveThumbnail(it.filename)) { ThumbnailStatus.UNPROCESSED } else { ThumbnailStatus.UNSUPPORTED },
                 canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
                 lastModified = it.lastModified,
             )
@@ -77,23 +80,6 @@ class FileRepository (
         }
     }
 
-    suspend fun getFolderThumbnails(connectionId: Int, folder: String, limit: Int, forceRemote: Boolean): List<String> {
-        return withContext(dispatcher) {
-            if (forceRemote) {
-                updateRemoteMapping(connectionId, folder)
-            } else {
-                val localList = localDatabaseDataSource.getFiles(connectionId, folder, "")
-                localList.ifEmpty {
-                    updateRemoteMapping(connectionId, folder)
-                }
-            }.filter {
-                Utils.canHaveThumbnail(it.filename)
-            }.map {
-                Paths.get(it.parentPath, it.filename).toString()
-            }.take(limit)
-        }
-    }
-
     suspend fun getTagThumbnails(tag: LocalTag, limit: Int): List<String> {
         return localDatabaseDataSource.getFilesWithTag(tag).filter {
             Utils.canHaveThumbnail(it.filename)
@@ -119,6 +105,14 @@ class FileRepository (
     fun getFileSize(connectionId: Int, fullPath: String): Long {
         val file = sambaFileDataSource.openFile(connectionId, fullPath)
         return file.fileInformation.standardInformation.allocationSize
+    }
+
+    fun updateFileThumbnailStatus(connectionId: Int, parentPath: String, filename: String, thumbnailStatus: ThumbnailStatus) {
+        localDatabaseDataSource.updateThumbnailStatus(connectionId, parentPath, filename, thumbnailStatus)
+    }
+
+    suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
+        return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)
     }
 
     fun getDataSource(connectionId: Int, fullPath: String): MediaDataSource {

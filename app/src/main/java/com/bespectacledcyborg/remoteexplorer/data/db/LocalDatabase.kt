@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.db
 
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -23,11 +24,14 @@ interface LocalDatabaseDao {
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun getFiles(connectionId: Int, parentPath: String): List<LocalFile>
 
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type = :type")
+    fun getFolders(connectionId: Int, parentPath: String, type: FileType = FileType.FOLDER): List<LocalFile>
+
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename LIKE :filter")
     fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND canHaveThumbnail = TRUE LIMIT :limit")
-    fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int): List<LocalFile>
+    @Query("SELECT filename FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND thumbnailStatus = :thumbnailStatus LIMIT :limit")
+    fun getFolderThumbnails(connectionId: Int, parentPath: String, thumbnailStatus: ThumbnailStatus = ThumbnailStatus.SUCCESS, limit: Int = 4): List<String>
 
     @Query("SELECT LocalTag.tag, COUNT(FileTagRelation.filename) AS count FROM LocalTag " +
             "LEFT JOIN FileTagRelation ON LocalTag.tag = FileTagRelation.tag " +
@@ -43,11 +47,14 @@ interface LocalDatabaseDao {
     @Insert(entity = FileTagRelation::class, onConflict = OnConflictStrategy.IGNORE)
     fun addFileTagRelation(relation: FileTagRelation)
 
-    @Query("UPDATE LocalFile SET status = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
-    fun updateFileStatus(connectionId: Int, parentPath: String, filename: String, status: LocalFileStatus)
+    @Query("UPDATE LocalFile SET tagStatus = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
+    fun updateTagStatus(connectionId: Int, parentPath: String, filename: String, status: TagStatus)
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND status = :status LIMIT :limit")
-    fun getUnprocessedTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG, status: LocalFileStatus = LocalFileStatus.UNPROCESSED): List<LocalFile>
+    @Query("UPDATE LocalFile SET thumbnailStatus = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
+    fun updateThumbnailStatus(connectionId: Int, parentPath: String, filename: String, status: ThumbnailStatus)
+
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND tagStatus = :status LIMIT :limit")
+    fun getUnprocessedTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG, status: TagStatus = TagStatus.UNPROCESSED): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type LIMIT :limit")
     fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG): List<LocalFile>
@@ -64,7 +71,7 @@ interface LocalDatabaseDao {
 
         // If cannot find, mark as REMOVED
         if (correspondingFile == null) {
-            updateFileStatus(connectionId, parentPath, tagFile.filename, LocalFileStatus.REMOVED)
+            updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.REMOVED)
             return
         }
 
@@ -80,7 +87,7 @@ interface LocalDatabaseDao {
                 )
             )
         }
-        updateFileStatus(connectionId, parentPath, tagFile.filename, LocalFileStatus.SUCCESS)
+        updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.SUCCESS)
     }
 }
 
@@ -96,7 +103,8 @@ data class LocalFile(
     val type: FileType,
     @Deprecated("Using Utils.canHaveThumbnail instead") val canHaveThumbnail: Boolean,
 //    val thumbnailPath: String?,
-    val status: LocalFileStatus = LocalFileStatus.UNPROCESSED,
+    val tagStatus: TagStatus = TagStatus.UNPROCESSED,
+    val thumbnailStatus: ThumbnailStatus = ThumbnailStatus.UNPROCESSED,
     val lastModified: Date,
 )
 
@@ -128,6 +136,10 @@ enum class FileType {
     FILE, FOLDER, TAG, CONNECTION, ADD_CONNECTION
 }
 
-enum class LocalFileStatus {
+enum class TagStatus {
     UNPROCESSED, SUCCESS, ERROR, REMOVED
+}
+
+enum class ThumbnailStatus {
+    UNPROCESSED, SUCCESS, ERROR, UNSUPPORTED, NESTED
 }

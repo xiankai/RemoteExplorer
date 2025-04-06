@@ -13,7 +13,7 @@ import java.util.Date
         FileTagRelation::class
     ],
     exportSchema = true,
-    version = 5,
+    version = 6,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

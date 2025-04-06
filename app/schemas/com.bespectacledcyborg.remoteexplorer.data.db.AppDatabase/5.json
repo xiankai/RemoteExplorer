@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 5,
-    "identityHash": "0fc7969aa7d89b86b163a776730c7ef9",
+    "identityHash": "6890da0f705249cab681d87c67f24ff7",
     "entities": [
       {
         "tableName": "Connection",
@@ -78,7 +78,7 @@
       },
       {
         "tableName": "LocalFile",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `filename` TEXT NOT NULL, `type` TEXT NOT NULL, `canHaveThumbnail` INTEGER NOT NULL, `status` TEXT NOT NULL, `lastModified` INTEGER NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `filename`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `filename` TEXT NOT NULL, `type` TEXT NOT NULL, `canHaveThumbnail` INTEGER NOT NULL, `tagStatus` TEXT NOT NULL, `thumbnailStatus` TEXT NOT NULL, `lastModified` INTEGER NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `filename`))",
         "fields": [
           {
             "fieldPath": "connectionId",
@@ -111,8 +111,14 @@
             "notNull": true
           },
           {
-            "fieldPath": "status",
-            "columnName": "status",
+            "fieldPath": "tagStatus",
+            "columnName": "tagStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thumbnailStatus",
+            "columnName": "thumbnailStatus",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -199,7 +205,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0fc7969aa7d89b86b163a776730c7ef9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6890da0f705249cab681d87c67f24ff7')"
     ]
   }
 }

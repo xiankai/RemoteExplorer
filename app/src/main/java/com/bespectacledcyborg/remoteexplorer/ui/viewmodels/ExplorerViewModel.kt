@@ -20,6 +20,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
+import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_GENERATION_WORK_TAG
@@ -220,15 +221,15 @@ class ExplorerViewModel(
                     }.map {
                         it.copy(
                             canHaveThumbnail =
-                            Utils.canHaveThumbnail(it.filename)
+                                Utils.canHaveThumbnail(it.filename)
                         )
                     }
                     _list.update { it.plus(path to files) }
 
-                    _thumbnails.update {
-                        fetchThumbnails(connectionId, files, forceRemote)
-                    }
-//                    thumbnailsJob(connectionId, files, forceRemote)
+//                    _thumbnails.update {
+//                        fetchThumbnails(connectionId, files, forceRemote)
+//                    }
+                    thumbnailsJob(connectionId, files)
                     scanTagsJob(connectionId, forceRemote)
                 }
             }
@@ -333,42 +334,40 @@ class ExplorerViewModel(
         workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
     }
 
-    private fun thumbnailsJob(connectionId: Int, files: List<LocalFile>, forceRemote: Boolean) {
+    private fun thumbnailsJob(connectionId: Int, files: List<LocalFile>) {
         viewModelScope.launch {
-            val thumbnails = fetchThumbnails(connectionId, files, forceRemote)
-            thumbnailManager.queueBatchThumbnailGeneration(
-                connectionId,
-                thumbnails
-            )
-
-            updateThumbnails()
-        }
-    }
-
-    private suspend fun fetchThumbnails(
-        connectionId: Int,
-        files: List<LocalFile>,
-        forceRemote: Boolean
-    ): Map<String, List<String>> {
-        val thumbnails =
-            files.associate {
-                val fullPath = Paths.get(it.parentPath, it.filename).toString()
-                if (Utils.canHaveThumbnail(it.filename)) {
-                    fullPath to listOf(fullPath)
-                } else if (it.type === FileType.FOLDER) {
-                    fullPath to
-                            fileRepository.getFolderThumbnails(
-                                connectionId,
-                                fullPath,
-                                4,
-                                forceRemote
-                            )
-                } else {
-                    fullPath to emptyList()
+            // Load already usable thumbnails
+            val ready = files.filter { it.thumbnailStatus == ThumbnailStatus.SUCCESS }
+                .associate { it.filename to listOf(it.filename) }
+            val folders = files.filter { it.thumbnailStatus == ThumbnailStatus.NESTED }
+                .associate {
+                    it.filename to fileRepository.getFolderThumbnails(
+                        connectionId,
+                        it.filename
+                    )
                 }
+            _thumbnails.update {
+                it.plus(ready).plus(folders)
             }
 
-        return thumbnails
+            // Process pending thumbnails in the background
+            val toProcess = files.filter { it.thumbnailStatus == ThumbnailStatus.UNPROCESSED }
+                .associate { it.filename to listOf(it.filename) }
+
+            val processedFiles = thumbnailManager.queueBatchThumbnailGeneration(
+                connectionId,
+                toProcess
+            )
+
+            if (processedFiles.isNotEmpty()) {
+                _thumbnails.update {
+                    it.plus(processedFiles)
+                }
+            } else {
+                delay(1000)
+                thumbnailsJob(connectionId, files)
+            }
+        }
     }
 
     private suspend fun fetchTagThumbnails(
@@ -384,61 +383,5 @@ class ExplorerViewModel(
                 }
             }
         return thumbnails
-    }
-
-    private var isUpdating = false
-    private fun updateThumbnails() {
-        if (!isUpdating) {
-            isUpdating = true
-            viewModelScope.launch {
-                workManager.getWorkInfosFlow(WorkQuery.fromTags(listOf(THUMBNAIL_GENERATION_WORK_TAG)))
-                    .collect { workInfoList ->
-                        val generatedThumbnails = workInfoList
-                            .filter { it.state == WorkInfo.State.SUCCEEDED }
-                            .map { workInfo ->
-                                val parentPath = workInfo.outputData.getString(
-                                    THUMBNAIL_WORKER_OUTPUT_PARENT_PATH
-                                )
-                                val fullPath = workInfo.outputData.getString(
-                                    THUMBNAIL_WORKER_OUTPUT_FULL_PATH
-                                )
-
-                                if (parentPath.isNullOrBlank() || fullPath.isNullOrBlank()) {
-                                    return@map null
-                                }
-
-                                parentPath to fullPath
-                            }
-                            .filterNotNull()
-
-                        if (generatedThumbnails.isNotEmpty()) {
-                            _thumbnails.update { thumbnails ->
-                                val mutableThumbnails = HashMap(thumbnails.toMutableMap())
-
-                                val generatedThumbnailsMap: ThumbnailsMap =
-                                    generatedThumbnails.groupBy({ it.first }, { it.second })
-                                for ((key, value) in generatedThumbnailsMap) {
-                                    mutableThumbnails[key] =
-                                        mutableThumbnails.getOrDefault(key, emptyList()) + value
-                                }
-
-                                mutableThumbnails
-                            }
-                        }
-
-                        if (workInfoList.any {
-                                it.state in listOf(
-                                    WorkInfo.State.ENQUEUED,
-                                    WorkInfo.State.RUNNING
-                                )
-                            }) {
-                            delay(1000)
-                            updateThumbnails()
-                        } else {
-                            isUpdating = false
-                        }
-                    }
-            }
-        }
     }
 }

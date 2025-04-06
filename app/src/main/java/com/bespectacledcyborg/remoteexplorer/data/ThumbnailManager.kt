@@ -8,7 +8,6 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.Operation
 import androidx.work.WorkManager
-import androidx.work.await
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_GENERATION_WORK_TAG
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_CONNECTION_ID
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_FULL_PATH
@@ -38,27 +37,18 @@ class ThumbnailManager(
         return getThumbnailPath(originalPath).exists()
     }
 
-    fun queueThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String) {
+    private fun queueThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String): Boolean {
         val key = "$connectionId:$parentPath:$fullPath"
         // Skip if already queued or exists
         if (pendingThumbnails.putIfAbsent(key, true) != null || hasThumbnail(fullPath)) {
-            return
+            return true
         }
 
         createThumbnailJob(connectionId, parentPath, fullPath)
+        return false
     }
 
-    suspend fun awaitThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String) {
-        val key = "$connectionId:$parentPath:$fullPath"
-        // Skip if already queued or exists
-        if (pendingThumbnails.putIfAbsent(key, true) != null || hasThumbnail(fullPath)) {
-            return
-        }
-
-        createThumbnailJob(connectionId, parentPath, fullPath)
-    }
-
-    fun createThumbnailJob(connectionId: Int, parentPath: String, fullPath: String): Operation {
+    private fun createThumbnailJob(connectionId: Int, parentPath: String, fullPath: String): Operation {
         val key = "$connectionId:$parentPath:$fullPath"
 
         // Create work request
@@ -83,7 +73,17 @@ class ThumbnailManager(
     }
 
     // Queue multiple thumbnails at once (for background processing)
-    fun queueBatchThumbnailGeneration(connectionId: Int, thumbnailsMap: ThumbnailsMap) {
-        thumbnailsMap.forEach { (parentPath, thumbnails) -> thumbnails.forEach { queueThumbnailGeneration(connectionId, parentPath, it) } }
+    fun queueBatchThumbnailGeneration(connectionId: Int, files: ThumbnailsMap): ThumbnailsMap {
+        val successfulThumbnails = mutableMapOf<String, MutableList<String>>()
+
+        files.forEach { (parentPath, thumbnails) ->
+            val successfulFiles = thumbnails.filter { queueThumbnailGeneration(connectionId, parentPath, it) }
+            if (successfulFiles.isNotEmpty()) {
+                successfulThumbnails[parentPath] = successfulFiles.toMutableList()
+            }
+        }
+
+        return successfulThumbnails
     }
+
 }

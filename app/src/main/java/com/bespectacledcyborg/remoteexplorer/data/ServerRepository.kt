@@ -86,7 +86,6 @@ class ServerRepository(
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         val decodedPath = URLDecoder.decode(fullPath, ENCODING)
                         val isThumbnail = call.queryParameters["thumbnail"] == "true"
-                        val parentPath = call.queryParameters["parentPath"] ?: ""
 
                         Log.d(
                             "ServerRepository",
@@ -94,17 +93,6 @@ class ServerRepository(
                         )
 
                         if (isThumbnail) {
-                            // Check if thumbnail exists
-                            if (!thumbnailManager.hasThumbnail(decodedPath)) {
-                                // If not, create thumbnail synchronously to return
-                                Log.d("ServerRepository", "Creating thumbnail for $decodedPath")
-                                thumbnailManager.awaitThumbnailGeneration(
-                                    connectionId,
-                                    parentPath,
-                                    decodedPath
-                                )
-                            }
-                            // Check again
                             if (thumbnailManager.hasThumbnail(decodedPath)) {
                                 // Serve thumbnail
                                 val thumbnailFile =

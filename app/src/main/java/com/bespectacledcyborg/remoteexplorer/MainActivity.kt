@@ -89,12 +89,13 @@ class ExplorerViewModelFactory(
             connectionDataSource,
         )
 
-        // Injecting the needed repositories
-        val workerFactory = CustomWorkerFactory(tagRepository, fileRepository)
-        val workManagerConfig = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
         if (!WorkManager.isInitialized()) {
+            // Injecting the needed repositories
+            val workerFactory = CustomWorkerFactory(tagRepository, fileRepository)
+            val workManagerConfig = Configuration.Builder()
+                .setWorkerFactory(workerFactory)
+                .setMaxSchedulerLimit(50) // To avoid overloading the samba server
+                .build()
             WorkManager.initialize(application.applicationContext, workManagerConfig)
         }
 

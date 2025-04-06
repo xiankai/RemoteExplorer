@@ -45,7 +45,7 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
             )
     val loadState = state.loadState
      // Thumbnails only work for bitmaps atm
-    val uri = getImageUrl(fullPath, false)
+    val uri = getImageUrl(fullPath, true)
     when (loadState) {
         is LoadState.Error -> {
             Log.e("ImageIcon", "Failed to load: $fullPath, uri: $uri")
@@ -62,9 +62,9 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
     }
 
     AsyncImage(
-            uri = uri,
-            state = state,
-            contentDescription = filename,
-            modifier = modifier,
+        uri = uri,
+        state = state,
+        contentDescription = filename,
+        modifier = modifier,
     )
 }
