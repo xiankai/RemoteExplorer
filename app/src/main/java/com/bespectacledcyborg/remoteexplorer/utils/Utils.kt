@@ -3,9 +3,12 @@ package com.bespectacledcyborg.remoteexplorer.utils
 import com.bespectacledcyborg.remoteexplorer.data.ENCODING
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.github.panpf.sketch.util.MimeTypeMap
+import java.net.ServerSocket
 import java.net.URLEncoder
 
 object Utils {
+    private var port = 0
+
     fun guessIconType(filename: String): IconType {
         val encodedFilename = URLEncoder.encode(filename, ENCODING)
         val mimeType = MimeTypeMap.getMimeTypeFromUrl(encodedFilename) ?: "folder"
@@ -25,9 +28,9 @@ object Utils {
 
     fun canHaveThumbnail(filename: String): Boolean {
         val iconType = guessIconType(filename)
-//        return listOf(IconType.IMAGE, IconType.VIDEO).contains(iconType)
+        return listOf(IconType.VIDEO).contains(iconType)
         // TODO: Disable video thumbnails for now until I can get ffmpegmediaretriever + setdatasource + custom fetcher in sketch
-        return listOf(IconType.IMAGE).contains(iconType)
+//        return listOf(IconType.IMAGE).contains(iconType)
     }
 
     // https://github.com/hierynomus/smbj/pull/754/files#diff-b37109dad0e9cc457d7a4279146071eaf83a70c44557ad87a3733b4a9e1020f8
@@ -55,5 +58,23 @@ object Utils {
 
     fun isSystem(attributes: Long): Boolean {
         return (attributes and FILE_ATTRIBUTE_SYSTEM) == FILE_ATTRIBUTE_SYSTEM
+    }
+
+    /**
+     * Finds an available port by creating a ServerSocket with port 0, which makes the system
+     * allocate an available port. The socket is immediately closed after getting the port.
+     */
+    fun findAvailablePort(): Int {
+        if (port == 0) {
+            port = ServerSocket(0).use { socket -> socket.localPort }
+        }
+
+        return port
+    }
+
+    fun constructUrl(connectionId: Int, path: String, thumbnail: Boolean = false): String {
+        val encodedPath = URLEncoder.encode(path, ENCODING)
+        val baseUrl = "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
+        return if (thumbnail) "$baseUrl&thumbnail=true" else baseUrl
     }
 }

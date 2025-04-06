@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
 import com.hierynomus.smbj.share.File
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
@@ -17,10 +18,8 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.options
 import io.ktor.server.routing.routing
-import java.net.ServerSocket
 import java.net.URLConnection
 import java.net.URLDecoder
-import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -32,8 +31,6 @@ class ServerRepository(
     private val dispatcher: CoroutineDispatcher,
     private val thumbnailManager: ThumbnailManager,
 ) {
-    private var port = 0
-
     private fun extractConnectionId(call: RoutingCall): Int {
         val connectionId: Int =
             call.queryParameters["connectionId"]?.toInt()
@@ -45,7 +42,7 @@ class ServerRepository(
     }
 
     suspend fun startup() {
-        port = findAvailablePort()
+        val port = findAvailablePort()
         return withContext(dispatcher) {
             embeddedServer(Jetty, port, host = "0.0.0.0") {
                 routing {
@@ -189,12 +186,6 @@ class ServerRepository(
         }
     }
 
-    fun constructUrl(connectionId: Int, path: String, thumbnail: Boolean = false): String {
-        val encodedPath = URLEncoder.encode(path, ENCODING)
-        val baseUrl = "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
-        return if (thumbnail) "$baseUrl&thumbnail=true" else baseUrl
-    }
-
     private fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange {
         if (rangeHeader != null) {
             val range = rangeHeader.removePrefix("bytes=")
@@ -222,13 +213,5 @@ class ServerRepository(
         val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
 
         return LongRange(actualStart, actualEnd)
-    }
-
-    /**
-     * Finds an available port by creating a ServerSocket with port 0, which makes the system
-     * allocate an available port. The socket is immediately closed after getting the port.
-     */
-    private fun findAvailablePort(): Int {
-        return ServerSocket(0).use { socket -> socket.localPort }
     }
 }

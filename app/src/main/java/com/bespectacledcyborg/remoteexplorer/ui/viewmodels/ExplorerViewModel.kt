@@ -27,6 +27,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_PARENT_PATH
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
 import java.nio.file.Paths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -169,7 +170,7 @@ class ExplorerViewModel(
                 ?: throw IllegalStateException(
                     "Constructing a URL when connectionId is null"
                 )
-        return serverRepository.constructUrl(connectionId, path, thumbnail)
+        return constructUrl(connectionId, path, thumbnail)
     }
 
     private val _search: MutableStateFlow<String> = MutableStateFlow("")
