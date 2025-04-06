@@ -317,11 +317,3 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
 
     return bitmapData;
 }
-
-JNIEXPORT jboolean JNICALL
-Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_initFFmpeg(JNIEnv *env, jobject thiz) {
-    // In newer versions of FFmpeg, explicit initialization is often not needed
-    // Leaving this function for compatibility or future needs
-    LOGI("FFmpeg initialization complete");
-    return JNI_TRUE;
-}

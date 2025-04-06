@@ -98,13 +98,11 @@ class ServerRepository(
                             if (!thumbnailManager.hasThumbnail(decodedPath)) {
                                 // If not, create thumbnail synchronously to return
                                 Log.d("ServerRepository", "Creating thumbnail for $decodedPath")
-                                runBlocking {
-                                    thumbnailManager.awaitThumbnailGeneration(
-                                        connectionId,
-                                        parentPath,
-                                        decodedPath
-                                    )
-                                }
+                                thumbnailManager.awaitThumbnailGeneration(
+                                    connectionId,
+                                    parentPath,
+                                    decodedPath
+                                )
                             }
                             // Check again
                             if (thumbnailManager.hasThumbnail(decodedPath)) {

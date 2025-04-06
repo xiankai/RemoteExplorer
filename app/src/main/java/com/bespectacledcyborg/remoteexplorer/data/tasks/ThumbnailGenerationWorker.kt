@@ -7,7 +7,6 @@ import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.work.CoroutineWorker
-import androidx.work.Data
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
@@ -47,12 +46,6 @@ class ThumbnailGenerationWorker(
                 val path = inputData.getString(THUMBNAIL_WORKER_INPUT_FULL_PATH)
                     ?: return@withContext Result.failure()
 
-
-                val outputData = Data.Builder()
-                    .putString(THUMBNAIL_WORKER_OUTPUT_PARENT_PATH, parentPath)
-                    .putString(THUMBNAIL_WORKER_OUTPUT_FULL_PATH, path)
-                    .build()
-
                 if (connectionId == -1) {
                     return@withContext Result.failure()
                 }
@@ -62,7 +55,7 @@ class ThumbnailGenerationWorker(
 
                 // Skip if thumbnail already exists
                 if (thumbnailManager.hasThumbnail(path)) {
-                    return@withContext Result.success(outputData)
+                    return@withContext Result.success()
                 }
 
                 val thumbnailFile = thumbnailManager.getThumbnailPath(path)
@@ -86,7 +79,7 @@ class ThumbnailGenerationWorker(
                     else -> {}
                 }
 
-                Result.success(outputData)
+                Result.success()
             } catch (e: Exception) {
                 Log.e("ThumbnailWorker", "Error generating thumbnail", e)
                 Result.failure()
@@ -165,7 +158,6 @@ class ThumbnailGenerationWorker(
         inputStream: InputStream
     ) {
         val decoder = VideoDecoder()
-        decoder.init()
         val bufferSize = 4 * 1024 * 1024
         val maxTries = 10
         var nthTry = 1

@@ -17,13 +17,6 @@ class VideoDecoder {
     private var lastDecodedWidth: Int = 0
     private var lastDecodedHeight: Int = 0
 
-    // Initialize FFmpeg library
-    fun init(): Boolean {
-        val result = initFFmpeg()
-        Log.d(TAG, "FFmpeg initialization: ${if (result) "success" else "failed"}")
-        return result
-    }
-
     // Decode a video frame from byte array and return bitmap
     fun decodeVideoFrame(videoBytes: ByteArray?): Bitmap? {
         if (videoBytes == null || videoBytes.isEmpty()) {
@@ -70,7 +63,6 @@ class VideoDecoder {
     }
 
     // Native methods
-    private external fun initFFmpeg(): Boolean
     private external fun decodeVideoFrameNative(videoBytes: ByteArray): ByteArray?
     private external fun getLastDecodedWidth(): Int
     private external fun getLastDecodedHeight(): Int

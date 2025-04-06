@@ -55,9 +55,7 @@ class ThumbnailManager(
             return
         }
 
-        val op = createThumbnailJob(connectionId, parentPath, fullPath)
-
-        op.await()
+        createThumbnailJob(connectionId, parentPath, fullPath)
     }
 
     fun createThumbnailJob(connectionId: Int, parentPath: String, fullPath: String): Operation {
