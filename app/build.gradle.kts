@@ -27,6 +27,7 @@ plugins {
 android {
     namespace = "com.bespectacledcyborg.remoteexplorer"
     compileSdk = 35
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.bespectacledcyborg.remoteexplorer"
@@ -104,6 +105,12 @@ android {
             keepDebugSymbols.add("libsentry.so")
             keepDebugSymbols.add("libssl.so")
             keepDebugSymbols.add("libswscale.so.")
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/ffmpeg/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 }

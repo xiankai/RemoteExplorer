@@ -15,9 +15,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
 import androidx.core.graphics.scale
+
+import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
 import java.io.File
+import java.io.InputStream
 
 const val THUMBNAIL_SIZE = 128
 const val THUMBNAIL_GENERATION_WORK_TAG = "generateThumbnail"
@@ -70,9 +74,12 @@ class ThumbnailGenerationWorker(
                         generateImageThumbnail(thumbnailFile, file)
                     }
                     IconType.VIDEO -> {
-                        val dataSource = fileRepository.getDataSource(connectionId, path)
+//                        val dataSource = fileRepository.getDataSource(connectionId, path)
 
-                        generateVideoThumbnail(thumbnailFile, dataSource)
+//                        generateVideoThumbnail(thumbnailFile, dataSource)
+
+                        val stream = fileRepository.openFileDirectly(connectionId, path).inputStream
+                        generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
                     }
                     else -> {}
                 }
@@ -147,6 +154,15 @@ class ThumbnailGenerationWorker(
         val retriever = MediaMetadataRetriever()
         retriever.setDataSource(datasource)
         val bitmap = retriever.getFrameAtIndex(0) ?: throw IllegalStateException("Bitmap is null")
+
+        resizeBitmap(bitmap, thumbnailFile)
+    }
+
+    private fun generateFfmpegVideoThumbnailViaLibraries(thumbnailFile: File, inputStream: InputStream) {
+        val decoder = VideoDecoder()
+        decoder.init()
+        val initialBytes = inputStream.readNBytes(4 * 1024 * 1024)
+        val bitmap = decoder.decodeVideoFrame(initialBytes) ?: throw IllegalStateException("Bitmap is null")
 
         resizeBitmap(bitmap, thumbnailFile)
     }
