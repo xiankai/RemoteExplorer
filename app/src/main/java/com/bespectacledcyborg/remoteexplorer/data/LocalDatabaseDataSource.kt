@@ -3,7 +3,6 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -27,7 +26,13 @@ class LocalDatabaseDataSource(
 
     suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
         return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(connectionId, parentPath)
+            localDatabaseDao.getFolderThumbnails(connectionId, parentPath).map { it.fullPath() }
+        }
+    }
+
+    suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
+        return withContext(dispatcher) {
+            localDatabaseDao.getProcessedFolderThumbnails(connectionId, parentPath)
         }
     }
 
@@ -47,7 +52,12 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateFileTags(connectionId, tagFile, tags)
     }
 
-    fun updateThumbnailStatus(connectionId: Int, parentPath: String, filename: String, status: ThumbnailStatus) {
+    fun updateThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        status: ThumbnailStatus
+    ) {
         localDatabaseDao.updateThumbnailStatus(connectionId, parentPath, filename, status)
     }
 

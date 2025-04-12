@@ -28,36 +28,37 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
     val iconType = Utils.guessIconType(filename)
 
     val fallback =
-            when (iconType) {
-                IconType.IMAGE -> R.drawable.image_24px
-                IconType.VIDEO -> R.drawable.movie_24px
-                IconType.AUDIO -> R.drawable.music_note_24px
-                IconType.TEXT -> R.drawable.description_24px
-                else -> R.drawable.draft_24px
-            }
+        when (iconType) {
+            IconType.IMAGE -> R.drawable.image_24px
+            IconType.VIDEO -> R.drawable.movie_24px
+            IconType.AUDIO -> R.drawable.music_note_24px
+            IconType.TEXT -> R.drawable.description_24px
+            else -> R.drawable.draft_24px
+        }
 
     val state =
-            rememberAsyncImageState(
-                    ComposableImageOptions {
-                        placeholder(fallback)
-                        error(R.drawable.sentiment_very_dissatisfied_24px)
-                    }
-            )
+        rememberAsyncImageState(
+            ComposableImageOptions {
+                placeholder(fallback)
+                error(R.drawable.sentiment_very_dissatisfied_24px)
+            }
+        )
     val loadState = state.loadState
-     // Thumbnails only work for bitmaps atm
-    val uri = getImageUrl(fullPath, true)
+    // Thumbnails only work for bitmaps atm
+    val uri = getImageUrl(fullPath, false)
     when (loadState) {
         is LoadState.Error -> {
             Log.e("ImageIcon", "Failed to load: $fullPath, uri: $uri")
             Sentry.captureMessage(
-                    "Failed to load",
-                    SentryLevel.INFO,
-                    {
-                        it.setExtra("fullPath", fullPath)
-                        it.setExtra("uri", uri)
-                    }
+                "Failed to load",
+                SentryLevel.INFO,
+                {
+                    it.setExtra("fullPath", fullPath)
+                    it.setExtra("uri", uri)
+                }
             )
         }
+
         else -> {}
     }
 

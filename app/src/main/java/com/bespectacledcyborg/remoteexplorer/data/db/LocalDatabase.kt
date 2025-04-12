@@ -13,29 +13,45 @@ import java.util.Date
 
 @Dao
 interface LocalDatabaseDao {
-    @Query("SELECT LocalFile.* FROM LocalFile " +
-            "INNER JOIN FileTagRelation " +
-            "ON LocalFile.connectionId = FileTagRelation.connectionId " +
-            "AND LocalFile.parentPath = FileTagRelation.parentPath " +
-            "AND LocalFile.filename = FileTagRelation.filename " +
-            "WHERE FileTagRelation.tag = :tag")
+    @Query(
+        "SELECT LocalFile.* FROM LocalFile " +
+                "INNER JOIN FileTagRelation " +
+                "ON LocalFile.connectionId = FileTagRelation.connectionId " +
+                "AND LocalFile.parentPath = FileTagRelation.parentPath " +
+                "AND LocalFile.filename = FileTagRelation.filename " +
+                "WHERE FileTagRelation.tag = :tag"
+    )
     fun getFilesWithTag(tag: String): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun getFiles(connectionId: Int, parentPath: String): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type = :type")
-    fun getFolders(connectionId: Int, parentPath: String, type: FileType = FileType.FOLDER): List<LocalFile>
+    fun getFolders(
+        connectionId: Int,
+        parentPath: String,
+        type: FileType = FileType.FOLDER
+    ): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename LIKE :filter")
     fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String): List<LocalFile>
 
-    @Query("SELECT filename FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND thumbnailStatus = :thumbnailStatus LIMIT :limit")
-    fun getFolderThumbnails(connectionId: Int, parentPath: String, thumbnailStatus: ThumbnailStatus = ThumbnailStatus.SUCCESS, limit: Int = 4): List<String>
+    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath LIMIT :limit")
+    fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int = 4): List<LocalFile>
 
-    @Query("SELECT LocalTag.tag, COUNT(FileTagRelation.filename) AS count FROM LocalTag " +
-            "LEFT JOIN FileTagRelation ON LocalTag.tag = FileTagRelation.tag " +
-            "GROUP BY LocalTag.tag")
+    @Query("SELECT filename FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND thumbnailStatus = :thumbnailStatus LIMIT :limit")
+    fun getProcessedFolderThumbnails(
+        connectionId: Int,
+        parentPath: String,
+        thumbnailStatus: ThumbnailStatus = ThumbnailStatus.SUCCESS,
+        limit: Int = 4
+    ): List<String>
+
+    @Query(
+        "SELECT LocalTag.tag, COUNT(FileTagRelation.filename) AS count FROM LocalTag " +
+                "LEFT JOIN FileTagRelation ON LocalTag.tag = FileTagRelation.tag " +
+                "GROUP BY LocalTag.tag"
+    )
     fun getTags(): List<LocalTagWithMetadata>
 
     @Upsert(entity = LocalFile::class)
@@ -51,23 +67,46 @@ interface LocalDatabaseDao {
     fun updateTagStatus(connectionId: Int, parentPath: String, filename: String, status: TagStatus)
 
     @Query("UPDATE LocalFile SET thumbnailStatus = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
-    fun updateThumbnailStatus(connectionId: Int, parentPath: String, filename: String, status: ThumbnailStatus)
+    fun updateThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        status: ThumbnailStatus
+    )
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND tagStatus = :status LIMIT :limit")
-    fun getUnprocessedTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG, status: TagStatus = TagStatus.UNPROCESSED): List<LocalFile>
+    fun getUnprocessedTagFiles(
+        connectionId: Int,
+        limit: Int,
+        type: FileType = FileType.TAG,
+        status: TagStatus = TagStatus.UNPROCESSED
+    ): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type LIMIT :limit")
-    fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType = FileType.TAG): List<LocalFile>
+    fun getAllTagFiles(
+        connectionId: Int,
+        limit: Int,
+        type: FileType = FileType.TAG
+    ): List<LocalFile>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type != :tagFileType AND filename LIKE :filenamePattern LIMIT 1")
-    fun getCorrespondingFileForTagFile(connectionId: Int, parentPath: String, tagFileType: FileType = FileType.TAG, filenamePattern: String): LocalFile?
+    fun getCorrespondingFileForTagFile(
+        connectionId: Int,
+        parentPath: String,
+        tagFileType: FileType = FileType.TAG,
+        filenamePattern: String
+    ): LocalFile?
 
     @Transaction
     fun updateFileTags(connectionId: Int, tagFile: LocalFile, tags: List<String>) {
         // Find corresponding tag file
         val filenamePattern = tagFile.filename.substringBeforeLast('.').plus(".%")
         val parentPath = tagFile.parentPath
-        val correspondingFile = getCorrespondingFileForTagFile(connectionId, parentPath, filenamePattern = filenamePattern)
+        val correspondingFile = getCorrespondingFileForTagFile(
+            connectionId,
+            parentPath,
+            filenamePattern = filenamePattern
+        )
 
         // If cannot find, mark as REMOVED
         if (correspondingFile == null) {
@@ -91,11 +130,13 @@ interface LocalDatabaseDao {
     }
 }
 
-@Entity(primaryKeys = [
-    "connectionId",
-    "parentPath",
-    "filename",
-])
+@Entity(
+    primaryKeys = [
+        "connectionId",
+        "parentPath",
+        "filename",
+    ]
+)
 data class LocalFile(
     val connectionId: Int,
     val parentPath: String,
@@ -123,12 +164,14 @@ data class LocalTagWithMetadata(
     val count: Int,
 )
 
-@Entity(primaryKeys = [
-    "connectionId",
-    "parentPath",
-    "filename",
-    "tag",
-])
+@Entity(
+    primaryKeys = [
+        "connectionId",
+        "parentPath",
+        "filename",
+        "tag",
+    ]
+)
 data class FileTagRelation(
     val connectionId: Int,
     val parentPath: String,

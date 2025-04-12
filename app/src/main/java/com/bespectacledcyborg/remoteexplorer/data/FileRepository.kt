@@ -21,17 +21,25 @@ data class File(
     val fileAttributes: Long,
 )
 
-class FileRepository (
+class FileRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val dispatcher: CoroutineDispatcher
 ) {
-    suspend fun connect(connectionId: Int, hostname: String, username: String, password: String, domain: String, shareName: String) {
+    suspend fun connect(
+        connectionId: Int,
+        hostname: String,
+        username: String,
+        password: String,
+        domain: String,
+        shareName: String
+    ) {
         return withContext(dispatcher) {
             sambaFileDataSource.connect(
                 ConnectionDetails(
                     connectionId, hostname, username, password, domain, shareName
-            ))
+                )
+            )
         }
     }
 
@@ -47,7 +55,11 @@ class FileRepository (
                     it.filename.endsWith(".xmp", true) -> FileType.TAG
                     else -> FileType.FILE
                 },
-                thumbnailStatus = if (Utils.canHaveThumbnail(it.filename)) { ThumbnailStatus.UNPROCESSED } else { ThumbnailStatus.UNSUPPORTED },
+                thumbnailStatus = if (Utils.canHaveThumbnail(it.filename)) {
+                    ThumbnailStatus.UNPROCESSED
+                } else {
+                    ThumbnailStatus.UNSUPPORTED
+                },
                 canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
                 lastModified = it.lastModified,
             )
@@ -56,7 +68,12 @@ class FileRepository (
         return mappedRemoteList
     }
 
-    suspend fun listFiles(connectionId: Int, currentPath: String = "", filter: String = "", forceRemote: Boolean = false): List<LocalFile> {
+    suspend fun listFiles(
+        connectionId: Int,
+        currentPath: String = "",
+        filter: String = "",
+        forceRemote: Boolean = false
+    ): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {
                 fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
@@ -69,7 +86,11 @@ class FileRepository (
         }
     }
 
-    private fun fetchRemoteFilesAndFilter(connectionId: Int, currentPath: String = "", filter: String = ""): List<LocalFile> {
+    private fun fetchRemoteFilesAndFilter(
+        connectionId: Int,
+        currentPath: String = "",
+        filter: String = ""
+    ): List<LocalFile> {
         val unfiltered = updateRemoteMapping(connectionId, currentPath)
         return if (filter.isNotBlank()) {
             unfiltered.filter { it.filename.contains(filter) }
@@ -94,7 +115,13 @@ class FileRepository (
         return sambaFileDataSource.openFile(connectionId, fullPath)
     }
 
-    fun openFileRange(connectionId: Int, fullPath: String, buffer: ByteArray, start: Int, len: Int): Int {
+    fun openFileRange(
+        connectionId: Int,
+        fullPath: String,
+        buffer: ByteArray,
+        start: Int,
+        len: Int
+    ): Int {
         val inputStream = sambaFileDataSource.openFile(connectionId, fullPath).inputStream
         inputStream.skipNBytes(start.toLong())
         return inputStream.readNBytes(buffer, 0, len)
@@ -105,12 +132,26 @@ class FileRepository (
         return file.fileInformation.standardInformation.allocationSize
     }
 
-    fun updateFileThumbnailStatus(connectionId: Int, parentPath: String, filename: String, thumbnailStatus: ThumbnailStatus) {
-        localDatabaseDataSource.updateThumbnailStatus(connectionId, parentPath, filename, thumbnailStatus)
+    fun updateFileThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        thumbnailStatus: ThumbnailStatus
+    ) {
+        localDatabaseDataSource.updateThumbnailStatus(
+            connectionId,
+            parentPath,
+            filename,
+            thumbnailStatus
+        )
     }
 
     suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
         return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)
+    }
+
+    suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
+        return localDatabaseDataSource.getProcessedFolderThumbnails(connectionId, parentPath)
     }
 
     fun getDataSource(connectionId: Int, fullPath: String): MediaDataSource {
@@ -134,7 +175,10 @@ class FileRepository (
                 }
 
                 if (position < 0 || position >= fileSize) {
-                    Log.d("MediaDataSource", "Invalid position request: $position (size: $fileSize)")
+                    Log.d(
+                        "MediaDataSource",
+                        "Invalid position request: $position (size: $fileSize)"
+                    )
                     return 0  // EOF
                 }
 
@@ -154,7 +198,8 @@ class FileRepository (
                             var bytesRead: Int
 
                             while (totalRead < bytesToRead) {
-                                bytesRead = stream.read(buffer, offset + totalRead, bytesToRead - totalRead)
+                                bytesRead =
+                                    stream.read(buffer, offset + totalRead, bytesToRead - totalRead)
 
                                 if (bytesRead == -1) {
                                     // End of file reached
@@ -167,7 +212,11 @@ class FileRepository (
                             return totalRead
                         }
                     } catch (e: Exception) {
-                        Log.e("MediaDataSource", "Error reading at position $position: ${e.message}", e)
+                        Log.e(
+                            "MediaDataSource",
+                            "Error reading at position $position: ${e.message}",
+                            e
+                        )
                         return -1
                     }
                 }

@@ -14,6 +14,7 @@ import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
@@ -219,10 +220,8 @@ class ExplorerViewModel(
                     }
                     _list.update { it.plus(path to files) }
 
-//                    _thumbnails.update {
-//                        fetchThumbnails(connectionId, files, forceRemote)
-//                    }
-                    thumbnailsJob(connectionId, files)
+                    fetchThumbnails(connectionId, files)
+//                    thumbnailsJob(connectionId, files)
                     scanTagsJob(connectionId, forceRemote)
                 }
             }
@@ -327,14 +326,33 @@ class ExplorerViewModel(
         workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
     }
 
+    private fun fetchThumbnails(connectionId: Int, files: List<LocalFile>) {
+        viewModelScope.launch {
+            val thumbnailsMap =
+                files.associate {
+                    it.fullPath() to when {
+                        it.type == FileType.FOLDER -> fileRepository.getFolderThumbnails(
+                            connectionId,
+                            it.fullPath()
+                        )
+
+                        else -> listOf(it.fullPath())
+                    }
+                }
+            _thumbnails.update {
+                thumbnailsMap
+            }
+        }
+    }
+
     private fun thumbnailsJob(connectionId: Int, files: List<LocalFile>) {
         viewModelScope.launch {
             // Load already usable thumbnails
             val ready = files.filter { it.thumbnailStatus == ThumbnailStatus.SUCCESS }
                 .associate { it.fullPath() to listOf(it.fullPath()) }
-            val folders = files.filter { it.thumbnailStatus == ThumbnailStatus.NESTED }
+            val folders = files.filter { it.type == FileType.FOLDER }
                 .associate {
-                    it.fullPath() to fileRepository.getFolderThumbnails(
+                    it.fullPath() to fileRepository.getProcessedFolderThumbnails(
                         connectionId,
                         it.fullPath()
                     )
