@@ -19,7 +19,6 @@ import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
-import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
 import java.io.File
 import java.io.InputStream
 
@@ -41,7 +40,7 @@ class ThumbnailGenerationWorker(
             val connectionId = inputData.getInt(THUMBNAIL_WORKER_INPUT_CONNECTION_ID, -1)
             val parentPath = inputData.getString(THUMBNAIL_WORKER_INPUT_PARENT_PATH)
                 ?: return@withContext Result.failure()
-            val path = inputData.getString(THUMBNAIL_WORKER_INPUT_FULL_PATH)
+            val fullPath = inputData.getString(THUMBNAIL_WORKER_INPUT_FULL_PATH)
                 ?: return@withContext Result.failure()
             try {
                 if (connectionId == -1) {
@@ -52,19 +51,19 @@ class ThumbnailGenerationWorker(
                 val thumbnailManager = ThumbnailManager(applicationContext)
 
                 // Skip if thumbnail already exists
-                if (thumbnailManager.hasThumbnail(path)) {
+                if (thumbnailManager.hasThumbnail(fullPath)) {
                     return@withContext Result.success()
                 }
 
-                val thumbnailFile = thumbnailManager.getThumbnailPath(path)
+                val thumbnailFile = thumbnailManager.getThumbnailPath(fullPath)
 
                 // Open the original file
-                when (Utils.guessIconType(path)) {
+                when (Utils.guessIconType(fullPath)) {
                     IconType.IMAGE -> {
-                        val file = fileRepository.openFileDirectly(connectionId, path)
+                        val file = fileRepository.openFileDirectly(connectionId, fullPath)
                         generateImageThumbnail(thumbnailFile, file)
 
-                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, path, ThumbnailStatus.SUCCESS)
+                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, fullPath, ThumbnailStatus.SUCCESS)
                     }
 
                     IconType.VIDEO -> {
@@ -72,21 +71,21 @@ class ThumbnailGenerationWorker(
 
 //                        generateVideoThumbnail(thumbnailFile, dataSource)
 
-                        val stream = fileRepository.openFileDirectly(connectionId, path).inputStream
+                        val stream = fileRepository.openFileDirectly(connectionId, fullPath).inputStream
                         generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
 
-                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, path, ThumbnailStatus.SUCCESS)
+                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, fullPath, ThumbnailStatus.SUCCESS)
                     }
 
                     else -> {
-                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, path, ThumbnailStatus.UNSUPPORTED)
+                        fileRepository.updateFileThumbnailStatus(connectionId, parentPath, fullPath, ThumbnailStatus.UNSUPPORTED)
                     }
                 }
 
                 Result.success()
             } catch (e: Exception) {
                 Log.e("ThumbnailWorker", "Error generating thumbnail", e)
-                fileRepository.updateFileThumbnailStatus(connectionId, parentPath, path, ThumbnailStatus.ERROR)
+                fileRepository.updateFileThumbnailStatus(connectionId, parentPath, fullPath, ThumbnailStatus.ERROR)
                 Result.failure()
             }
         }

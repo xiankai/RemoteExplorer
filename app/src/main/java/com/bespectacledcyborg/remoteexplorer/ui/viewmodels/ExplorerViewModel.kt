@@ -6,9 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.WorkQuery
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
@@ -16,20 +14,15 @@ import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
-import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
-import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_GENERATION_WORK_TAG
-import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_FULL_PATH
-import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_OUTPUT_PARENT_PATH
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
-import java.nio.file.Paths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -338,12 +331,12 @@ class ExplorerViewModel(
         viewModelScope.launch {
             // Load already usable thumbnails
             val ready = files.filter { it.thumbnailStatus == ThumbnailStatus.SUCCESS }
-                .associate { it.filename to listOf(it.filename) }
+                .associate { it.fullPath() to listOf(it.fullPath()) }
             val folders = files.filter { it.thumbnailStatus == ThumbnailStatus.NESTED }
                 .associate {
-                    it.filename to fileRepository.getFolderThumbnails(
+                    it.fullPath() to fileRepository.getFolderThumbnails(
                         connectionId,
-                        it.filename
+                        it.fullPath()
                     )
                 }
             _thumbnails.update {
@@ -352,7 +345,7 @@ class ExplorerViewModel(
 
             // Process pending thumbnails in the background
             val toProcess = files.filter { it.thumbnailStatus == ThumbnailStatus.UNPROCESSED }
-                .associate { it.filename to listOf(it.filename) }
+                .associate { it.fullPath() to listOf(it.fullPath()) }
 
             val processedFiles = thumbnailManager.queueBatchThumbnailGeneration(
                 connectionId,
