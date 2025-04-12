@@ -7,12 +7,10 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.hierynomus.smbj.share.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.nio.file.Paths
 import java.util.Date
 
 data class File(
@@ -84,7 +82,7 @@ class FileRepository (
         return localDatabaseDataSource.getFilesWithTag(tag).filter {
             Utils.canHaveThumbnail(it.filename)
         }.map {
-            Paths.get(it.parentPath, it.filename).toString()
+            it.fullPath()
         }.take(limit)
     }
 

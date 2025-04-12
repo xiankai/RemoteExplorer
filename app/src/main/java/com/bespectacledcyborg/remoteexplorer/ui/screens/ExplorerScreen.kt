@@ -37,7 +37,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.flow.combine
 import java.net.URLConnection
-import java.nio.file.Paths
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,10 +77,9 @@ fun ExplorerScreen(
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
-            val path = Paths.get(item.item.parentPath, item.item.filename).toString()
             when (item.type) {
                 FileType.FOLDER -> {
-                    explorerViewModel.changePath(path)
+                    explorerViewModel.changePath(item.item.fullPath())
                 }
 
                 FileType.FILE -> {
@@ -95,8 +94,8 @@ fun ExplorerScreen(
                     } else {
                         val intent = Intent(Intent.ACTION_VIEW)
                         val mimeType = URLConnection.guessContentTypeFromName(item.name)
-                        val url = explorerViewModel.getUrl(path)
-                        intent.setDataAndType(Uri.parse(url), mimeType)
+                        val url = explorerViewModel.getUrl(item.item.fullPath())
+                        intent.setDataAndType(url.toUri(), mimeType)
 
                         try {
                             context.startActivity(intent)
@@ -181,10 +180,7 @@ fun ExplorerScreen(
                             name = it.filename,
                             type = it.type,
                             thumbnails = thumbnails.getOrDefault(
-                                Paths.get(
-                                    it.parentPath,
-                                    it.filename
-                                ).toString(), emptyList()
+                                it.fullPath(), emptyList()
                             ),
                             item = it,
                         )

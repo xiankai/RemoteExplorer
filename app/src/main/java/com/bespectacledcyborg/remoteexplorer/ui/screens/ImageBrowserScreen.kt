@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.github.panpf.sketch.AsyncImage
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
-import java.nio.file.Paths
 
 @Composable
 fun ImageBrowserScreen(
@@ -30,8 +29,7 @@ fun ImageBrowserScreen(
     Box {
         HorizontalPager(state = pagerState) { page ->
             val image = images[page]
-            val path = Paths.get(image.parentPath, image.filename)
-            val url = explorerViewModel.getUrl(path.toString())
+            val url = explorerViewModel.getUrl(image.fullPath())
             val contentDescription = image.filename
             AsyncImage(
                 uri = url,

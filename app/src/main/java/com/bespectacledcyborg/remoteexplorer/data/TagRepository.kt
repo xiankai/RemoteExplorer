@@ -4,7 +4,6 @@ import LocalDatabaseDataSource
 import android.util.Log
 import com.adobe.internal.xmp.XMPMetaFactory
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
-import java.nio.file.Paths
 
 const val tagPrefix = "Tag: "
 
@@ -16,8 +15,7 @@ class TagRepository (
         val tagFiles = localDatabaseDataSource.getTagFiles(connectionId, forceRemote, limit)
         Log.d("TagRepository", "Scanning ${tagFiles.size} tags")
         tagFiles.forEach {
-            val tagPath = Paths.get(it.parentPath, it.filename).toString()
-            val tagFileHandle = fileRepository.openFileDirectly(connectionId, tagPath)
+            val tagFileHandle = fileRepository.openFileDirectly(connectionId, it.fullPath())
             val xmpMeta = XMPMetaFactory.parse(tagFileHandle.inputStream)
 
             // Using Dublin Core namespace as they are the most common metadata category

@@ -1,6 +1,5 @@
 package com.bespectacledcyborg.remoteexplorer.data.db
 
-import androidx.compose.ui.text.intl.LocaleList
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -9,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import java.nio.file.Paths
 import java.util.Date
 
 @Dao
@@ -106,7 +106,11 @@ data class LocalFile(
     val tagStatus: TagStatus = TagStatus.UNPROCESSED,
     val thumbnailStatus: ThumbnailStatus = ThumbnailStatus.UNPROCESSED,
     val lastModified: Date,
-)
+) {
+    fun fullPath(): String {
+        return Paths.get(parentPath, filename).toString()
+    }
+}
 
 @Entity
 data class LocalTag(
