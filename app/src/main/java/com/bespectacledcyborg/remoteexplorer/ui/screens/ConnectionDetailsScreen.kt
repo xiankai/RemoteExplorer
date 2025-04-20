@@ -75,13 +75,12 @@ fun ConnectionDetailsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
-                title = {
-                    Text("Connections")
-                },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                title = { Text("Connections") },
                 actions = {
                     if (connection != null) {
                         ConnectionDetailsButtons { onDelete(connection) }
@@ -94,61 +93,70 @@ fun ConnectionDetailsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = if (connection != null) {
-                        "Edit Connection"
-                    } else {
-                        "Add Connection"
-                    }, style = MaterialTheme.typography.headlineMedium
+                    text =
+                        if (connection != null) {
+                            "Edit Connection"
+                        } else {
+                            "Add Connection"
+                        },
+                    style = MaterialTheme.typography.headlineMedium
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                val fields: List<Triple<String, (String) -> Unit, String>> = listOf(
-                    Triple(name, { name = it.trim() }, "Name"),
-                    Triple(hostname, { hostname = it.trim() }, "Hostname"),
-                    Triple(username, { username = it.trim() }, "Username"),
-                    Triple(password, { password = it.trim() }, "Password"),
-                    Triple(domain, { domain = it.trim() }, "Domain"),
-                    Triple(share, { share = it.trim() }, "Share"),
-                )
+                val fields: List<Triple<String, (String) -> Unit, String>> =
+                    listOf(
+                        Triple(name, { name = it.trim() }, "Name"),
+                        Triple(hostname, { hostname = it.trim() }, "Hostname"),
+                        Triple(username, { username = it.trim() }, "Username"),
+                        Triple(password, { password = it.trim() }, "Password"),
+                        Triple(domain, { domain = it.trim() }, "Domain"),
+                        Triple(share, { share = it.trim() }, "Share"),
+                    )
                 val localFocusManager = LocalFocusManager.current
                 val keyboardController = LocalSoftwareKeyboardController.current
 
                 LazyColumn {
                     itemsIndexed(fields) { index, field ->
-                        val imeAction = if (index == fields.lastIndex) {
-                            ImeAction.Done
-                        } else ImeAction.Next
+                        val imeAction =
+                            if (index == fields.lastIndex) {
+                                ImeAction.Done
+                            } else ImeAction.Next
 
-                        val keyboardActions = KeyboardActions(
-                            onNext = { localFocusManager.moveFocus(FocusDirection.Down) },
-                            onDone = {
-                                localFocusManager.clearFocus()
-                                keyboardController?.hide()
-                            }
-                        )
+                        val keyboardActions =
+                            KeyboardActions(
+                                onNext = {
+                                    localFocusManager.moveFocus(FocusDirection.Down)
+                                },
+                                onDone = {
+                                    localFocusManager.clearFocus()
+                                    keyboardController?.hide()
+                                }
+                            )
 
                         val (value, onValueChange, label) = field
-                        val visualTransformation = if (label == "Password") {
-                            PasswordVisualTransformation()
-                        } else {
-                            VisualTransformation.None
-                        }
+                        val visualTransformation =
+                            if (label == "Password") {
+                                PasswordVisualTransformation()
+                            } else {
+                                VisualTransformation.None
+                            }
 
                         OutlinedTextField(
                             value = value,
                             onValueChange = onValueChange,
                             label = { Text(label) },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(
-                                imeAction = imeAction
-                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = imeAction),
                             keyboardActions = keyboardActions,
                             visualTransformation = visualTransformation
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
@@ -158,17 +166,13 @@ fun ConnectionDetailsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    Button(onClick = onCancel) {
-                        Text("Cancel")
-                    }
+                    Button(onClick = onCancel) { Text("Cancel") }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { onTest(getCurrentConnection()) }) {
                         Text("Test Connection")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onSave(getCurrentConnection()) }) {
-                        Text("Save")
-                    }
+                    Button(onClick = { onSave(getCurrentConnection()) }) { Text("Save") }
                 }
             }
         },
@@ -180,16 +184,17 @@ fun ConnectionDetailsScreen(
 @Composable
 fun PreviewConnectionDetailsScreen() {
     ConnectionDetailsScreen(
-        connection = Connection(
-            id = 1,
-            name = "test",
-            hostname = "192.168.1.100",
-            username = "testuser",
-            password = "testpassword",
-            domain = "testdomain",
-            share = "testshare",
-            lastModified = Date()
-        ),
+        connection =
+            Connection(
+                id = 1,
+                name = "test",
+                hostname = "192.168.1.100",
+                username = "testuser",
+                password = "testpassword",
+                domain = "testdomain",
+                share = "testshare",
+                lastModified = Date()
+            ),
         onSave = { connection ->
             Log.d(
                 "ConnectionDetailsScreen",
