@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.core.graphics.createBitmap
 
 class VideoDecoder {
     companion object {
@@ -9,7 +10,7 @@ class VideoDecoder {
 
         // Load the native library
         init {
-            System.loadLibrary("ffmpeg")  // Match your CMake project name
+            System.loadLibrary("ffmpeg") // Match your CMake project name
         }
     }
 
@@ -27,34 +28,44 @@ class VideoDecoder {
         Log.d(TAG, "Decoding video frame from ${videoBytes.size} bytes")
 
         // Call native method to decode frame
-        val bitmapData = decodeVideoFrameNative(videoBytes) ?: run {
+        val combinedData = decodeVideoFrameNative(videoBytes) ?: run {
             Log.e(TAG, "Failed to decode video frame")
             return null
         }
 
-        // Get dimensions from native code
-        lastDecodedWidth = getLastDecodedWidth()
-        lastDecodedHeight = getLastDecodedHeight()
-
-        if (lastDecodedWidth <= 0 || lastDecodedHeight <= 0) {
-            // If we don't have explicit dimensions, try to infer from data
-            // A crude estimate: assuming RGBA (4 bytes per pixel)
-            val pixels = bitmapData.size / 4
-            lastDecodedWidth = kotlin.math.sqrt(pixels.toDouble()).toInt()
-            lastDecodedHeight = lastDecodedWidth
-            Log.w(TAG, "Using estimated dimensions: ${lastDecodedWidth}x${lastDecodedHeight}")
+        // The first 8 bytes contain width (4 bytes) and height (4 bytes)
+        if (combinedData.size < 8) {
+            Log.e(TAG, "Invalid data format: too small to contain dimensions")
+            return null
         }
+
+        // Extract width from first 4 bytes (big-endian)
+        val width = ((combinedData[0].toInt() and 0xFF) shl 24) or
+                ((combinedData[1].toInt() and 0xFF) shl 16) or
+                ((combinedData[2].toInt() and 0xFF) shl 8) or
+                (combinedData[3].toInt() and 0xFF)
+
+        // Extract height from next 4 bytes (big-endian)
+        val height = ((combinedData[4].toInt() and 0xFF) shl 24) or
+                ((combinedData[5].toInt() and 0xFF) shl 16) or
+                ((combinedData[6].toInt() and 0xFF) shl 8) or
+                (combinedData[7].toInt() and 0xFF)
+
+        // Store dimensions for potential future use
+        lastDecodedWidth = width
+        lastDecodedHeight = height
+
+        Log.d(TAG, "Decoded frame dimensions: ${width}x${height}")
+
+        // The actual bitmap data starts after the first 8 bytes
+        val bitmapData = combinedData.copyOfRange(8, combinedData.size)
 
         try {
             // Create bitmap from RGBA data
-            val bitmap = Bitmap.createBitmap(
-                lastDecodedWidth,
-                lastDecodedHeight,
-                Bitmap.Config.ARGB_8888
-            )
+            val bitmap = createBitmap(width, height)
             bitmap.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(bitmapData))
 
-            Log.d(TAG, "Created bitmap: ${lastDecodedWidth}x${lastDecodedHeight}")
+            Log.d(TAG, "Created bitmap: ${width}x${height}")
             return bitmap
         } catch (e: Exception) {
             Log.e(TAG, "Error creating bitmap", e)
@@ -62,8 +73,7 @@ class VideoDecoder {
         }
     }
 
-    // Native methods
+    // Native method - returns byte array with width (4 bytes) and height (4 bytes)
+    // followed by the actual RGBA bitmap data
     private external fun decodeVideoFrameNative(videoBytes: ByteArray): ByteArray?
-    private external fun getLastDecodedWidth(): Int
-    private external fun getLastDecodedHeight(): Int
 }

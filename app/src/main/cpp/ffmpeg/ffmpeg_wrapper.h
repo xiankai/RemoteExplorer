@@ -4,13 +4,14 @@
 #include <jni.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-// Decode a frame from the provided video bytes and return bitmap data
-JNIEXPORT jbyteArray JNICALL
-Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env, jobject thiz,
-                                                         jbyteArray videoBytes);
+  // Decode a frame from the provided video bytes and return bitmap data
+  JNIEXPORT jbyteArray JNICALL
+  Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env, jobject thiz,
+                                                                                      jbyteArray videoBytes);
 
 #ifdef __cplusplus
 }
