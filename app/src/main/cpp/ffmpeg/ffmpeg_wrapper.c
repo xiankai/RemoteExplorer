@@ -13,75 +13,98 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // Custom IO context for reading from memory
-typedef struct
-{
+typedef struct {
     uint8_t *buffer;
     size_t buffer_size;
     size_t position;
 } MemoryContext;
 
 // Read callback for custom IO
-static int read_packet(void *opaque, uint8_t *buf, int buf_size)
-{
-    MemoryContext *ctx = (MemoryContext *)opaque;
+static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+    if (!opaque || !buf)
+        return AVERROR(EINVAL);
 
+    MemoryContext *ctx = (MemoryContext *) opaque;
+
+    if (!ctx->buffer)
+        return AVERROR(EINVAL);
+
+    // Check if we're at or past the end of the buffer
+    if (ctx->position >= ctx->buffer_size)
+        return AVERROR_EOF;
+
+    // Calculate how many bytes we can actually read
     buf_size = FFMIN(buf_size, ctx->buffer_size - ctx->position);
     if (buf_size <= 0)
         return AVERROR_EOF;
 
+    // Copy the data
     memcpy(buf, ctx->buffer + ctx->position, buf_size);
     ctx->position += buf_size;
+
+    LOGI("Read %d bytes at position %zu", buf_size, ctx->position - buf_size);
 
     return buf_size;
 }
 
 // Seek callback for custom IO
-static int64_t seek_packet(void *opaque, int64_t offset, int whence)
-{
-    MemoryContext *ctx = (MemoryContext *)opaque;
+static int64_t seek_packet(void *opaque, int64_t offset, int whence) {
+    if (!opaque)
+        return AVERROR(EINVAL);
 
-    switch (whence)
-    {
-    case SEEK_SET:
-        ctx->position = offset;
-        break;
-    case SEEK_CUR:
-        ctx->position += offset;
-        break;
-    case SEEK_END:
-        ctx->position = ctx->buffer_size + offset;
-        break;
-    case AVSEEK_SIZE:
-        return ctx->buffer_size;
-    default:
-        return -1;
+    MemoryContext *ctx = (MemoryContext *) opaque;
+
+    if (!ctx->buffer)
+        return AVERROR(EINVAL);
+
+    int64_t new_position;
+
+    switch (whence) {
+        case SEEK_SET:
+            new_position = offset;
+            break;
+        case SEEK_CUR:
+            new_position = ctx->position + offset;
+            break;
+        case SEEK_END:
+            new_position = ctx->buffer_size + offset;
+            break;
+        case AVSEEK_SIZE:
+            return ctx->buffer_size;
+        default:
+            LOGE("Invalid whence value: %d", whence);
+            return AVERROR(EINVAL);
     }
 
-    if (ctx->position < 0 || ctx->position > ctx->buffer_size)
-        return -1;
+    if (new_position < 0 || new_position > ctx->buffer_size) {
+        LOGE("Invalid seek position: %lld (buffer size: %zu)", (long long) new_position,
+             ctx->buffer_size);
+        return AVERROR(EINVAL);
+    }
+
+    ctx->position = new_position;
+    LOGI("Seek to position %zu", ctx->position);
 
     return ctx->position;
 }
 
 // Function to convert frame to RGBA for Android bitmap and include dimensions
-static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame)
-{
+static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame) {
     // Create a SwsContext for the color conversion
     struct SwsContext *sws_ctx = sws_getContext(
-        frame->width, frame->height, frame->format,   // Source format
-        frame->width, frame->height, AV_PIX_FMT_RGBA, // Destination format (Android bitmap format)
-        SWS_BILINEAR, NULL, NULL, NULL);
+            frame->width, frame->height, frame->format,   // Source format
+            frame->width, frame->height,
+            AV_PIX_FMT_RGBA, // Destination format (Android bitmap format)
+            SWS_BILINEAR, NULL, NULL, NULL);
 
-    if (!sws_ctx)
-    {
+    if (!sws_ctx) {
         LOGE("Could not initialize SwsContext");
         return NULL;
     }
 
     // Allocate an AVFrame for the output RGBA data
     AVFrame *rgba_frame = av_frame_alloc();
-    if (!rgba_frame)
-    {
+    if (!rgba_frame) {
         LOGE("Could not allocate RGBA frame");
         sws_freeContext(sws_ctx);
         return NULL;
@@ -94,9 +117,8 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame)
 
     // Calculate required buffer size and allocate
     int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
-    uint8_t *buffer = (uint8_t *)av_malloc(buffer_size);
-    if (!buffer)
-    {
+    uint8_t *buffer = (uint8_t *) av_malloc(buffer_size);
+    if (!buffer) {
         LOGE("Could not allocate RGBA buffer");
         av_frame_free(&rgba_frame);
         sws_freeContext(sws_ctx);
@@ -108,13 +130,12 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame)
                          AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
 
     // Convert the frame from its current format to RGBA
-    sws_scale(sws_ctx, (const uint8_t *const *)frame->data, frame->linesize, 0,
+    sws_scale(sws_ctx, (const uint8_t *const *) frame->data, frame->linesize, 0,
               frame->height, rgba_frame->data, rgba_frame->linesize);
 
     // Create Java byte array for the RGBA data with extra 8 bytes for width and height
     jbyteArray result = (*env)->NewByteArray(env, buffer_size + 8);
-    if (result)
-    {
+    if (result) {
         // First 4 bytes: width (int)
         jbyte width_bytes[4];
         width_bytes[0] = (frame->width >> 24) & 0xFF;
@@ -134,10 +155,8 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame)
         (*env)->SetByteArrayRegion(env, result, 4, 4, height_bytes);
 
         // Set the actual bitmap data
-        (*env)->SetByteArrayRegion(env, result, 8, buffer_size, (jbyte *)buffer);
-    }
-    else
-    {
+        (*env)->SetByteArrayRegion(env, result, 8, buffer_size, (jbyte *) buffer);
+    } else {
         LOGE("Could not create Java byte array");
     }
 
@@ -150,9 +169,9 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame)
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env, jobject thiz,
-                                                                                    jbyteArray videoBytes)
-{
+Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env,
+                                                                                    jobject thiz,
+                                                                                    jbyteArray videoBytes) {
     jbyteArray bitmapData = NULL;
     AVFormatContext *format_ctx = NULL;
     AVCodecContext *codec_ctx = NULL;
@@ -167,43 +186,60 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
 
     // Get input video bytes
     jsize video_length = (*env)->GetArrayLength(env, videoBytes);
-    jbyte *video_buffer = (*env)->GetByteArrayElements(env, videoBytes, NULL);
 
-    if (!video_buffer || video_length <= 0)
-    {
-        LOGE("Invalid input video data");
+    if (video_length <= 0) {
+        LOGE("Invalid input video data (empty array)");
         goto cleanup;
     }
 
     LOGI("Received %d bytes of video data", video_length);
 
-    // Initialize memory context
-    mem_ctx.buffer = (uint8_t *)video_buffer;
+    // Create a copy of the Java byte array to ensure memory safety
+    uint8_t *video_data_copy = (uint8_t *) av_malloc(video_length);
+    if (!video_data_copy) {
+        LOGE("Could not allocate memory for video data copy");
+        goto cleanup;
+    }
+
+    // Get the Java byte array elements and copy them
+    jbyte *video_buffer = (*env)->GetByteArrayElements(env, videoBytes, NULL);
+    if (!video_buffer) {
+        LOGE("Could not access Java byte array");
+        av_free(video_data_copy);
+        goto cleanup;
+    }
+
+    // Copy the data
+    memcpy(video_data_copy, video_buffer, video_length);
+
+    // Release the Java byte array immediately after copying
+    (*env)->ReleaseByteArrayElements(env, videoBytes, video_buffer, JNI_ABORT);
+    video_buffer = NULL; // Set to NULL to avoid using it later
+
+    // Initialize memory context with our safe copy
+    mem_ctx.buffer = video_data_copy;
     mem_ctx.buffer_size = video_length;
     mem_ctx.position = 0;
 
     // Allocate format context
     format_ctx = avformat_alloc_context();
-    if (!format_ctx)
-    {
+    if (!format_ctx) {
         LOGE("Could not allocate format context");
         goto cleanup;
     }
 
-    // Allocate custom IO buffer
-    avio_buffer = av_malloc(4096);
-    if (!avio_buffer)
-    {
+    // Allocate custom IO buffer with a larger size for better performance
+    avio_buffer = av_malloc(32768); // Increased from 4096 to 32KB
+    if (!avio_buffer) {
         LOGE("Could not allocate AVIO buffer");
         goto cleanup;
     }
 
     // Create custom IO context
     avio_ctx = avio_alloc_context(
-        avio_buffer, 4096, 0, &mem_ctx,
-        &read_packet, NULL, &seek_packet);
-    if (!avio_ctx)
-    {
+            avio_buffer, 4096, 0, &mem_ctx,
+            &read_packet, NULL, &seek_packet);
+    if (!avio_ctx) {
         LOGE("Could not allocate AVIO context");
         goto cleanup;
     }
@@ -213,101 +249,102 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
 
     // Open input stream
     ret = avformat_open_input(&format_ctx, NULL, NULL, NULL);
-    if (ret < 0)
-    {
-        LOGE("Could not open input: %s", av_err2str(ret));
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        LOGE("Could not open input: %s", errbuf);
         goto cleanup;
     }
+
+    LOGI("Opened input stream");
 
     // Find stream information
     ret = avformat_find_stream_info(format_ctx, NULL);
-    if (ret < 0)
-    {
-        LOGE("Could not find stream info: %s", av_err2str(ret));
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        LOGE("Could not find stream info: %s", errbuf);
         goto cleanup;
     }
 
+    LOGI("Found stream info");
+
     // Find video stream
-    for (int i = 0; i < format_ctx->nb_streams; i++)
-    {
-        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
-        {
+    for (int i = 0; i < format_ctx->nb_streams; i++) {
+        if (format_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             video_stream_idx = i;
             break;
         }
     }
 
-    if (video_stream_idx == -1)
-    {
+    if (video_stream_idx == -1) {
         LOGE("Could not find video stream");
         goto cleanup;
     }
 
     // Get codec
     codec = avcodec_find_decoder(format_ctx->streams[video_stream_idx]->codecpar->codec_id);
-    if (!codec)
-    {
+    if (!codec) {
         LOGE("Could not find codec");
         goto cleanup;
     }
 
     // Allocate codec context
     codec_ctx = avcodec_alloc_context3(codec);
-    if (!codec_ctx)
-    {
+    if (!codec_ctx) {
         LOGE("Could not allocate codec context");
         goto cleanup;
     }
 
     // Copy codec parameters
     ret = avcodec_parameters_to_context(codec_ctx, format_ctx->streams[video_stream_idx]->codecpar);
-    if (ret < 0)
-    {
-        LOGE("Could not copy codec parameters: %s", av_err2str(ret));
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        LOGE("Could not copy codec parameters: %s", errbuf);
         goto cleanup;
     }
 
     // Open codec
     ret = avcodec_open2(codec_ctx, codec, NULL);
-    if (ret < 0)
-    {
-        LOGE("Could not open codec: %s", av_err2str(ret));
+    if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        LOGE("Could not open codec: %s", errbuf);
         goto cleanup;
     }
 
     // Allocate packet and frame
     packet = av_packet_alloc();
     frame = av_frame_alloc();
-    if (!packet || !frame)
-    {
+    if (!packet || !frame) {
         LOGE("Could not allocate packet/frame");
         goto cleanup;
     }
 
     // Read one frame and decode it
-    while (av_read_frame(format_ctx, packet) >= 0)
-    {
-        if (packet->stream_index == video_stream_idx)
-        {
+    while (av_read_frame(format_ctx, packet) >= 0) {
+        if (packet->stream_index == video_stream_idx) {
             // Send packet to decoder
             ret = avcodec_send_packet(codec_ctx, packet);
-            if (ret < 0)
-            {
-                LOGE("Error sending packet to decoder: %s", av_err2str(ret));
+            if (ret < 0) {
+                char errbuf[AV_ERROR_MAX_STRING_SIZE];
+                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                LOGE("Error sending packet to decoder: %s", errbuf);
                 av_packet_unref(packet);
                 goto cleanup;
             }
 
             // Receive frame
             ret = avcodec_receive_frame(codec_ctx, frame);
-            if (ret < 0)
-            {
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-                {
+            if (ret < 0) {
+                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                     av_packet_unref(packet);
                     continue; // Need more packets
                 }
-                LOGE("Error receiving frame: %s", av_err2str(ret));
+                char errbuf[AV_ERROR_MAX_STRING_SIZE];
+                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                LOGE("Error receiving frame: %s", errbuf);
                 av_packet_unref(packet);
                 goto cleanup;
             }
@@ -325,20 +362,21 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
         av_packet_unref(packet);
     }
 
-    if (bitmapData)
-    {
+    if (bitmapData) {
         LOGI("Successfully converted frame to bitmap");
-    }
-    else
-    {
+    } else {
         LOGE("Failed to convert frame to bitmap");
     }
 
-cleanup:
-    // Release video bytes
-    if (video_buffer)
-    {
+    cleanup:
+    // Release video bytes if not already released
+    if (video_buffer) {
         (*env)->ReleaseByteArrayElements(env, videoBytes, video_buffer, JNI_ABORT);
+    }
+
+    // Free our copy of the video data if it was allocated
+    if (mem_ctx.buffer && mem_ctx.buffer != (uint8_t *) video_buffer) {
+        av_free(mem_ctx.buffer);
     }
 
     // Clean up FFmpeg resources
@@ -351,14 +389,11 @@ cleanup:
     if (format_ctx)
         avformat_close_input(&format_ctx);
 
-    if (avio_ctx)
-    {
+    if (avio_ctx) {
         if (avio_ctx->buffer)
             av_freep(&avio_ctx->buffer);
         av_freep(&avio_ctx);
-    }
-    else if (avio_buffer)
-    {
+    } else if (avio_buffer) {
         av_freep(&avio_buffer);
     }
 

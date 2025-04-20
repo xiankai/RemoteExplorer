@@ -164,7 +164,7 @@ fun generateFfmpegVideoThumbnailViaLibraries(
     inputStream: InputStream
 ) {
     val decoder = VideoDecoder()
-    val bufferSize = 4 * 1024 * 1024
+    val bufferSize = 2 * 1024 * 1024
     val maxTries = 10
     var nthTry = 1
     var bytes = inputStream.readNBytes(bufferSize)
