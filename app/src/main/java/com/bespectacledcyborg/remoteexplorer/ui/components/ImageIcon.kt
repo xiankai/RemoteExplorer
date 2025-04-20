@@ -1,8 +1,10 @@
 package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import FallbackIcon
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import com.bespectacledcyborg.remoteexplorer.R
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.github.panpf.sketch.AsyncImage
@@ -21,27 +23,35 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
     }
 
     val filename = fullPath.substringAfterLast("/")
+    val contentDescription = filename
     val iconType = Utils.guessIconType(filename)
 
-    val fallback =
-        when (iconType) {
-            IconType.IMAGE -> R.drawable.image_24px
-            IconType.VIDEO -> R.drawable.movie_24px
-            IconType.AUDIO -> R.drawable.music_note_24px
-            IconType.TEXT -> R.drawable.description_24px
-            else -> R.drawable.draft_24px
-        }
+    val fallback = when (iconType) {
+        IconType.IMAGE -> R.drawable.image_24px
+        IconType.VIDEO -> R.drawable.movie_24px
+        IconType.AUDIO -> R.drawable.music_note_24px
+        IconType.TEXT -> R.drawable.description_24px
+        else -> R.drawable.draft_24px
+    }
 
-    val state = rememberAsyncImageState(ComposableImageOptions {
-        placeholder(fallback)
-        error(R.drawable.sentiment_very_dissatisfied_24px)
-    })
-    val uri = getImageUrl(fullPath, false)
+    if (!Utils.canHaveThumbnail(filename)) {
+        Image(
+            painter = painterResource(fallback),
+            contentDescription = contentDescription,
+            modifier = modifier
+        )
+    } else {
+        val state = rememberAsyncImageState(ComposableImageOptions {
+            placeholder(fallback)
+            error(R.drawable.sentiment_very_dissatisfied_24px)
+        })
+        val uri = getImageUrl(fullPath, iconType == IconType.VIDEO)
 
-    AsyncImage(
-        uri = uri,
-        contentDescription = filename,
-        modifier = modifier,
-        state = state
-    )
+        AsyncImage(
+            uri = uri,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            state = state
+        )
+    }
 }

@@ -27,6 +27,11 @@ object Utils {
         return iconType
     }
 
+    val BROWSEABLE_TYPES = listOf(
+        IconType.IMAGE,
+        IconType.VIDEO,
+    )
+
     val SUPPORTED_THUMBNAILS = listOf(
         IconType.IMAGE,
         IconType.VIDEO,

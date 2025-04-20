@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.bespectacledcyborg.remoteexplorer.utils.Utils.BROWSEABLE_TYPES
 import java.nio.file.Paths
 import java.util.Date
 
@@ -150,6 +151,10 @@ data class LocalFile(
 ) {
     fun fullPath(): String {
         return Paths.get(parentPath, filename).toString()
+    }
+
+    fun isBrowsable(): Boolean {
+        return BROWSEABLE_TYPES.contains<Enum<*>>(type)
     }
 }
 

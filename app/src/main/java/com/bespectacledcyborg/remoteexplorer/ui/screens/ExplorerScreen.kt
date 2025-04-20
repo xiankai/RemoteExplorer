@@ -2,7 +2,6 @@ package com.bespectacledcyborg.remoteexplorer.ui.screens
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
@@ -24,11 +23,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
-import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
@@ -37,7 +36,6 @@ import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.flow.combine
 import java.net.URLConnection
-import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +81,8 @@ fun ExplorerScreen(
                 }
 
                 FileType.FILE -> {
-                    val isBrowsable = { item: LocalFile ->
-                        Utils.guessIconType(item.filename) != IconType.VIDEO
-                    }
-                    if (isBrowsable(item.item)) {
-                        val browsableImages = filteredList.value.filter { isBrowsable(it) }
+                    if (item.item.isBrowsable()) {
+                        val browsableImages = filteredList.value.filter { it.isBrowsable() }
                         val initialBrowsableImage = browsableImages.indexOf(item.item)
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
@@ -174,7 +169,12 @@ fun ExplorerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Explorer(
-                    getImageUrl = { fullPath, thumbnail -> explorerViewModel.getUrl(fullPath, thumbnail) },
+                    getImageUrl = { fullPath, thumbnail ->
+                        explorerViewModel.getUrl(
+                            fullPath,
+                            thumbnail
+                        )
+                    },
                     items = filteredList.value.map {
                         Item(
                             name = it.filename,

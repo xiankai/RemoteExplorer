@@ -1,6 +1,9 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.tasks.generateFfmpegVideoThumbnailViaLibraries
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
 import com.hierynomus.smbj.share.File
 import io.ktor.http.Headers
@@ -18,11 +21,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.options
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import java.net.URLConnection
 import java.net.URLDecoder
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 
 const val ENCODING = "UTF-8"
 
@@ -93,16 +95,29 @@ class ServerRepository(
                         )
 
                         if (isThumbnail) {
+
                             if (thumbnailManager.hasThumbnail(decodedPath)) {
                                 // Serve thumbnail
                                 val thumbnailFile =
                                     thumbnailManager.getThumbnailPath(decodedPath)
                                 call.respondFile(thumbnailFile)
                             } else {
-                                Log.d("ServerRepository", "Thumbnail not yet available")
-                                // Respond with a placeholder or error
-                                call.response.status(HttpStatusCode.NotFound)
-                                call.respondText("Thumbnail not yet available")
+                                if (Utils.guessIconType(decodedPath) == IconType.VIDEO) {
+                                    // Sync video thumbnail generation
+                                    val thumbnailFile =
+                                        thumbnailManager.getThumbnailPath(decodedPath)
+                                    val stream = sambaFileDataSource.openFile(
+                                        connectionId,
+                                        decodedPath
+                                    ).inputStream
+                                    generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
+                                    call.respondFile(thumbnailFile)
+                                } else {
+                                    Log.d("ServerRepository", "Thumbnail not yet available")
+                                    // Respond with a placeholder or error
+                                    call.response.status(HttpStatusCode.NotFound)
+                                    call.respondText("Thumbnail not yet available")
+                                }
                             }
                             return@get
                         }
