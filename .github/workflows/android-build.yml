@@ -20,6 +20,7 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '21'
+          cache: 'gradle'
 
       - name: Decode Keystore
         run: echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > app/remote_explorer_keystore.jks
@@ -29,11 +30,6 @@ jobs:
 
       - name: Set Sentry Settings
         run: echo "${{ secrets.SENTRY_PROPERTIES }}" > sentry.properties
-
-      - name: Setup Gradle Cache
-        uses: burrunan/gradle-cache-action@v1
-        with:
-          gradle-distribution-sha-256-sum-warning: false
 
       - name: Build Release Bundle
         run: ./gradlew bundleRelease
@@ -46,5 +42,5 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: draft
-#          mappingFile: app/build/outputs/mapping/release/mapping.txt
+          #          mappingFile: app/build/outputs/mapping/release/mapping.txt
           debugSymbols: app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
