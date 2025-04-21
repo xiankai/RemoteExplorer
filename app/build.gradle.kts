@@ -1,9 +1,9 @@
-import java.time.Instant
-import java.util.Properties
 import java.io.FileInputStream
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Properties
 
 // Create a variable called keystorePropertiesFile, and initialize it to your
 // keystore.properties file, in the rootProject folder.
@@ -66,6 +66,8 @@ android {
             signingConfig = signingConfigs.getByName("release")
             ndk {
                 debugSymbolLevel = "full"
+                //noinspection ChromeOsAbiSupport
+                abiFilters += "arm64-v8a"
             }
         }
         debug {
