@@ -110,6 +110,8 @@ class ExplorerViewModel(
         viewModelScope.launch {
             try {
                 _connection.update { connection }
+                _list.update { emptyMap() }
+                _thumbnails.update { emptyMap() }
 
                 fileRepository.connect(
                     connection.id,
