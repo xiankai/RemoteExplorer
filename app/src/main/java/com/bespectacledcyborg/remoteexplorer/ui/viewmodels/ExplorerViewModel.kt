@@ -340,7 +340,7 @@ class ExplorerViewModel(
                     }
                 }
             _thumbnails.update {
-                thumbnailsMap
+                it.plus(thumbnailsMap)
             }
         }
     }
