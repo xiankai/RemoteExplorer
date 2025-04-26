@@ -8,6 +8,8 @@ import androidx.compose.ui.res.painterResource
 import com.bespectacledcyborg.remoteexplorer.R
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.github.panpf.sketch.AsyncImage
+import com.github.panpf.sketch.ability.progressIndicator
+import com.github.panpf.sketch.painter.rememberRingProgressPainter
 import com.github.panpf.sketch.rememberAsyncImageState
 import com.github.panpf.sketch.request.ComposableImageOptions
 import com.github.panpf.sketch.request.error
@@ -46,11 +48,12 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
             error(R.drawable.sentiment_very_dissatisfied_24px)
         })
         val uri = getImageUrl(fullPath, iconType == IconType.VIDEO)
+        val progressPainter = rememberRingProgressPainter()
 
         AsyncImage(
             uri = uri,
             contentDescription = contentDescription,
-            modifier = modifier,
+            modifier = modifier.progressIndicator(state, progressPainter),
             state = state
         )
     }
