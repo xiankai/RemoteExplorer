@@ -163,7 +163,7 @@ dependencies {
     implementation(libs.sketch.svg)
     implementation(libs.sketch.http.ktor3)
     // Video Handling
-    implementation(libs.sketch.video.ffmpeg)
+//    implementation(libs.sketch.video.ffmpeg)
 
     // Tagging
     implementation(libs.metadata.extractor)
