@@ -13,43 +13,59 @@ import com.bespectacledcyborg.remoteexplorer.ui.screens.ConnectionDetailsScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.ConnectionsScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.ExplorerScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.ImageBrowserScreen
+import com.bespectacledcyborg.remoteexplorer.ui.screens.SettingsScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.TagsScreen
 import com.bespectacledcyborg.remoteexplorer.ui.theme.RemoteExplorerTheme
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable
 sealed class Route {
-    @Serializable object ConnectionsRoute
-    @Serializable object ConnectionDetailsRoute
-    @Serializable object ExplorerRoute
-    @Serializable object ImageBrowserRoute
-    @Serializable object TagsRoute
+    @Serializable
+    object ConnectionsRoute
+
+    @Serializable
+    object ConnectionDetailsRoute
+
+    @Serializable
+    object ExplorerRoute
+
+    @Serializable
+    object ImageBrowserRoute
+
+    @Serializable
+    object TagsRoute
+
+    @Serializable
+    object SettingsRoute
 }
 
 @Composable
 fun MainView(
     explorerViewModel: ExplorerViewModel,
+    settingsViewModel: SettingsViewModel,
 ) {
     val context = LocalContext.current
     val navHostController = rememberNavController()
 
     LaunchedEffect("") {
         explorerViewModel.toast.collect { message ->
-            if(message.isNotEmpty()) {
+            if (message.isNotEmpty()) {
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     RemoteExplorerTheme {
-        Routes(explorerViewModel, navHostController)
+        Routes(explorerViewModel, settingsViewModel, navHostController)
     }
 }
 
 @Composable
 fun Routes(
     explorerViewModel: ExplorerViewModel,
+    settingsViewModel: SettingsViewModel,
     navHostController: NavHostController,
 ) {
     NavHost(navController = navHostController, startDestination = Route.ConnectionsRoute) {
@@ -91,6 +107,14 @@ fun Routes(
             TagsScreen(
                 explorerViewModel = explorerViewModel,
                 navHostController = navHostController,
+            )
+        }
+        composable<Route.SettingsRoute> {
+            SettingsScreen(
+                settingsViewModel = settingsViewModel,
+                onBackPressed = {
+                    navHostController.navigate(Route.ConnectionsRoute)
+                }
             )
         }
     }

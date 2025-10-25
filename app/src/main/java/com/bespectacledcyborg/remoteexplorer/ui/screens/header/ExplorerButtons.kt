@@ -14,8 +14,8 @@ import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,12 +45,15 @@ fun ExplorerButtons(
     var selectingColumnCount by remember { mutableStateOf(false) }
     val columnCountOptions = List(12) { it + 1 }
     Box {
-        IconButton(onClick = { selectingColumnCount = !selectingColumnCount }, content = {
-            Icon(
-                Icons.Filled.GridOn,
-                contentDescription = "Column Count",
-            )
-        })
+        IconButton(
+            onClick = { selectingColumnCount = !selectingColumnCount },
+            content = {
+                Icon(
+                    Icons.Filled.GridOn,
+                    contentDescription = "Column Count",
+                )
+            }
+        )
         DropdownMenu(
             expanded = selectingColumnCount,
             onDismissRequest = { selectingColumnCount = false },

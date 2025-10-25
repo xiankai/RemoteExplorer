@@ -23,6 +23,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
+import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ConnectionsButtons
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,33 +49,37 @@ fun ConnectionsScreen(
         item = null,
     )
 
-    val handleItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> -> {
-        if (item.item == null) {
-            explorerViewModel.editConnection(null)
-            navHostController.navigate(Route.ConnectionDetailsRoute)
-        } else {
-            explorerViewModel.connect(
-                Connection(
-                    id = item.item.id,
-                    name = item.item.name,
-                    hostname = item.item.hostname,
-                    username = item.item.username,
-                    password = item.item.password,
-                    domain = item.item.domain,
-                    share = item.item.share,
-                    lastModified = item.item.lastModified,
+    val handleItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> ->
+        {
+            if (item.item == null) {
+                explorerViewModel.editConnection(null)
+                navHostController.navigate(Route.ConnectionDetailsRoute)
+            } else {
+                explorerViewModel.connect(
+                    Connection(
+                        id = item.item.id,
+                        name = item.item.name,
+                        hostname = item.item.hostname,
+                        username = item.item.username,
+                        password = item.item.password,
+                        domain = item.item.domain,
+                        share = item.item.share,
+                        lastModified = item.item.lastModified,
+                    )
                 )
-            )
-            navHostController.navigate(Route.ExplorerRoute)
+                navHostController.navigate(Route.ExplorerRoute)
+            }
         }
-    } }
+    }
 
-    val handleLongItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> -> {
-        if (item.item != null) {
-            explorerViewModel.editConnection(item.item)
-            navHostController.navigate(Route.ConnectionDetailsRoute)
+    val handleLongItemClick: (Item<Connection?>) -> () -> Unit = { item: Item<Connection?> ->
+        {
+            if (item.item != null) {
+                explorerViewModel.editConnection(item.item)
+                navHostController.navigate(Route.ConnectionDetailsRoute)
+            }
         }
-    } }
+    }
 
     val configuration = LocalConfiguration.current
     // Determine the screen width in dp
@@ -95,6 +100,11 @@ fun ConnectionsScreen(
                 ),
                 title = {
                     Text("Connections")
+                },
+                actions = {
+                    ConnectionsButtons(onStorageClick = {
+                        navHostController.navigate(Route.SettingsRoute)
+                    })
                 },
                 scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
             )

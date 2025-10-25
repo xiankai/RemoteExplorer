@@ -1,4 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.db
+
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
@@ -10,15 +12,20 @@ import java.util.Date
         Connection::class,
         LocalFile::class,
         LocalTag::class,
-        FileTagRelation::class
+        FileTagRelation::class,
+        SettingsEntity::class,
     ],
     exportSchema = true,
-    version = 6,
+    version = 7,
+    autoMigrations = [
+        AutoMigration(from = 6, to = 7)
+    ]
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun connectionDao(): ConnectionDao
     abstract fun localDatabaseDao(): LocalDatabaseDao
+    abstract fun settingsDao(): SettingsDao
 }
 
 class Converters {

@@ -20,17 +20,22 @@ import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
+import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
+import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
 import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class CustomWorkerFactory(
     private val tagRepository: TagRepository,
@@ -44,8 +49,10 @@ class CustomWorkerFactory(
         return when (workerClassName) {
             ScanTagsWorker::class.java.name ->
                 ScanTagsWorker(appContext, workerParameters, tagRepository)
+
             ThumbnailGenerationWorker::class.java.name ->
                 ThumbnailGenerationWorker(appContext, workerParameters, fileRepository)
+
             else -> null
         }
     }
@@ -53,21 +60,10 @@ class CustomWorkerFactory(
 
 class ExplorerViewModelFactory(
     private val application: Application,
+    private val db: AppDatabase,
     private val defaultDispatcher: CoroutineDispatcher
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        val db = Room.databaseBuilder(
-            application.applicationContext,
-            AppDatabase::class.java, "remote-explorer"
-        )
-            .fallbackToDestructiveMigration()
-//            .setQueryCallback(
-//                { sqlQuery, bindArgs ->
-//                    Log.d("RoomDatabase", "SQL Query: $sqlQuery SQL Args: $bindArgs")
-//                },
-//                Executors.newSingleThreadExecutor()
-//            )
-            .build()
         val sambaFileDataSource = SambaFileDataSource()
         val localDatabaseDataSource = LocalDatabaseDataSource(
             db.localDatabaseDao(),
@@ -118,24 +114,71 @@ class ExplorerViewModelFactory(
     }
 }
 
+class SettingsViewModelFactory(
+    private val application: Application,
+    private val db: AppDatabase,
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+//        val settingsRepository = SettingsRepository(dataStore)
+        val settingsRepository = SettingsRepository(db.settingsDao())
+
+        @Suppress("UNCHECKED_CAST")
+        return SettingsViewModel(
+            application,
+            settingsRepository,
+        ) as T
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val db = Room.databaseBuilder(
+            application.applicationContext,
+            AppDatabase::class.java, "remote-explorer"
+        )
+            .fallbackToDestructiveMigration()
+//            .setQueryCallback(
+//                { sqlQuery, bindArgs ->
+//                    Log.d("RoomDatabase", "SQL Query: $sqlQuery SQL Args: $bindArgs")
+//                },
+//                Executors.newSingleThreadExecutor()
+//            )
+            .build()
+
         val explorerViewModel: ExplorerViewModel by viewModels {
-            ExplorerViewModelFactory(application, Dispatchers.IO)
+            ExplorerViewModelFactory(application, db, Dispatchers.IO)
         }
+
+        val settingsViewModel: SettingsViewModel by viewModels {
+            SettingsViewModelFactory(application, db)
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val settingsDao = db.settingsDao()
+            val settings = settingsDao.getSettingsOnce()
+            if (settings == null) {
+                settingsDao.insert(SettingsEntity()) // add default row
+            }
+        }
+
+        val maxStorageCacheSize = settingsViewModel.settings.value.maxStorageCacheSize
 
         Sketch.Builder(applicationContext).apply {
             downloadCacheOptions(
                 DiskCache.Options(
-                    maxSize = 4L * 1024 * 1024 * 1024
+                    // Convert setting to actual GB
+                    maxSize = maxStorageCacheSize * 1024 * 1024 * 1024L
                 )
             )
         }.build()
 
         setContent {
-            MainView(explorerViewModel = explorerViewModel)
+            MainView(
+                explorerViewModel = explorerViewModel,
+                settingsViewModel = settingsViewModel
+            )
         }
     }
 }
