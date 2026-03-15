@@ -82,7 +82,9 @@ object Utils {
     }
 
     fun constructUrl(connectionId: Int, path: String, thumbnail: Boolean = false): String {
-        val encodedPath = URLEncoder.encode(path, ENCODING)
+        // Encode each path segment individually, preserving '/' separators.
+        // Jetty 12 rejects %2F in URL paths per Jakarta Servlet 6.0 spec.
+        val encodedPath = path.split("/").joinToString("/") { URLEncoder.encode(it, ENCODING) }
         val baseUrl = "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
         return if (thumbnail) "$baseUrl&thumbnail=true" else baseUrl
     }
