@@ -17,22 +17,21 @@ keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     alias(libs.plugins.compose.compiler)
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
-    id("io.sentry.android.gradle") version "5.3.0"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10"
+    id("io.sentry.android.gradle") version "6.1.0"
 }
 
 android {
     namespace = "com.bespectacledcyborg.remoteexplorer"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.bespectacledcyborg.remoteexplorer"
         minSdk = 34
-        targetSdk = 35
+        targetSdk = 36
         versionCode = Instant.now().epochSecond.toInt()
         versionName = ZonedDateTime.now(ZoneId.of("Asia/Tokyo"))
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
@@ -83,14 +82,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlinOptions {
-        jvmTarget = "21"
-    }
+//    kotlinOptions {
+//        jvmTarget = "21"
+//    }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.3.2"
     }
     packaging {
         resources {
