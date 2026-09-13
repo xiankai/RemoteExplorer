@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Entity
@@ -9,6 +10,9 @@ import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
+
+/** Standard SMB port. Overridable per connection so a share can sit behind a forwarded port. */
+const val DEFAULT_SMB_PORT = 445
 
 @Dao
 interface ConnectionDao {
@@ -28,6 +32,7 @@ data class Connection(
 
     val name: String,
     val hostname: String,
+    @ColumnInfo(defaultValue = "445") val port: Int = DEFAULT_SMB_PORT,
     val username: String,
     val password: String,
     val domain: String,

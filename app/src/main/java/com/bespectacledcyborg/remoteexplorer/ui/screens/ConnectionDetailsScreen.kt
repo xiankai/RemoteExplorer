@@ -34,11 +34,13 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import com.bespectacledcyborg.remoteexplorer.data.db.DEFAULT_SMB_PORT
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ConnectionDetailsButtons
 import java.util.Date
 
@@ -54,6 +56,7 @@ fun ConnectionDetailsScreen(
     val id by remember { mutableIntStateOf(connection?.id ?: 0) }
     var name by remember { mutableStateOf(connection?.name ?: "") }
     var hostname by remember { mutableStateOf(connection?.hostname ?: "") }
+    var port by remember { mutableStateOf((connection?.port ?: DEFAULT_SMB_PORT).toString()) }
     var username by remember { mutableStateOf(connection?.username ?: "") }
     var password by remember { mutableStateOf(connection?.password ?: "") }
     var domain by remember { mutableStateOf(connection?.domain ?: "") }
@@ -64,6 +67,8 @@ fun ConnectionDetailsScreen(
             id = id,
             name = name,
             hostname = hostname,
+            // A blank or non-numeric entry falls back to the standard SMB port.
+            port = port.toIntOrNull()?.takeIf { it in 1..65535 } ?: DEFAULT_SMB_PORT,
             username = username,
             password = password,
             domain = domain,
@@ -112,6 +117,7 @@ fun ConnectionDetailsScreen(
                     listOf(
                         Triple(name, { name = it.trim() }, "Name"),
                         Triple(hostname, { hostname = it.trim() }, "Hostname"),
+                        Triple(port, { port = it.trim() }, "Port"),
                         Triple(username, { username = it.trim() }, "Username"),
                         Triple(password, { password = it.trim() }, "Password"),
                         Triple(domain, { domain = it.trim() }, "Domain"),
@@ -146,12 +152,22 @@ fun ConnectionDetailsScreen(
                                 VisualTransformation.None
                             }
 
+                        val keyboardType =
+                            if (label == "Port") {
+                                KeyboardType.Number
+                            } else {
+                                KeyboardType.Text
+                            }
+
                         OutlinedTextField(
                             value = value,
                             onValueChange = onValueChange,
                             label = { Text(label) },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(imeAction = imeAction),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = imeAction,
+                                keyboardType = keyboardType
+                            ),
                             keyboardActions = keyboardActions,
                             visualTransformation = visualTransformation
                         )
@@ -198,20 +214,20 @@ fun PreviewConnectionDetailsScreen() {
         onSave = { connection ->
             Log.d(
                 "ConnectionDetailsScreen",
-                "Save: host=${connection.hostname}, port=${connection.username}"
+                "Save: host=${connection.hostname}, port=${connection.port}"
             )
         },
         onTest = { connection ->
             Log.d(
                 "ConnectionDetailsScreen",
-                "Test: host=${connection.hostname}, port=${connection.username}"
+                "Test: host=${connection.hostname}, port=${connection.port}"
             )
         },
         onCancel = { Log.d("ConnectionDetailsScreen", "Cancel") },
         onDelete = { connection ->
             Log.d(
                 "ConnectionDetailsScreen",
-                "Delete: host=${connection.hostname}, port=${connection.username}"
+                "Delete: host=${connection.hostname}, port=${connection.port}"
             )
         }
     )

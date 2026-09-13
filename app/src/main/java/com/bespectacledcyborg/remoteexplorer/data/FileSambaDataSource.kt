@@ -14,6 +14,7 @@ typealias ConnectionId = Int
 data class ConnectionDetails(
     var connectionId: ConnectionId,
     var hostname: String,
+    var port: Int,
     var username: String,
     var password: String,
     var domain: String,
@@ -32,7 +33,7 @@ class SambaFileDataSource {
         details: ConnectionDetails
     ): DiskShare {
         val client = SMBClient()
-        val connection = client.connect(details.hostname)
+        val connection = client.connect(details.hostname, details.port)
         val authContext = AuthenticationContext(details.username, details.password.toCharArray(), details.domain)
         val session = connection.authenticate(authContext)
         val share = session.connectShare(details.shareName)

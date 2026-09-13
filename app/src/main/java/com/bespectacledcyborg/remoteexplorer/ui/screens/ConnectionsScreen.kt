@@ -60,6 +60,7 @@ fun ConnectionsScreen(
                         id = item.item.id,
                         name = item.item.name,
                         hostname = item.item.hostname,
+                        port = item.item.port,
                         username = item.item.username,
                         password = item.item.password,
                         domain = item.item.domain,

@@ -29,6 +29,7 @@ class FileRepository(
     suspend fun connect(
         connectionId: Int,
         hostname: String,
+        port: Int,
         username: String,
         password: String,
         domain: String,
@@ -37,7 +38,7 @@ class FileRepository(
         return withContext(dispatcher) {
             sambaFileDataSource.connect(
                 ConnectionDetails(
-                    connectionId, hostname, username, password, domain, shareName
+                    connectionId, hostname, port, username, password, domain, shareName
                 )
             )
         }

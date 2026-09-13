@@ -116,6 +116,7 @@ class ExplorerViewModel(
                 fileRepository.connect(
                     connection.id,
                     connection.hostname,
+                    connection.port,
                     connection.username,
                     connection.password,
                     connection.domain,
@@ -139,6 +140,7 @@ class ExplorerViewModel(
                 fileRepository.connect(
                     connection.id,
                     connection.hostname,
+                    connection.port,
                     connection.username,
                     connection.password,
                     connection.domain,
