@@ -1,0 +1,130 @@
+# Pre-merge checks for the Android app.
+#
+# SECURITY MODEL (read before editing):
+# - `pull_request`, NOT `pull_request_target`. This job executes PR-authored code — Gradle
+#   runs whatever build logic the branch carries — so it must never hold a credential worth
+#   stealing. The only secret is the ephemeral per-run `github.token`, unset from the git
+#   config before any PR code runs. Do NOT add org Actions secrets here; review.yml is the
+#   workflow that legitimately needs them, which is why it is author-gated.
+# - No third-party Actions, matching review.yml: this Forgejo is Gitea-1.22-era and its
+#   action resolution is unproven, whereas a git clone needs no unproven feature.
+#
+# WHAT IS DELIBERATELY NOT CHECKED HERE: the native build and the APK.
+# externalNativeBuild needs NDK 27.2.12479018 plus cmake, which is several GB to install on
+# a runner that has no layer cache between runs, on a pool of capacity 2. `assembleDebug` is
+# already covered on a developer machine by tools/dev-run.sh before anything is pushed, and
+# the arm64-only prebuilts mean CI could not run the result anyway. If the APK ever needs to
+# be built here, give it its own runner label rather than putting a ten-minute job on the
+# shared pool.
+#
+# -Prex.skipNative is what actually achieves that, and it is NOT optional. Checking the task
+# graph is not enough: no CMake task enters the graph for lint or unit tests, but simply
+# DECLARING externalNativeBuild makes AGP resolve ndkVersion at configuration time, so the
+# first run of this workflow sat there downloading the NDK for tasks that compile no native
+# code. Measured on `lintDebug --dry-run --info`: 76 NDK references without the flag, zero
+# with it.
+#
+# One job rather than three: the pool is capacity 2, so separate jobs would mean a clone and
+# a queue slot each for checks that take seconds. Each group runs even if an earlier one
+# fails, so one push surfaces every finding instead of peeling them off one at a time.
+name: build
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    container:
+      image: gradle:9.1.0-jdk21   # JDK 21 + git, matching the wrapper's Gradle version
+    timeout-minutes: 25
+    steps:
+      - name: Checkout PR head
+        run: |
+          set -euo pipefail
+          test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available to clone a private repo"; exit 1; }
+          # Token via header, never in the clone URL (keeps it out of process listings).
+          git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
+          git clone --quiet --no-tags --filter=blob:none \
+            "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
+          git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
+          git -C /tmp/repo -c advice.detachedHead=false checkout --quiet pr-head
+          # Drop the credential before any PR-authored code executes below.
+          git config --global --unset-all http.extraHeader
+        env:
+          RUN_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends shellcheck unzip curl
+
+      - name: Install the Android SDK
+        run: |
+          set -euo pipefail
+          # Only what a non-native Gradle run needs. No NDK, no cmake — see the header.
+          # Each substep announces itself: the first failure here was a bare exit 141 with
+          # no output, because everything was redirected to /dev/null.
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          echo "downloading cmdline-tools"
+          curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          echo "unpacking"
+          unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          echo "accepting licences"
+          # `yes` is killed by SIGPIPE the moment sdkmanager stops reading, and under
+          # pipefail that surfaces as the step failing with exit 141 even though the
+          # licences were accepted. Check sdkmanager's own status instead of the pipeline's.
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          licences=${PIPESTATUS[1]}
+          set -o pipefail
+          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
+
+          echo "installing platform 36 + build-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "sdk ready"
+        env:
+          ANDROID_HOME: /opt/android-sdk
+
+      - name: Checks
+        run: |
+          set -uo pipefail
+          cd /tmp/repo
+          failed=0
+
+          echo "::group::shellcheck (-S warning)"
+          # The reviewer found a real quoting bug in tools/dev-seed-connection.sh on the very
+          # PR that added it, so this is a proven class of breakage here, not a formality.
+          git ls-files '*.sh' -z | xargs -0 --no-run-if-empty shellcheck -S warning || failed=1
+          echo "::endgroup::"
+
+          echo "::group::unit tests"
+          ./gradlew --no-daemon -Prex.skipNative testDebugUnitTest || failed=1
+          echo "::endgroup::"
+
+          echo "::group::lint"
+          ./gradlew --no-daemon -Prex.skipNative lintDebug || failed=1
+          echo "::endgroup::"
+
+          exit "$failed"
+        env:
+          ANDROID_HOME: /opt/android-sdk
+          # gradle.properties turns the configuration cache on for developer machines. A
+          # fresh container has no entry to reuse, so it only ever pays the cost of storing
+          # one that is then thrown away — and it is a known source of CI-only failures.
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Lint report on failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          report=/tmp/repo/app/build/reports/lint-results-debug.txt
+          [ -f "$report" ] && tail -100 "$report" || echo "no lint report produced"

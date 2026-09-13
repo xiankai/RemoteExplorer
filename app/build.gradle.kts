@@ -98,6 +98,11 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        // CI reads findings from the text report; without this only HTML is written, which
+        // is useless in a log.
+        textReport = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/*"
@@ -115,10 +120,20 @@ android {
             keepDebugSymbols.add("libswscale.so.")
         }
     }
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/ffmpeg/CMakeLists.txt")
-            version = "3.22.1"
+    // Declaring externalNativeBuild makes AGP resolve ndkVersion at CONFIGURATION time, so
+    // it auto-downloads the NDK for any task at all — `lintDebug` and `testDebugUnitTest`
+    // included, neither of which compiles a line of native code. On a CI runner with no
+    // layer cache that is a multi-GB download on every run, for nothing.
+    //
+    // -Prex.skipNative drops the native build from the configuration entirely. It must NOT
+    // be used for anything that produces an installable artifact: the APK would be missing
+    // libffmpeg.so and would die inside System.loadLibrary at the first video thumbnail.
+    if (!providers.gradleProperty("rex.skipNative").isPresent) {
+        externalNativeBuild {
+            cmake {
+                path = file("src/main/cpp/ffmpeg/CMakeLists.txt")
+                version = "3.22.1"
+            }
         }
     }
 }
