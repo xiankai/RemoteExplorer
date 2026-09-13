@@ -26,12 +26,18 @@ data class DiskShareEntry(
     val share: DiskShare?
 )
 
-class SambaFileDataSource {
+class SambaFileDataSource : FileDataSource {
     private var diskShares: MutableMap<ConnectionId, DiskShareEntry> = mutableMapOf()
 
-    fun connect(
-        details: ConnectionDetails
-    ): DiskShare {
+    override fun connect(details: ConnectionDetails) {
+        openShare(details)
+    }
+
+    /**
+     * The reconnect path needs the share back, but [FileDataSource.connect] deliberately
+     * returns Unit — no caller outside this class uses the handle.
+     */
+    private fun openShare(details: ConnectionDetails): DiskShare {
         val client = SMBClient()
         val connection = client.connect(details.hostname, details.port)
         val authContext = AuthenticationContext(details.username, details.password.toCharArray(), details.domain)
@@ -47,13 +53,13 @@ class SambaFileDataSource {
             ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
 
         if (diskShareEntry.share == null || !diskShareEntry.share.isConnected) {
-            return connect(diskShareEntry.details)
+            return openShare(diskShareEntry.details)
         }
 
         return diskShareEntry.share
     }
 
-    fun listFiles(connectionId: ConnectionId, currentPath: String = "", filter: String = ""): List<File> {
+    override fun listFiles(connectionId: ConnectionId, currentPath: String, filter: String): List<File> {
         val files = accessDiskShare(connectionId).list(
             currentPath, filter.ifBlank {
                 null
@@ -74,7 +80,7 @@ class SambaFileDataSource {
         return files
     }
 
-    fun openFile(connectionId: ConnectionId, path: String): com.hierynomus.smbj.share.File {
+    override fun openFile(connectionId: ConnectionId, path: String): com.hierynomus.smbj.share.File {
         val accessMask = setOf(AccessMask.GENERIC_READ)
         val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
