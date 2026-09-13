@@ -56,19 +56,34 @@ jobs:
         run: |
           set -euo pipefail
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends shellcheck unzip
+          apt-get install -y -qq --no-install-recommends shellcheck unzip curl
 
       - name: Install the Android SDK
         run: |
           set -euo pipefail
           # Only what a non-native Gradle run needs. No NDK, no cmake — see the header.
+          # Each substep announces itself: the first failure here was a bare exit 141 with
+          # no output, because everything was redirected to /dev/null.
           mkdir -p "$ANDROID_HOME/cmdline-tools"
+          echo "downloading cmdline-tools"
           curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          echo "unpacking"
           unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
           mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          echo "accepting licences"
+          # `yes` is killed by SIGPIPE the moment sdkmanager stops reading, and under
+          # pipefail that surfaces as the step failing with exit 141 even though the
+          # licences were accepted. Check sdkmanager's own status instead of the pipeline's.
+          set +o pipefail
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          licences=${PIPESTATUS[1]}
+          set -o pipefail
+          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
+
+          echo "installing platform 36 + build-tools"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
             "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "sdk ready"
         env:
           ANDROID_HOME: /opt/android-sdk
 
