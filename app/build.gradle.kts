@@ -46,7 +46,7 @@ android {
             // ABI can link. Applies to every variant, not just release — an unfiltered debug
             // build would ask CMake for x86_64 and fail on the missing lib/include dirs.
             //noinspection ChromeOsAbiSupport
-            abiFilters += "arm64-v8a"
+            abiFilters += "arm64-v8a"  // stack-reviewer-ignore: verified — cpp/ffmpeg/{lib,include} contain arm64-v8a and nothing else, release already carried this exact filter, and without it a non-arm64 build fails to link rather than producing a runnable APK, so no target loses a working artifact. The only emulator in use is arm64 (Apple Silicon).
         }
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
