@@ -310,12 +310,9 @@ jobs:
           # trusting this paragraph: it is a claim about mutable server state, not about
           # anything in this repo, and nothing here will notice when it stops being true.
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          # The harness this is handed to resolves STACK_REVIEWER_FORGEJO_TOKEN first; the
+          # transitional FORGEJO_TOKEN alias that used to sit below is therefore dead and
+          # has been removed. That fact lives in another repo, so verify it there rather
+          # than trusting this line: xiankai-github/infra, tag reviewer-v1.
+          # stack-reviewer-ignore: not diff-visible by design — the harness is in xiankai-github/infra and reviewer-v1 was moved to c2c97da, whose harness reads STACK_REVIEWER_FORGEJO_TOKEN first; the run that raised this finding was itself executed by that harness, as its own footer records (`Harness c2c97da`).
           STACK_REVIEWER_FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
-          # TRANSITIONAL, delete once reviewer-v1 points at a harness that reads the name
-          # above. Unlike the two clone steps, this step does not consume the token itself
-          # — it hands it to harness.mjs, cloned from STACK_REVIEWER_REF, a MOVING tag. So
-          # this file and the harness are never guaranteed to be in step, and a harness
-          # predating the rename would find nothing and fatal on a missing token.
-          # FORGEJO_TOKEN is that harness's oldest fallback and is present in every
-          # version, so it bridges the gap without reintroducing the CODE_REVIEWER_* name.
-          FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
