@@ -13,9 +13,16 @@
 # externalNativeBuild needs NDK 27.2.12479018 plus cmake, which is several GB to install on
 # a runner that has no layer cache between runs, on a pool of capacity 2. `assembleDebug` is
 # already covered on a developer machine by tools/dev-run.sh before anything is pushed, and
-# the arm64-only prebuilts mean CI could not run the result anyway. The checks kept here are
-# the ones that catch breakage cheaply. If the APK ever needs to be built here, give it its
-# own runner label rather than putting a ten-minute job on the shared pool.
+# the arm64-only prebuilts mean CI could not run the result anyway. If the APK ever needs to
+# be built here, give it its own runner label rather than putting a ten-minute job on the
+# shared pool.
+#
+# -Prex.skipNative is what actually achieves that, and it is NOT optional. Checking the task
+# graph is not enough: no CMake task enters the graph for lint or unit tests, but simply
+# DECLARING externalNativeBuild makes AGP resolve ndkVersion at configuration time, so the
+# first run of this workflow sat there downloading the NDK for tasks that compile no native
+# code. Measured on `lintDebug --dry-run --info`: 76 NDK references without the flag, zero
+# with it.
 #
 # One job rather than three: the pool is capacity 2, so separate jobs would mean a clone and
 # a queue slot each for checks that take seconds. Each group runs even if an earlier one
@@ -100,11 +107,11 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::unit tests"
-          ./gradlew --no-daemon testDebugUnitTest || failed=1
+          ./gradlew --no-daemon -Prex.skipNative testDebugUnitTest || failed=1
           echo "::endgroup::"
 
           echo "::group::lint"
-          ./gradlew --no-daemon lintDebug || failed=1
+          ./gradlew --no-daemon -Prex.skipNative lintDebug || failed=1
           echo "::endgroup::"
 
           exit "$failed"
