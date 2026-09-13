@@ -18,7 +18,13 @@ services:
       - "127.0.0.1:1445:445"
     volumes:
       # Read-only: the app never writes, and this keeps a bug from eating the seed data.
-      - ./media:/share:ro
+      #
+      # An absolute path outside the repo, NOT ./media. A relative bind ties the share to
+      # the checkout it was started from, and a git worktree is a checkout that gets
+      # deleted — removing a merged worktree silently emptied the running share. The :? is
+      # deliberate: `docker compose` run directly fails with this message instead of binding
+      # something surprising.
+      - "${REX_FIXTURE_DIR:?use tools/fixture/up.sh, which sets this}/media:/share:ro"
     # -u user;password   -s name;path;browsable;readonly;guest;users
     command: >
       -u "explorer;explorer"

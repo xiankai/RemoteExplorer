@@ -36,7 +36,7 @@ cannot do partial requests for video.
 ## Running it
 
 ```bash
-tools/fixture/seed.sh && docker compose -f tools/fixture/compose.yml up -d   # once
+tools/fixture/up.sh up -d                                                   # once
 tools/dev-seed-connection.sh                                                # once per emulator
 tools/dev-run.sh --shot /tmp/app.png                                        # every change
 ```

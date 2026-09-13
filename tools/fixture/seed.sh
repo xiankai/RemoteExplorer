@@ -12,8 +12,12 @@
 #   - a non-previewable file        -> exercises the ACTION_VIEW handoff path
 set -euo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-media="$here/media"
+# Deliberately NOT inside the repo. The compose file used to bind ./media relative to
+# itself, which ties the share to whichever checkout it was started from — and a git
+# worktree is a checkout that gets deleted. Removing a merged worktree silently emptied the
+# running share, and the app then crashed listing a directory the server no longer had.
+# A stable path outside the tree cannot be pulled out from under a running container.
+media="${REX_FIXTURE_DIR:-$HOME/.cache/remoteexplorer-fixture}/media"
 
 need() { command -v "$1" >/dev/null || { echo "missing required tool: $1" >&2; exit 1; }; }
 need magick
