@@ -20,6 +20,9 @@ class SettingsRepository(
                 initialValue = SettingsEntity()
             )
 
+    /** One-shot read, for callers that need a value before the flow has emitted. */
+    suspend fun getSettingsOnce(): SettingsEntity? = settingsDao.getSettingsOnce()
+
     suspend fun update(settings: SettingsEntity) {
         settingsDao.update(settings)
     }
