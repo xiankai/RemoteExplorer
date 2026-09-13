@@ -98,6 +98,11 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        // CI reads findings from the text report; without this only HTML is written, which
+        // is useless in a log.
+        textReport = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/*"
