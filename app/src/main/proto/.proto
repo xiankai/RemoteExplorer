@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-option java_package = "com.bespectacledcyborg.remoteexplorer";
-option java_multiple_files = true;
-
-message File {
-  string filename = 1;
-  string uri = 2;
-}

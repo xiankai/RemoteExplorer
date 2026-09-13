@@ -3,8 +3,6 @@ package com.bespectacledcyborg.remoteexplorer.data.tasks
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.MediaDataSource
-import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.core.graphics.scale
 import androidx.work.CoroutineWorker
@@ -71,10 +69,6 @@ class ThumbnailGenerationWorker(
                     }
 
                     IconType.VIDEO -> {
-//                        val dataSource = fileRepository.getDataSource(connectionId, path)
-
-//                        generateVideoThumbnail(thumbnailFile, dataSource)
-
                         val stream =
                             fileRepository.openFileDirectly(connectionId, fullPath).inputStream
                         generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
@@ -147,14 +141,6 @@ class ThumbnailGenerationWorker(
                 ?: throw IllegalStateException("Bitmap is null")
 
         // Scale to exact size if needed
-        resizeBitmap(bitmap, thumbnailFile)
-    }
-
-    private fun generateVideoThumbnail(thumbnailFile: File, datasource: MediaDataSource) {
-        val retriever = MediaMetadataRetriever()
-        retriever.setDataSource(datasource)
-        val bitmap = retriever.getFrameAtIndex(0) ?: throw IllegalStateException("Bitmap is null")
-
         resizeBitmap(bitmap, thumbnailFile)
     }
 }

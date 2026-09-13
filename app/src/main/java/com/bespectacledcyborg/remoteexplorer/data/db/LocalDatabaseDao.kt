@@ -196,5 +196,5 @@ enum class TagStatus {
 }
 
 enum class ThumbnailStatus {
-    UNPROCESSED, SUCCESS, ERROR, UNSUPPORTED, NESTED
+    UNPROCESSED, SUCCESS, ERROR, UNSUPPORTED
 }
