@@ -10,7 +10,12 @@ services:
     image: dperson/samba
     container_name: remoteexplorer-fixture
     ports:
-      - "1445:445"
+      # Loopback only. The credentials here are fixed and public, so an unqualified
+      # "1445:445" would put a readable share on the LAN for anyone who looked. The
+      # emulator reaches the host through 10.0.2.2, which maps to host loopback, so
+      # nothing is lost. A physical phone cannot reach this fixture — point it at a real
+      # share instead.
+      - "127.0.0.1:1445:445"
     volumes:
       # Read-only: the app never writes, and this keeps a bug from eating the seed data.
       - ./media:/share:ro

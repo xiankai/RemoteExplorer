@@ -38,7 +38,7 @@ tools/dev-seed-connection.sh
 
 | field | value |
 |---|---|
-| Hostname | `10.0.2.2` (the emulator's alias for the host; use the Mac's LAN IP from a phone) |
+| Hostname | `10.0.2.2` (the emulator's alias for the host's loopback) |
 | Port | `1445` |
 | Username / Password | `explorer` / `explorer` |
 | Share | `media` |
@@ -54,6 +54,10 @@ debuggable build for `run-as`, and edits the file on the host since the device h
 `sqlite3`).
 
 Connections survive `adb install -r`, so this is a one-time step per emulator.
+
+The fixture binds to **loopback only** — its credentials are fixed and public, so it must
+not be on the LAN. A physical phone therefore cannot reach it; point a phone at a real
+share instead.
 
 ## The emulator
 

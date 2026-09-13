@@ -27,6 +27,12 @@ trap 'rm -rf "$tmp"' EXIT
 
 command -v sqlite3 >/dev/null || { echo "sqlite3 not on PATH" >&2; exit 1; }
 
+# Every value below is interpolated into SQL, so a single quote in a password or share
+# name would otherwise produce a syntax error or a malformed row — after the app has
+# already been force-stopped. Double the quotes, SQL's own escape.
+q() { printf "%s" "$1" | sed "s/'/''/g"; }
+case "$port" in ''|*[!0-9]*) echo "port must be numeric, got '$port'" >&2; exit 2 ;; esac
+
 # The app must not be running: it holds the database open, and a copy taken underneath it
 # can be torn.
 "$adb" shell am force-stop "$appid"
@@ -40,7 +46,7 @@ command -v sqlite3 >/dev/null || { echo "sqlite3 not on PATH" >&2; exit 1; }
 # name carries a UNIQUE index, so re-running updates in place rather than duplicating.
 sqlite3 "$tmp/db" <<SQL
 INSERT INTO \`Connection\` (name, hostname, port, username, password, domain, share, lastModified)
-VALUES ('$name', '$host', $port, '$user', '$pass', '$domain', '$share', $(date +%s)000)
+VALUES ('$(q "$name")', '$(q "$host")', $port, '$(q "$user")', '$(q "$pass")', '$(q "$domain")', '$(q "$share")', $(date +%s)000)
 ON CONFLICT(name) DO UPDATE SET
   hostname=excluded.hostname, port=excluded.port, username=excluded.username,
   password=excluded.password, domain=excluded.domain, share=excluded.share,
