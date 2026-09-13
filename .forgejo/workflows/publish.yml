@@ -1,0 +1,144 @@
+# Publish a signed release APK to the self-hosted file server, for sideloading via Obtainium.
+#
+# ONE COPY, ALWAYS OVERWRITTEN. The APK lands at a fixed URL with no version in the name and
+# no archive of previous builds — there is one consumer (a tablet) and no rollback story that
+# keeping old copies would serve, so they would only cost NAS space.
+#
+# WHY THIS RUNS HERE AND NOT ON GITHUB. fileserver is published at
+# files.example.invalid, a TAILNET host, so a GitHub-hosted runner cannot
+# reach it. The Forgejo runner is on the self-hosted and can. That is the whole reason this is a
+# second pipeline rather than a step bolted onto the existing GitHub release job.
+#
+# SECURITY MODEL: `push` to the default branch only, never `pull_request*`. This job holds
+# the signing key, so it must never execute code from an unmerged branch. It is not
+# author-gated like review.yml because only a merge can trigger it, and a merge is already
+# the gate.
+#
+# THE NDK IS UNAVOIDABLE HERE, unlike build.yml. A release APK contains libffmpeg.so, so the
+# native build genuinely has to run — -Prex.skipNative would produce an APK that installs and
+# then dies inside System.loadLibrary at the first video thumbnail. That makes this job
+# several GB heavier than the PR check; it is why this triggers on merge rather than on every
+# push to a branch.
+name: publish
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  # NOT cancel-in-progress, unlike review.yml. That file can cancel safely because the
+  # reviewer publishes atomically in a single request; this job streams an APK over ~100 MB
+  # into a fixed path with PUT, so a SIGKILL partway leaves a TRUNCATED file at the URL the
+  # tablet installs from — a corrupt artifact that looks like a successful publish. Queueing
+  # costs a few minutes; the alternative costs a broken install.
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: android
+    container:
+      image: gradle:9.1.0-jdk21
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        run: |
+          set -euo pipefail
+          test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available"; exit 1; }
+          git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
+          git clone --quiet --no-tags --depth 1 --branch master \
+            "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
+          git config --global --unset-all http.extraHeader
+        env:
+          RUN_TOKEN: ${{ github.token }}
+
+      - name: Restore the signing material
+        run: |
+          set -euo pipefail
+          # Fail here, loudly, rather than later and quietly. Release signing is OPTIONAL in
+          # app/build.gradle.kts by design (a plain clone must still build `debug`), which
+          # means assembleRelease without a keystore SUCCEEDS and emits
+          # app-release-unsigned.apk — an APK that cannot be installed. A publish job must
+          # never reach that state silently.
+          test -n "${KEYSTORE_B64}" || { echo "::error::SIDELOAD_KEYSTORE_BASE64 is not set — see .forgejo/workflows/publish.yml"; exit 1; }
+          test -n "${KEYSTORE_PROPS}" || { echo "::error::SIDELOAD_KEYSTORE_PROPERTIES is not set"; exit 1; }
+          printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/repo/app/remote_explorer_keystore.jks
+          printf '%s\n' "$KEYSTORE_PROPS" > /tmp/repo/keystore.properties
+        env:
+          KEYSTORE_B64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PROPS: ${{ secrets.SIDELOAD_KEYSTORE_PROPERTIES }}
+
+      - name: Install the Android SDK and NDK
+        run: |
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends unzip curl
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          echo "downloading cmdline-tools"
+          curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          echo "accepting licences"
+          # `yes` dies of SIGPIPE once sdkmanager stops reading; under pipefail that would
+          # fail the step with 141 despite the licences being accepted. Same guard as build.yml.
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          licences=${PIPESTATUS[1]}
+          set -o pipefail
+          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
+          # ndk + cmake versions must match app/build.gradle.kts exactly.
+          echo "installing platform 36, build-tools, ndk and cmake (several GB, no layer cache)"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
+            "ndk;27.2.12479018" "cmake;3.22.1" >/dev/null
+          echo "sdk ready"
+        env:
+          ANDROID_HOME: /opt/android-sdk
+
+      - name: Build the release APK
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          # No -Prex.skipNative: the whole point of this artifact is that it contains the
+          # native library.
+          ./gradlew --no-daemon assembleRelease
+        env:
+          ANDROID_HOME: /opt/android-sdk
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Verify the APK is actually signed
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          # AGP names the output app-release-UNSIGNED.apk when no signing config applied, so
+          # the filename alone catches the failure — but check the signature properly too,
+          # because "a file exists" is not the property that matters. Verified locally that
+          # an unsigned build produces exactly this name and that apksigner reports
+          # "DOES NOT VERIFY / Missing META-INF/MANIFEST.MF" for it.
+          apk=app/build/outputs/apk/release/app-release.apk
+          [ -f "$apk" ] || {
+            echo "::error::$apk missing — outputs were: $(ls app/build/outputs/apk/release/)"
+            exit 1
+          }
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk" \
+            | tee /tmp/verify.txt
+          grep -q "^Verifies$" /tmp/verify.txt || { echo "::error::apksigner did not verify the APK"; exit 1; }
+          echo "signed ok: $(du -h "$apk" | cut -f1)"
+        env:
+          ANDROID_HOME: /opt/android-sdk
+
+      - name: Upload to fileserver, replacing the previous copy
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          apk=app/build/outputs/apk/release/app-release.apk
+          # fileserver runs with -A (all operations allowed) and no auth, reachable only on the
+          # tailnet. PUT to a fixed path overwrites in place — that IS the "one copy" rule,
+          # not a cleanup step that could fail and leave two.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$FILESERVER_URL")
+          case "$code" in
+            2*) echo "uploaded to $FILESERVER_URL (HTTP $code)" ;;
+            *)  echo "::error::fileserver upload failed with HTTP $code"; exit 1 ;;
+          esac
+        env:
+          FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
