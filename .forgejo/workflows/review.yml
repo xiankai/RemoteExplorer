@@ -1,0 +1,313 @@
+# stack-reviewer Level 2 — agentic full-repo PR review.
+#
+# THIS FILE CARRIES NO REVIEWER CODE. It fetches the harness from one canonical repo at
+# a ref named by an ORG-LEVEL Actions variable, so adding a repo to Level 2 means copying
+# this file once and never touching it again, and upgrading the reviewer means moving a
+# tag in one place. Before this, every participating repo vendored all of
+# reviewer/level2/ — which is exactly how the two copies drifted a release apart
+# (infra had retry/deadline/metrics work the orchestrator lacked, while the
+# orchestrator had token accounting and the attempt ledger that infra lacked).
+#
+# Why a per-repo file exists at all: Forgejo has no org-required or global workflows, so
+# something must live in each repo to trigger on its PRs. This is the thinnest that
+# something can be.
+#
+# SECURITY MODEL (read before editing):
+# - `pull_request_target` => the workflow file that executes is ALWAYS the one on the
+#   target branch. The job-level `if` pins that to the DEFAULT branch, so a PR aimed
+#   at a non-default base can never supply the workflow that runs with the org's
+#   Actions secrets.
+# - The harness no longer comes from the target branch — it comes from the canonical
+#   repo. That is NOT a weakening: the property that matters is "the PR author cannot
+#   change the code that reviews them", and a PR author has no write access to the
+#   canonical repo either. What changes is blast radius: write access to the canonical
+#   repo now affects every participating repo, which is the ordinary trade of any shared
+#   CI component. The resolved harness commit is echoed on every run, so what executed
+#   is always recoverable from the run page even when the ref is a moving tag.
+# - Execution reads the PR only as DATA. The base ref is checked out to /tmp/repo and
+#   the PR head to /tmp/pr-head; both are consumed exclusively through the harness's
+#   read-only tools. PR-authored code is never executed.
+# - The job container image is pinned (node:22-bookworm: git + Node 22) so the runtime
+#   does not depend on the runner's label mapping.
+# - Trusted-author gate (step 1): pure string match of the PR author against the org
+#   variable TRUSTED_AUTHORS. Fail-CLOSED and credential-free — the gate step carries
+#   NO secret, so an untrusted run never materializes the secrets anywhere in the job.
+# - No third-party Actions. Plain `git` + `node` only, so the code executing beside the
+#   secrets stays auditable — which is also why the harness is fetched with git rather
+#   than via `uses:` (this Forgejo is Gitea-1.22-era and its action resolution is
+#   unproven; a git clone needs no unproven feature).
+#
+# CONFIGURATION lives in org-level Actions variables, set by
+# scripts/reviewer-org-config.sh. Every one has a working fallback below, so a repo
+# still reviews correctly before the variables exist.
+#   STACK_REVIEWER_REPO — owner/name of the canonical harness repo
+#   STACK_REVIEWER_REF  — branch or tag to run. A MOVING tag (reviewer-v1) means repos
+#                         pick up harness changes with no commit anywhere; an IMMUTABLE
+#                         tag (reviewer-v1.4) pins them. Changing which behaviour you
+#                         get is a one-variable edit, not a code change.
+#   TRUSTED_AUTHORS     — comma-separated allowlist of PR authors
+#
+# TRIGGER POLICY (cost): push-triggered AND request-triggered — `synchronize`,
+# `reopened`, `review_requested` — with a `concurrency` group holding it to ONE live pass
+# per PR.
+#
+# `synchronize` was removed once, for a real measurement. Every push during a review loop
+# bought a full deep pass, and because a run that fails posts no review the harness's
+# same-SHA dedup never engaged, so the re-request re-paid in full. Measured on
+# infra: 13 SHAs billed more than once, 57 of 192 minutes of model time spent
+# re-buying a SHA already paid for.
+#
+# Removing it fixed the bill and bought a worse failure. Pushing a fix then did nothing
+# until someone remembered to re-request `stack-reviewer`, and a forgotten re-request is
+# indistinguishable from a reviewer that has silently stopped working — silence that
+# reads as an all-clear is the exact failure mode the rest of this design keeps closing.
+#
+# What was missing was never `synchronize`; it was the other half of the fix. Nothing
+# stopped a rapid push sequence from queueing N full passes for N SHAs nobody will ever
+# read, so the trigger got dropped instead of bounded. The `concurrency` group below is
+# that half: two pushes 30s apart now CANCEL the superseded pass rather than stacking a
+# second one behind it, so the steady-state cost of a review loop is one pass per
+# QUIESCENT head, not one per commit. `test.yml` and `secret-scan.yml` have guarded
+# themselves this way on this Forgejo (16.0.3+gitea-1.22.0) since #38, so the feature is
+# proven on this instance rather than assumed from GitHub's docs.
+#
+# WHAT MAKES THIS AFFORDABLE (the caveat here used to be a warning; it is now history).
+# The group bounds how many passes run AT ONCE; it does not make a pass cheaper. Two
+# harness changes do that, and both are live as of 2026-09-06 — incremental passes
+# (infra #69) and the deterministic pre-gate (infra #73). Push-triggering
+# without them would re-create the original bill, so if either is ever reverted, drop
+# `synchronize` again rather than absorb the cost.
+#
+# Measured on the very PR that introduced this trigger policy (infra #80), the
+# two passes either side of one small follow-up commit:
+#   pass 1 (full)        8044 diff chars · 39k in / 31k out · 9 model calls · 249s
+#   pass 2 (incremental) 2082 diff chars · 4.9k in / 3.7k out · 2 model calls · 31s
+# The second pass reviewed only what the new commit changed and was handed the earlier
+# finding as already-reported, so it neither re-read nor re-derived it. That ratio is what
+# a review loop now costs per push.
+#
+# WHY `opened` IS STILL NOT IN THE LIST. Every PR was buying TWO review runs even with
+# `synchronize` gone: CODEOWNERS in each participating repo is `.* @stack-reviewer`, so
+# opening a PR auto-requests the bot and fires `review_requested` moments after `opened`.
+# Measured on 2026-08-24, both participating repos, every PR: 2 runs. When the first pass
+# posted a review the second cost 2s (the same-SHA dedup caught it); when it did NOT post
+# — the common failure mode — the second cost a FULL pass (infra #48: 329s then
+# another 219s on one SHA, and no review at either end).
+#
+# Dropping `opened` loses nothing, because the CODEOWNERS auto-request already guarantees
+# a `review_requested` on every open — and restoring `synchronize` does not change that
+# either way, since `synchronize` never fires for the commits a PR opens with.
+# CAVEAT: that couples this trigger to CODEOWNERS
+# staying in place — if `.* @stack-reviewer` is ever removed from a repo, new PRs there
+# stop being reviewed on open and only a manual re-request will do it.
+name: stack-reviewer level2
+on:
+  pull_request_target:
+    # `edited` is here for ONE case: a stacked PR being retargeted. The job gate below
+    # refuses any base that is not the default branch, so a PR stacked on a topic branch
+    # is never reviewed — and when its parent merges, Forgejo retargets it to the default
+    # branch and fires NOTHING. It then sits mergeable with zero reviews, indistinguishable
+    # from one reviewed clean (#90). `edited` is the only event that fires on a retarget.
+    #
+    # Safe under the same rule as everything else here: `pull_request_target` runs the
+    # TARGET branch's workflow, and the gate lets the job proceed only when that target is
+    # the default branch — so by the time this trigger can do anything, the workflow that
+    # ran came from the default branch. The trigger widens WHEN we look, never WHOSE code
+    # decides.
+    #
+    # Cost: `edited` also fires on title and body edits. That is affordable rather than
+    # free — an edit to an already-reviewed head hits the same-SHA dedup and costs ~2s
+    # (measured 2026-08-24), and an edit to an UNREVIEWED head buys a pass, which for a
+    # freshly-retargeted stacked PR is exactly the point.
+    types: [synchronize, reopened, review_requested, edited]
+
+# ONE live pass per PR — the guard that makes `synchronize` affordable above.
+#
+# `cancel-in-progress: true` is safe here because the harness publishes ATOMICALLY. Every
+# finding goes out in a single `POST .../pulls/{n}/reviews` carrying the summary body and
+# all inline comments in one request (reviewer/level2/lib.mjs `postReview`), the all-clear
+# is one POST of the same shape, and there is no incremental "comment as each finding is
+# found" path anywhere in the harness. So a SIGKILL lands either BEFORE that call — the PR
+# is untouched — or AFTER it, and the review is whole and stamped with the SHA it actually
+# read. A half-published review is not a reachable state, which is what the alternative
+# (`cancel-in-progress: false`, letting the queued run supersede) would have been bought
+# for; that alternative also pays in full for the pass it is superseding, which is the
+# cost this change is trying not to re-incur.
+#
+# A cancelled pass also writes NO per-SHA ledger entry (the ledger is written on a clean
+# exit-without-posting), so cancellation cannot spend one of a SHA's MAX_ATTEMPTS_PER_SHA
+# budget. The superseded SHA simply stops mattering and the new head starts with a full
+# budget.
+#
+# CAVEAT: the group is keyed per PR, not per trigger, so requesting a HUMAN reviewer while
+# a pass is in flight starts a run that the gate step immediately no-ops — and creating it
+# still cancels the bot pass that was running. Cheap to recover (re-request
+# `stack-reviewer`; nothing was billed to the ledger, and nothing partial was posted).
+# Keying the group on the requested reviewer would need ternary expressions this Forgejo's
+# expression engine has not been proven to evaluate, and a group string that silently
+# mis-evaluates to a constant would collapse every PR into one group — i.e. one PR's push
+# cancelling another's review. Not worth it for a rare, self-healing case.
+#
+# STARVATION, considered and accepted (stack-reviewer WARN, 2026-09-06). A push stream
+# that never pauses would cancel each pass just before it posts: every cancelled pass
+# spends model time, records NO ledger entry — so MAX_ATTEMPTS_PER_SHA does not bound it —
+# and posts nothing, so the same-SHA dedup never engages either. The protection this file
+# claims against "silence that reads as an all-clear" is therefore exactly as strong as
+# the assumption that pushes eventually stop.
+#
+# That assumption holds here, which is the whole reason this is accepted rather than
+# fixed. Humans push a fix and wait for the reply. The self-hosted's automated committers
+# (concierge and worker agents) push to branches and open PRs, but do not burst-commit
+# onto an OPEN PR in a tight loop — confirmed by the repo owner, 2026-09-06. Once the
+# stream quiesces the final head gets a full pass, so the END state is always reviewed;
+# only the interim is silent.
+#
+# If that ever stops being true, the fix is NOT cancel-in-progress:false (that reinstates
+# the queue-N-full-passes bill this trigger policy exists to avoid) — it is to make a
+# cancelled run record a ledger entry, so MAX_ATTEMPTS_PER_SHA bounds cancellations the
+# way it already bounds retries.
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true  # stack-reviewer-ignore: starvation needs a push stream that never pauses; accepted above — the end state is always reviewed, and the bound if it changes is a ledger entry on cancel, not queueing every SHA
+
+jobs:
+  review:
+    # Only PRs into the default branch may run: pull_request_target executes the
+    # target branch's workflow, and a non-default base could carry attacker-supplied
+    # workflow code that runs with the org's Actions secrets.
+    if: github.event.pull_request.base.ref == github.event.repository.default_branch
+    # The DEDICATED AI runner (capacity 2), not the shared CI pool. A pass takes
+    # ~6 minutes and the pool is for checks that take seconds. The label is offered by
+    # exactly one runner, so if that runner is down reviews QUEUE rather than falling
+    # back — intended, since the review context is deliberately not a required check.
+    runs-on: ai-review
+    container:
+      image: node:22-bookworm   # Node 22 + git + curl (buildpack-deps base)
+    timeout-minutes: 30
+    steps:
+      - name: Gate — trusted author, and is this request even for us?
+        id: gate
+        run: |
+          set -euo pipefail
+          # No secrets in this step at all: compare the PR author (event payload,
+          # not attacker-controlled) against the TRUSTED_AUTHORS allowlist.
+          # Fail-CLOSED: an author not on the list skips the secrets-bearing steps
+          # entirely — a transport/API hiccup here cannot leak anything. Match is
+          # case-sensitive; a casing mismatch skips safely (fail-closed).
+          trusted="false"
+          for u in ${TRUSTED_AUTHORS//,/ }; do
+            [ -n "$u" ] && [ "$u" = "$AUTHOR" ] && trusted="true"
+          done
+          # A `review_requested` event fires for ANY reviewer, so requesting a HUMAN
+          # review used to buy a full deep pass nobody asked for. Only run when the
+          # request names the bot. FAIL-OPEN if the payload has no requested_reviewer
+          # (differing Forgejo payload shapes): a missing field must not silently stop
+          # the reviewer from ever running again — it costs a pass, and the decision is
+          # logged below either way.
+          wanted="true"
+          if [ "$ACTION" = "review_requested" ] && [ -n "$REQUESTED" ] && [ "$REQUESTED" != "$BOT" ]; then
+            wanted="false"
+          fi
+          run="false"
+          [ "$trusted" = "true" ] && [ "$wanted" = "true" ] && run="true"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "author=${AUTHOR} trusted=$trusted action=${ACTION} requested='${REQUESTED}' wanted=$wanted run=$run"
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTION: ${{ github.event.action }}
+          REQUESTED: ${{ github.event.requested_reviewer.login }}
+          BOT: stack-reviewer
+          TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS || 'xiankai,self-hosted-agent-orchestrator-worker,stack-reviewer' }}
+      - name: Fetch the reviewer harness (single source of truth)
+        if: steps.gate.outputs.run == 'true'
+        id: harness
+        run: |
+          set -euo pipefail
+          # Token via header, never in the clone URL (keeps it out of process listings).
+          git config --global http.extraHeader "Authorization: token ${CODE_REVIEWER_FORGEJO_TOKEN}"
+          # --branch takes a branch OR a tag. Fetching a bare SHA needs
+          # uploadpack.allowAnySHA1InWant server-side, which is not guaranteed here, so
+          # pin with an immutable TAG rather than a commit id.
+          git clone --quiet --no-tags --depth 1 --branch "${REVIEWER_REF}" \
+            "${FORGEJO_URL}/${REVIEWER_REPO}.git" /tmp/reviewer
+          # Record exactly what is about to run. This line is what makes a moving tag
+          # auditable: the run page always names the commit that reviewed the PR.
+          echo "harness=$(git -C /tmp/reviewer rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "reviewer ${REVIEWER_REPO}@${REVIEWER_REF} -> $(git -C /tmp/reviewer rev-parse --short HEAD)"
+          # Fail LOUD on a bad ref or a moved path. Silence here would look exactly like
+          # a clean review, which is the failure mode this whole design keeps closing.
+          test -f /tmp/reviewer/reviewer/level2/harness.mjs || {
+            echo "::error::no harness at reviewer/level2/harness.mjs in ${REVIEWER_REPO}@${REVIEWER_REF}"
+            exit 1
+          }
+        env:
+          FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
+          REVIEWER_REPO: ${{ vars.STACK_REVIEWER_REPO || 'xiankai-github/infra' }}
+          REVIEWER_REF: ${{ vars.STACK_REVIEWER_REF || 'reviewer-v1' }}
+          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
+      - name: Checkout the base ref (read-only data — the pre-PR side of the comparison)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          git config --global http.extraHeader "Authorization: token ${CODE_REVIEWER_FORGEJO_TOKEN}"
+          git clone --quiet --no-tags --filter=blob:none \
+            "${FORGEJO_URL}/${GITHUB_REPOSITORY}.git" /tmp/repo
+          git -C /tmp/repo -c advice.detachedHead=false checkout --quiet "${BASE_SHA}"
+        env:
+          FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
+      - name: Fetch PR head as read-only data
+        if: steps.gate.outputs.run == 'true'
+        id: fetch-head
+        run: |
+          set -euo pipefail
+          git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
+          git -C /tmp/repo worktree add --detach /tmp/pr-head pr-head
+          # Re-derive the sha from what we actually fetched: with queued jobs a newer
+          # push can land between the event and the run, and a stale commit_id would
+          # make the review post 422. Use the live sha for commit_id + dedup.
+          echo "head_sha=$(git -C /tmp/pr-head rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+      - name: Run Level 2 agentic review (posts as stack-reviewer)
+        if: steps.gate.outputs.run == 'true'
+        run: node /tmp/reviewer/reviewer/level2/harness.mjs
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ steps.fetch-head.outputs.head_sha }}
+          FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
+          BASE_REPO_ROOT: /tmp/repo
+          HEAD_REPO_ROOT: /tmp/pr-head
+          # NO TUNABLES ARE PASSED FROM HERE, deliberately. This file is copied into every
+          # participating repo, so anything the harness needs from the workflow must be
+          # hand-added to every copy — and twice it was not: SR_HARNESS_COMMIT arrived with
+          # the footer work and SR_REVIEWABLE_EXTS with the pre-gate, and the orchestrator's
+          # copy ran without either — reproduce with `diff` of the two repos' review.yml at
+          # orchestrator 9ab724a vs infra cb5e7f7, which is what orchestrator #62 fixes. A
+          # knob passed through the workflow makes this file grow forever; a knob the
+          # harness reads itself ships with the tag.
+          #
+          # Configuration now resolves inside the harness, highest precedence first:
+          #   1. an SR_* environment variable, if one is ever set on the job — the
+          #      emergency lever, still honoured, deliberately not wired here;
+          #   2. .stack-reviewer.json in the REVIEWED repo, read at the BASE ref so a pull
+          #      request cannot change the policy it is judged under;
+          #   3. the harness defaults, which travel with STACK_REVIEWER_REF.
+          # Adding a knob is now a line in the harness and nothing in any repo.
+          #
+          # The harness also resolves its OWN commit for the PR footer, from the clone the
+          # fetch step made — so "which code reviewed this PR" no longer depends on this
+          # file remembering to pass it along.
+          #
+          # Deleting these passed nothing up. Checked 2026-09-06 with
+          #   GET /api/v1/orgs/xiankai-github/actions/variables
+          # which returned exactly four names — STACK_REVIEWER_REPO, STACK_REVIEWER_REF,
+          # TRUSTED_AUTHORS, SR_FORGEJO_URL — and not one is a tunable, so every SR_* line
+          # here interpolated to "" from the day it was written. Re-run that call before
+          # trusting this paragraph: it is a claim about mutable server state, not about
+          # anything in this repo, and nothing here will notice when it stops being true.
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
