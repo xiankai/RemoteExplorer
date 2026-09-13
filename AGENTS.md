@@ -87,8 +87,17 @@ release keystore (as Actions secrets, which cannot be read back).
 
 **CI deliberately skips the native build and the APK.** The NDK is several GB on a runner
 with no layer cache, and the arm64-only prebuilts mean CI could not run the result anyway.
-`assembleDebug` is covered on a developer machine by `tools/dev-run.sh`. Verified: neither
-`testDebugUnitTest` nor `lintDebug` pulls a CMake task into the graph.
+`assembleDebug` is covered on a developer machine by `tools/dev-run.sh`.
+
+`-Prex.skipNative` is what achieves that, and it is load-bearing. Inspecting the task graph
+is **not** sufficient to conclude the NDK is unused: no CMake task enters the graph for
+`lintDebug` or `testDebugUnitTest`, yet merely *declaring* `externalNativeBuild` makes AGP
+resolve `ndkVersion` at configuration time, so an unguarded run downloads the whole NDK to
+compile nothing. That mistake shipped once and was caught by reading a CI log. Measured on
+`lintDebug --dry-run --info`: 76 NDK references without the flag, zero with it.
+
+Never use the flag to produce an installable artifact — the APK would ship without
+`libffmpeg.so` and die inside `System.loadLibrary` at the first video thumbnail.
 
 Workflows here follow `infra`'s proven conventions: `pull_request` rather than
 `pull_request_target` for anything executing PR code, no third-party Actions, the ephemeral
