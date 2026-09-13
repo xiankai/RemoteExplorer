@@ -109,6 +109,23 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `a filtered listing is asked of the database, not the server`() = runTest {
+        // The cached-and-filtered path is where the LIKE-without-wildcards bug lived: the
+        // repository hands the search term to the DAO and trusts it, so what matters here is
+        // that the DAO is the one asked, with the term passed through untouched.
+        val remote = FakeFileDataSource(listOf(remoteFile("should-not-be-used.jpg")))
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(cachedFile("Beach.jpg"), cachedFile("city.jpg"))
+        )
+
+        val files = repository(remote, dao).listFiles(1, "Photos", filter = "beach")
+
+        assertEquals(listOf("Beach.jpg"), files.map { it.filename })
+        assertEquals("a cached listing must not reach the server", 0, remote.listCalls)
+        assertEquals("the search term must reach the DAO unaltered", listOf("beach"), dao.filters)
+    }
+
+    @Test
     fun `an unmatched filter returns nothing rather than everything`() = runTest {
         val remote = FakeFileDataSource(listOf(remoteFile("city.jpg")))
         val dao = FakeLocalDatabaseDao(cached = emptyList())
@@ -151,10 +168,19 @@ private class FakeLocalDatabaseDao(
 ) : LocalDatabaseDao {
     val upserted = mutableListOf<LocalFile>()
 
+    /** Every filter the repository passed down, so a test can assert it arrived intact. */
+    val filters = mutableListOf<String>()
+
     override fun getFiles(connectionId: Int, parentPath: String) = cached
 
-    override fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String) =
-        cached.filter { it.filename.contains(filter.trim('%'), ignoreCase = true) }
+    override fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String):
+        List<LocalFile> {
+        filters += filter
+        // Stands in for `filename LIKE '%' || :filter || '%'`: a substring match, and
+        // case-insensitive because SQLite's LIKE is for ASCII. The real query wraps the
+        // wildcards itself, which is why the repository passes the bare term.
+        return cached.filter { it.filename.contains(filter, ignoreCase = true) }
+    }
 
     override fun updateFileList(files: List<LocalFile>) {
         upserted += files
