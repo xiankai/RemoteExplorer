@@ -71,6 +71,17 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
   then tap the node's centre. Cold start is ~10s; `am start -W` blocks until drawn.
 - **Video fixtures need `+faststart`.** The decoder reads from the start of the stream and
   will never find a trailing `moov` atom inside its read window.
+- **There is no Firebase.** The `google-services` plugin is applied nowhere, so a
+  `google-services.json` would be inert — one was committed for a long time and never read.
+  Adding the file alone does nothing; adding the plugin is the actual decision. Its API key
+  is still in git history; accepted for now (private repo, internal-testing app) and tracked
+  in issue #15. Note the general rule it illustrates: deleting a secret from `HEAD` does not
+  remove it from history, so a real credential is rotated at the source, never just deleted.
+- **Room schema directories are named after the database CLASS**, e.g.
+  `app/schemas/com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase/`. Room reads only
+  the directory matching the current fully-qualified name, so schemas left behind by a
+  package rename are unreachable, not history. The live ones are load-bearing: deleting
+  `5.json` would break `AutoMigration(5, 6)` at compile time.
 
 ## CI and release
 

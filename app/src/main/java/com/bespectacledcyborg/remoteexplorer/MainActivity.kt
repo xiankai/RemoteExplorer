@@ -96,7 +96,7 @@ class ExplorerViewModelFactory(
             WorkManager.initialize(application.applicationContext, workManagerConfig)
         }
 
-        // ThumbnailRepository needs WorkManager up and running
+        // ThumbnailManager needs WorkManager up and running
         val thumbnailManager = ThumbnailManager(application.applicationContext)
         val serverRepository = ServerRepository(
             sambaFileDataSource,

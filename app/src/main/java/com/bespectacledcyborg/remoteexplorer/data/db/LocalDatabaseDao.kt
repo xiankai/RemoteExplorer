@@ -196,5 +196,5 @@ enum class TagStatus {
 }
 
 enum class ThumbnailStatus {
-    UNPROCESSED, SUCCESS, ERROR, UNSUPPORTED, NESTED
+    UNPROCESSED, SUCCESS, ERROR, UNSUPPORTED  // stack-reviewer-ignore: dropping NESTED cannot orphan a stored row — `git log --all -p -S'NESTED'` shows its only non-declaration use in any commit is a COMPARISON inside the long-disabled thumbnailsJob, and the sole writers of thumbnailStatus (updateRemoteMapping, updateFileThumbnailStatus) pass only the four values above.
 }
