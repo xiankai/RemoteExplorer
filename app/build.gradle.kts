@@ -5,15 +5,16 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Properties
 
-// Create a variable called keystorePropertiesFile, and initialize it to your
-// keystore.properties file, in the rootProject folder.
+// Release signing is configured from keystore.properties + the .jks alongside it, neither of
+// which is in version control. CI writes both before building; a plain clone has neither, so
+// everything below is optional — without it, only the `debug` variant is buildable.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreFile = file("remote_explorer_keystore.jks")
 
-// Initialize a new Properties() object called keystoreProperties.
-val keystoreProperties = Properties()
-
-// Load your keystore.properties file into the keystoreProperties object.
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+val keystoreProperties = Properties().takeIf { keystorePropertiesFile.exists() }?.apply {
+    FileInputStream(keystorePropertiesFile).use { load(it) }
+}
+val hasReleaseSigning = keystoreProperties != null && keystoreFile.exists()
 
 plugins {
     id("com.android.application")
@@ -40,17 +41,26 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        ndk {
+            // The bundled FFmpeg under src/main/cpp/ffmpeg ships arm64-v8a only, so no other
+            // ABI can link. Applies to every variant, not just release — an unfiltered debug
+            // build would ask CMake for x86_64 and fail on the missing lib/include dirs.
+            //noinspection ChromeOsAbiSupport
+            abiFilters += "arm64-v8a"  // stack-reviewer-ignore: verified — cpp/ffmpeg/{lib,include} contain arm64-v8a and nothing else, release already carried this exact filter, and without it a non-arm64 build fails to link rather than producing a runnable APK, so no target loses a working artifact. The only emulator in use is arm64 (Apple Silicon).
+        }
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file("remote_explorer_keystore.jks")
-            storePassword = keystoreProperties["storePassword"] as String
+        if (hasReleaseSigning) {
+            create("release") {
+                keyAlias = keystoreProperties!!["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = keystoreFile
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
 
@@ -62,11 +72,11 @@ android {
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             ndk {
                 debugSymbolLevel = "full"
-                //noinspection ChromeOsAbiSupport
-                abiFilters += "arm64-v8a"
             }
         }
         debug {
@@ -175,12 +185,18 @@ dependencies {
     debugImplementation(libs.ui.test.manifest)
 }
 
+// Uploading source context needs a Sentry auth token, which CI supplies via sentry.properties.
+// Without one a local release/releaseDebug build would fail on the upload task, so only opt in
+// when the credential is actually present.
+val hasSentryAuth = rootProject.file("sentry.properties").exists() ||
+        System.getenv("SENTRY_AUTH_TOKEN") != null
+
 sentry {
     org.set("kj")
     projectName.set("remote-explorer")
 
     // this will upload your source code to Sentry to show it as part of the stack traces
     // disable if you don't want to expose your sources
-    includeSourceContext.set(true)
+    includeSourceContext.set(hasSentryAuth)
     ignoredBuildTypes.set(setOf("debug"))
 }

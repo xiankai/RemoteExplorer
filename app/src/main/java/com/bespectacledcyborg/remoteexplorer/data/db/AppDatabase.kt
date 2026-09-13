@@ -16,9 +16,11 @@ import java.util.Date
         SettingsEntity::class,
     ],
     exportSchema = true,
-    version = 7,
+    version = 8,
     autoMigrations = [
-        AutoMigration(from = 6, to = 7)
+        AutoMigration(from = 6, to = 7),
+        // 8 adds Connection.port, defaulted to 445 so existing connections are unaffected.
+        AutoMigration(from = 7, to = 8)
     ]
 )
 @TypeConverters(Converters::class)
