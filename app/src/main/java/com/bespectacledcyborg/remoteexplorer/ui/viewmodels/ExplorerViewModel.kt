@@ -24,6 +24,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -190,22 +192,30 @@ class ExplorerViewModel(
         _sort.update { sortType }
     }
 
-    // Job to track the running coroutine
-    private var listFileJob: Job? = null
+    // The collector that watches path/search. Held so a second call to listFiles replaces it
+    // rather than adding another: connect() and forceRefresh() both call in, so without this
+    // every refresh left an extra collector alive, each still reacting to later path changes
+    // and re-listing with its own stale forceRemote.
+    private var listFilesCollector: Job? = null
 
     private fun listFiles(connectionId: Int, forceRemote: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        listFilesCollector?.cancel()
+        listFilesCollector = viewModelScope.launch(Dispatchers.IO) {
             combine(pathState, searchState) { path, search ->
                 Pair(
                     path,
                     search
                 )
-            }.collect { (path, search) ->
-                // Cancel the previous coroutine if it's still running
-                listFileJob?.cancel()
-
-                // Launch a new coroutine for the new path
-                listFileJob = launch {
+            }.collectLatest { (path, search) ->
+                // collectLatest cancels the previous body when a new value arrives, which is
+                // what the hand-rolled job juggling here was approximating.
+                //
+                // Anything thrown in here reaches viewModelScope and takes the process with
+                // it, and SMB throws for entirely ordinary reasons — the NAS asleep, a folder
+                // renamed on the server, credentials rotated. Listing a directory that no
+                // longer exists was a hard crash (STATUS_OBJECT_NAME_NOT_FOUND), so surface
+                // it the way connect() already surfaces a failed connection.
+                try {
                     val files = if (path.startsWith(tagPrefix)) {
                         val tag = path.substringAfter(tagPrefix)
                         fileRepository.getFilesWithTag(LocalTag(tag))
@@ -227,6 +237,13 @@ class ExplorerViewModel(
                     fetchThumbnails(connectionId, files)
 //                    thumbnailsJob(connectionId, files)
                     scanTagsJob(connectionId, forceRemote)
+                } catch (e: CancellationException) {
+                    throw e // collectLatest cancels this body on every new value; not an error.
+                } catch (e: Exception) {
+                    Log.e("ExplorerViewModel", "Failed to list '$path'", e)
+                    _toast.emit(
+                        "Could not open ${path.ifEmpty { "the share" }}: ${e.message ?: "unknown error"}"
+                    )
                 }
             }
         }

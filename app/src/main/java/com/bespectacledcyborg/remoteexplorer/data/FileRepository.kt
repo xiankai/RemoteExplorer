@@ -94,7 +94,8 @@ class FileRepository(
     ): List<LocalFile> {
         val unfiltered = updateRemoteMapping(connectionId, currentPath)
         return if (filter.isNotBlank()) {
-            unfiltered.filter { it.filename.contains(filter) }
+            // ignoreCase to match the DB path, where SQLite's LIKE is already case-insensitive.
+            unfiltered.filter { it.filename.contains(filter, ignoreCase = true) }
         } else {
             unfiltered
         }

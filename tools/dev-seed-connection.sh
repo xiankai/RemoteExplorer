@@ -43,6 +43,16 @@ case "$port" in ''|*[!0-9]*) echo "port must be numeric, got '$port'" >&2; exit 
 }
 [ -s "$tmp/db" ] || { echo "$db came back empty" >&2; exit 1; }
 
+# Room runs in WAL mode and force-stop is a SIGKILL, so nothing checkpoints on the way out:
+# straight after a `pm clear` the main file is ~4 KB of header and the entire schema is still
+# in -wal. Copying only the main file therefore yields "no such table: Connection". Bring the
+# sidecars across and fold them in before touching anything.
+for ext in -wal -shm; do
+  "$adb" exec-out run-as "$appid" cat "$db$ext" > "$tmp/db$ext" 2>/dev/null || true
+  [ -s "$tmp/db$ext" ] || rm -f "$tmp/db$ext"
+done
+sqlite3 "$tmp/db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+
 # name carries a UNIQUE index, so re-running updates in place rather than duplicating.
 sqlite3 "$tmp/db" <<SQL
 INSERT INTO \`Connection\` (name, hostname, port, username, password, domain, share, lastModified)
