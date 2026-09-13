@@ -26,9 +26,16 @@ Several bugs in this repo's history reproduced only there and never in `debug`.
 ## The fixture share
 
 ```bash
-tools/fixture/seed.sh                        # regenerate the media tree (idempotent)
-docker compose -f tools/fixture/compose.yml up -d
+tools/fixture/up.sh up -d      # seeds on first run, then starts the share
+tools/fixture/up.sh down       # stop it
+tools/fixture/seed.sh          # regenerate the media tree from scratch
 ```
+
+Always go through `up.sh`: it sets `REX_FIXTURE_DIR`, which `compose.yml` requires, and the
+media lives at `~/.cache/remoteexplorer-fixture` rather than in the repo. That is not
+fussiness — a relative bind mount ties the share to the checkout it was started from, and a
+worktree is a checkout that gets deleted. Removing a merged worktree once emptied the
+running share, after which the app crashed listing a directory the server no longer had.
 
 Then add the connection to the app — write it straight into Room rather than typing it:
 
