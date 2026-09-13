@@ -22,9 +22,15 @@ data class File(
 )
 
 class FileRepository(
-    private val sambaFileDataSource: SambaFileDataSource,
+    private val sambaFileDataSource: FileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
-    private val dispatcher: CoroutineDispatcher
+    private val dispatcher: CoroutineDispatcher,
+    // Injected purely so this class is reachable from a JVM unit test. The real
+    // implementation goes through Sketch's MimeTypeMap, which delegates to
+    // android.webkit.MimeTypeMap — a stub that throws under plain unit tests, and returns
+    // null (then NPEs inside Sketch) even with unitTests.isReturnDefaultValues. Testing the
+    // caching logic should not require Robolectric just to classify a file extension.
+    private val canHaveThumbnail: (String) -> Boolean = Utils::canHaveThumbnail,
 ) {
     suspend fun connect(
         connectionId: Int,
@@ -56,12 +62,12 @@ class FileRepository(
                     it.filename.endsWith(".xmp", true) -> FileType.TAG
                     else -> FileType.FILE
                 },
-                thumbnailStatus = if (Utils.canHaveThumbnail(it.filename)) {
+                thumbnailStatus = if (canHaveThumbnail(it.filename)) {
                     ThumbnailStatus.UNPROCESSED
                 } else {
                     ThumbnailStatus.UNSUPPORTED
                 },
-                canHaveThumbnail = Utils.canHaveThumbnail(it.filename),
+                canHaveThumbnail = canHaveThumbnail(it.filename),
                 lastModified = it.lastModified,
             )
         }
