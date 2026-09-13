@@ -1,0 +1,5 @@
+# stack-reviewer (Level 2, .forgejo/workflows/review.yml) reviews every PR to this
+# repo. CODEOWNERS makes Forgejo auto-request its review when a PR opens, which fires
+# the `review_requested` workflow trigger for the initial round (and on re-request).
+# Forgejo matches paths with regex; ".*" covers every file.
+.* @stack-reviewer
