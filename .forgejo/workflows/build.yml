@@ -24,9 +24,10 @@
 # code. Measured on `lintDebug --dry-run --info`: 76 NDK references without the flag, zero
 # with it.
 #
-# One job rather than three: the pool is capacity 2, so separate jobs would mean a clone and
-# a queue slot each for checks that take seconds. Each group runs even if an earlier one
-# fails, so one push surfaces every finding instead of peeling them off one at a time.
+# One job rather than three: the android runner is capacity 1, so separate jobs would not run
+# in parallel anyway — they would just mean a clone each and a queue behind one another. Each
+# group runs even if an earlier one fails, so one push surfaces every finding instead of
+# peeling them off one at a time.
 name: build
 on:
   pull_request:
@@ -38,7 +39,17 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # The DEDICATED Android runner (capacity 1), not the shared ubuntu-latest pool. This job
+    # is ~8 minutes, mostly Gradle dependency resolution and Kotlin/KSP with no layer cache,
+    # and the shared pool has two slots otherwise serving checks that take seconds — three
+    # open PRs was enough to leave a build queued behind two others. Same split as ai-review.
+    #
+    # `android` is offered by exactly one runner, so if it is down builds QUEUE rather than
+    # falling back. That is intended and, unlike a queued review, visible: a build has a run
+    # page and the PR shows a pending check.
+    #
+    # See stacks/act-runner.yml in infra for the runner itself.
+    runs-on: android
     container:
       image: gradle:9.1.0-jdk21   # JDK 21 + git, matching the wrapper's Gradle version
     timeout-minutes: 25
