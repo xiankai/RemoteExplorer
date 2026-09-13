@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
@@ -121,10 +120,17 @@ class ExplorerViewModel(
         // is no separate startup fetch to keep in step.
         viewModelScope.launch {
             workManager.getWorkInfosForUniqueWorkFlow(SCAN_TAGS_WORK)
-                // Only a newly FINISHED scan can have changed the tag table. Without the
-                // distinct, every intermediate state change (ENQUEUED, RUNNING) would
-                // re-read the tags and re-fetch every tag thumbnail for nothing.
-                .map { infos -> infos.count { it.state == WorkInfo.State.SUCCEEDED } }
+                // Any TERMINAL state, not just SUCCEEDED. TagRepository.scanTags writes each
+                // file's tags as it walks the batch, so a scan that throws partway — a
+                // malformed sidecar, the share going away mid-walk — has already committed
+                // rows before returning Result.failure(). Counting only SUCCEEDED would
+                // leave those invisible until the next successful scan, which is precisely
+                // the staleness this observer exists to remove. Same for CANCELLED.
+                //
+                // The distinct is what keeps this cheap: without it every intermediate
+                // transition (ENQUEUED, RUNNING) would re-read the tags and re-fetch every
+                // tag thumbnail for nothing.
+                .map { infos -> infos.count { it.state.isFinished } }
                 .distinctUntilChanged()
                 .collect { refreshTags() }
         }
