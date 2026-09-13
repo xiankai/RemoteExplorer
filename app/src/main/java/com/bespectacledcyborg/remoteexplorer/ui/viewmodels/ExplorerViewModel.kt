@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
@@ -37,6 +38,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -53,6 +56,9 @@ enum class ViewType {
 }
 
 typealias ThumbnailsMap = Map<String, List<String>>
+
+/** Unique-work name for the tag scan, shared by the enqueue and the observer that follows it. */
+private const val SCAN_TAGS_WORK = "scanTags"
 
 class ExplorerViewModel(
     application: Application,
@@ -88,10 +94,12 @@ class ExplorerViewModel(
         MutableStateFlow(emptyMap())
     val tagThumbnailsState = _tagThumbnails.asStateFlow()
 
-    // On init:
-    // start http server
-    // find connections
-    // populate tags
+    // Declared before init: Kotlin initialises properties and init blocks in declaration
+    // order, and the tag observer in init reaches for this.
+    private val workManager = WorkManager.getInstance(application.applicationContext)
+
+    // On init: start the http server, find connections, apply the saved column count, and
+    // start following the tag scan.
     init {
         viewModelScope.launch { serverRepository.startup() }
         viewModelScope.launch {
@@ -105,14 +113,27 @@ class ExplorerViewModel(
                 _columnCount.update { defaultColumnCount }
             }
         }
+        // Tags used to be read exactly once here and never again, so a tag discovered by
+        // ScanTagsWorker stayed invisible for the rest of the session — browse a folder of
+        // .xmp sidecars, open Tags, see nothing, restart the app, see everything. Following
+        // the worker instead means the one read covers both the initial load and every
+        // later scan: the flow emits the current state as soon as it is collected, so there
+        // is no separate startup fetch to keep in step.
         viewModelScope.launch {
-            val tags = tagRepository.getTags()
-            _tags.update { tags }
-            launch {
-                val tagThumbnails = fetchTagThumbnails(tags)
-                _tagThumbnails.update { tagThumbnails }
-            }
+            workManager.getWorkInfosForUniqueWorkFlow(SCAN_TAGS_WORK)
+                // Only a newly FINISHED scan can have changed the tag table. Without the
+                // distinct, every intermediate state change (ENQUEUED, RUNNING) would
+                // re-read the tags and re-fetch every tag thumbnail for nothing.
+                .map { infos -> infos.count { it.state == WorkInfo.State.SUCCEEDED } }
+                .distinctUntilChanged()
+                .collect { refreshTags() }
         }
+    }
+
+    private suspend fun refreshTags() {
+        val tags = tagRepository.getTags()
+        _tags.update { tags }
+        _tagThumbnails.update { fetchTagThumbnails(tags) }
     }
 
     // 1. connect to source
@@ -348,7 +369,6 @@ class ExplorerViewModel(
         _tagScreenViewType.update { viewType }
     }
 
-    private val workManager = WorkManager.getInstance(application.applicationContext)
     private fun scanTagsJob(connectionId: Int, forceRemote: Boolean) {
         val workRequest =
             OneTimeWorkRequestBuilder<ScanTagsWorker>()
@@ -360,7 +380,7 @@ class ExplorerViewModel(
                 )
                 .build()
 
-        workManager.enqueueUniqueWork("scanTags", ExistingWorkPolicy.KEEP, workRequest)
+        workManager.enqueueUniqueWork(SCAN_TAGS_WORK, ExistingWorkPolicy.KEEP, workRequest)
     }
 
     private fun fetchThumbnails(connectionId: Int, files: List<LocalFile>) {
