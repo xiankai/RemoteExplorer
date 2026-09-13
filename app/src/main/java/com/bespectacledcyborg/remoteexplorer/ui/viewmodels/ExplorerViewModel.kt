@@ -11,6 +11,7 @@ import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
+import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
@@ -18,6 +19,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
+import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
@@ -58,6 +60,7 @@ class ExplorerViewModel(
     private val serverRepository: ServerRepository,
     private val connectionRepository: ConnectionRepository,
     private val tagRepository: TagRepository,
+    private val settingsRepository: SettingsRepository,
     private val thumbnailManager: ThumbnailManager = ThumbnailManager(application)
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
@@ -94,6 +97,12 @@ class ExplorerViewModel(
         viewModelScope.launch {
             connectionRepository.getConnections().collect { connections ->
                 _connections.update { connections }
+            }
+        }
+        viewModelScope.launch {
+            val defaultColumnCount = settingsRepository.getSettingsOnce()?.defaultColumnCount
+            if (defaultColumnCount != null && !columnCountChosenThisSession) {
+                _columnCount.update { defaultColumnCount }
             }
         }
         viewModelScope.launch {
@@ -304,10 +313,17 @@ class ExplorerViewModel(
         viewModelScope.launch { _path.update { "${tagPrefix}${tag.tag}" } }
     }
 
-    private val _columnCount = MutableStateFlow(4)
+    private val _columnCount = MutableStateFlow(SettingsEntity().defaultColumnCount)
     val columnCountState: StateFlow<Int> = _columnCount.asStateFlow()
 
+    // The settings screen has always offered "Default Column Count" and nothing ever read it;
+    // the grid was hardcoded to 4. Applied once at startup rather than by observing the flow,
+    // so that picking a column count from the toolbar during a session is not clobbered the
+    // next time settings emit.
+    private var columnCountChosenThisSession = false
+
     fun setColumnCount(columnCount: Int) {
+        columnCountChosenThisSession = true
         _columnCount.update { columnCount }
     }
 

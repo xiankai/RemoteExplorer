@@ -30,6 +30,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorke
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
+import com.github.panpf.sketch.SingletonSketch
 import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
 import kotlinx.coroutines.CoroutineDispatcher
@@ -110,6 +111,7 @@ class ExplorerViewModelFactory(
             serverRepository,
             connectionRepository,
             tagRepository,
+            SettingsRepository(db.settingsDao()),
         ) as T
     }
 }
@@ -158,21 +160,29 @@ class MainActivity : ComponentActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             val settingsDao = db.settingsDao()
             val settings = settingsDao.getSettingsOnce()
-            if (settings == null) {
-                settingsDao.insert(SettingsEntity()) // add default row
+                ?: SettingsEntity().also { settingsDao.insert(it) } // add default row
+
+            // The configured Sketch has to be REGISTERED as the singleton. This previously
+            // built an instance and dropped it on the floor, so every image load used
+            // Sketch's own default and the "Max Storage Cache Size" setting did nothing at
+            // all. It also read the value from the settings StateFlow synchronously during
+            // onCreate — before the database had emitted — so it was always the initial
+            // default rather than what was stored.
+            //
+            // setSafe registers a factory and is a no-op if a Sketch already exists, so this
+            // losing a race against a very early image load degrades to the old behaviour
+            // rather than crashing.
+            SingletonSketch.setSafe { context ->
+                Sketch.Builder(context).apply {
+                    downloadCacheOptions(
+                        DiskCache.Options(
+                            // Convert setting to actual GB
+                            maxSize = settings.maxStorageCacheSize * 1024L * 1024 * 1024
+                        )
+                    )
+                }.build()
             }
         }
-
-        val maxStorageCacheSize = settingsViewModel.settings.value.maxStorageCacheSize
-
-        Sketch.Builder(applicationContext).apply {
-            downloadCacheOptions(
-                DiskCache.Options(
-                    // Convert setting to actual GB
-                    maxSize = maxStorageCacheSize * 1024 * 1024 * 1024L
-                )
-            )
-        }.build()
 
         setContent {
             MainView(
