@@ -43,6 +43,28 @@ case "$port" in ''|*[!0-9]*) echo "port must be numeric, got '$port'" >&2; exit 
 }
 [ -s "$tmp/db" ] || { echo "$db came back empty" >&2; exit 1; }
 
+# Room runs in WAL mode and force-stop is a SIGKILL, so nothing checkpoints on the way out:
+# straight after a `pm clear` the main file is ~4 KB of header and the entire schema is still
+# in -wal. Copying only the main file therefore yields "no such table: Connection". Bring the
+# sidecars across and fold them in before touching anything.
+for ext in -wal -shm; do
+  "$adb" exec-out run-as "$appid" cat "$db$ext" > "$tmp/db$ext" 2>/dev/null || true
+  [ -s "$tmp/db$ext" ] || rm -f "$tmp/db$ext"
+done
+sqlite3 "$tmp/db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+
+# A -wal that is absent is legitimate (the database was checkpointed); a -wal that could not
+# be READ is not, and cat's exit status cannot tell the two apart. So assert the condition
+# the INSERT below actually depends on instead of guessing at the cause: without this, a
+# failed sidecar copy surfaces as a bare "no such table: Connection" from sqlite3, which is
+# the very confusion this block exists to remove.
+if [ -z "$(sqlite3 "$tmp/db" "SELECT name FROM sqlite_master WHERE type='table' AND name='Connection';")" ]; then
+  echo "no Connection table in the copied database." >&2
+  echo "  - if the app was just installed or cleared, launch it once so Room creates the schema" >&2
+  echo "  - otherwise the $db-wal copy likely failed: check this is a debuggable build and run-as works" >&2
+  exit 1
+fi
+
 # name carries a UNIQUE index, so re-running updates in place rather than duplicating.
 sqlite3 "$tmp/db" <<SQL
 INSERT INTO \`Connection\` (name, hostname, port, username, password, domain, share, lastModified)

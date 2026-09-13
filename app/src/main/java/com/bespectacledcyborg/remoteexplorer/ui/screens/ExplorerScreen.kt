@@ -63,7 +63,8 @@ fun ExplorerScreen(
         }
 
         if (search.isNotEmpty()) {
-            finalList.filter {
+            // The result used to be discarded, so this filter did nothing at all.
+            finalList = finalList.filter {
                 it.filename.contains(search, ignoreCase = true)
             }
         }
