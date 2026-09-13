@@ -224,7 +224,7 @@ jobs:
         run: |
           set -euo pipefail
           # Token via header, never in the clone URL (keeps it out of process listings).
-          git config --global http.extraHeader "Authorization: token ${CODE_REVIEWER_FORGEJO_TOKEN}"
+          git config --global http.extraHeader "Authorization: token ${STACK_REVIEWER_FORGEJO_TOKEN}"
           # --branch takes a branch OR a tag. Fetching a bare SHA needs
           # uploadpack.allowAnySHA1InWant server-side, which is not guaranteed here, so
           # pin with an immutable TAG rather than a commit id.
@@ -244,19 +244,19 @@ jobs:
           FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
           REVIEWER_REPO: ${{ vars.STACK_REVIEWER_REPO || 'xiankai-github/infra' }}
           REVIEWER_REF: ${{ vars.STACK_REVIEWER_REF || 'reviewer-v1' }}
-          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
+          STACK_REVIEWER_FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
       - name: Checkout the base ref (read-only data — the pre-PR side of the comparison)
         if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
-          git config --global http.extraHeader "Authorization: token ${CODE_REVIEWER_FORGEJO_TOKEN}"
+          git config --global http.extraHeader "Authorization: token ${STACK_REVIEWER_FORGEJO_TOKEN}"
           git clone --quiet --no-tags --filter=blob:none \
             "${FORGEJO_URL}/${GITHUB_REPOSITORY}.git" /tmp/repo
           git -C /tmp/repo -c advice.detachedHead=false checkout --quiet "${BASE_SHA}"
         env:
           FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
+          STACK_REVIEWER_FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
       - name: Fetch PR head as read-only data
         if: steps.gate.outputs.run == 'true'
         id: fetch-head
@@ -310,4 +310,12 @@ jobs:
           # trusting this paragraph: it is a claim about mutable server state, not about
           # anything in this repo, and nothing here will notice when it stops being true.
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          CODE_REVIEWER_FORGEJO_TOKEN: ${{ secrets.CODE_REVIEWER_FORGEJO_TOKEN }}
+          STACK_REVIEWER_FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
+          # TRANSITIONAL, delete once reviewer-v1 points at a harness that reads the name
+          # above. Unlike the two clone steps, this step does not consume the token itself
+          # — it hands it to harness.mjs, cloned from STACK_REVIEWER_REF, a MOVING tag. So
+          # this file and the harness are never guaranteed to be in step, and a harness
+          # predating the rename would find nothing and fatal on a missing token.
+          # FORGEJO_TOKEN is that harness's oldest fallback and is present in every
+          # version, so it bridges the gap without reintroducing the CODE_REVIEWER_* name.
+          FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
