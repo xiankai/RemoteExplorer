@@ -1,0 +1,21 @@
+# A throwaway SMB share for local development, so the app can be exercised without
+# pointing it at real infrastructure.
+#
+# Published on 1445 rather than 445 because macOS runs its own SMB server on *:445 and
+# Docker cannot bind a port that is already taken. That is what Connection.port exists
+# for: add the fixture with hostname 10.0.2.2 (the emulator's alias for the host) and
+# port 1445.
+services:
+  samba:
+    image: dperson/samba
+    container_name: remoteexplorer-fixture
+    ports:
+      - "1445:445"
+    volumes:
+      # Read-only: the app never writes, and this keeps a bug from eating the seed data.
+      - ./media:/share:ro
+    # -u user;password   -s name;path;browsable;readonly;guest;users
+    command: >
+      -u "explorer;explorer"
+      -s "media;/share;yes;yes;no;explorer"
+    restart: unless-stopped
