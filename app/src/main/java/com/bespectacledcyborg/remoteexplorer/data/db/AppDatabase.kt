@@ -18,6 +18,11 @@ import java.util.Date
     exportSchema = true,
     version = 8,
     autoMigrations = [
+        // 5 -> 6 changed nothing: both schemas carry identityHash
+        // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
+        // change. Declaring it costs an empty generated migration and completes the chain
+        // 5 -> 6 -> 7 -> 8, which is what lets the destructive fallback go.
+        AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
         // 8 adds Connection.port, defaulted to 445 so existing connections are unaffected.
         AutoMigration(from = 7, to = 8)

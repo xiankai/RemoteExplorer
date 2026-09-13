@@ -140,7 +140,16 @@ class MainActivity : ComponentActivity() {
             application.applicationContext,
             AppDatabase::class.java, "remote-explorer"
         )
-            .fallbackToDestructiveMigration()
+            // No destructive fallback. It was silently deleting the database on any schema
+            // mismatch, and this database is not purely a cache: LocalFile rows can be
+            // re-fetched from the share, but Connection rows are hand-entered hostnames and
+            // credentials that nothing can reconstruct.
+            //
+            // The migration chain now covers 5 -> 6 -> 7 -> 8, so every reachable version
+            // has a path. A version this code does not know about — a future gap, or a
+            // downgrade to an older APK — now fails loudly instead of wiping the user's
+            // saved connections. A loud failure is recoverable (install the newer build);
+            // a silent wipe is not.
 //            .setQueryCallback(
 //                { sqlQuery, bindArgs ->
 //                    Log.d("RoomDatabase", "SQL Query: $sqlQuery SQL Args: $bindArgs")

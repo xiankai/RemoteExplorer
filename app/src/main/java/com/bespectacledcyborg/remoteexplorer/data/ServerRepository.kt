@@ -46,7 +46,16 @@ class ServerRepository(
     suspend fun startup() {
         val port = findAvailablePort()
         return withContext(dispatcher) {
-            embeddedServer(Jetty, port, host = "0.0.0.0") {
+            // Loopback only. This server re-serves the whole SMB share over plain HTTP with
+            // no authentication — `connectionId` is a small integer, not a credential — so
+            // binding 0.0.0.0 published the share to everyone on the network, and to every
+            // other device on a coffee-shop wifi.
+            //
+            // Nothing is lost by this: the only consumers are in-process (Sketch, via
+            // constructUrl, which already builds 127.0.0.1 URLs) and other apps on the SAME
+            // device via ACTION_VIEW, which reach loopback fine because loopback is
+            // per-device, not per-process.
+            embeddedServer(Jetty, port, host = "127.0.0.1") {
                 routing {
                     options("/{path...}") {
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
