@@ -53,6 +53,18 @@ for ext in -wal -shm; do
 done
 sqlite3 "$tmp/db" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
 
+# A -wal that is absent is legitimate (the database was checkpointed); a -wal that could not
+# be READ is not, and cat's exit status cannot tell the two apart. So assert the condition
+# the INSERT below actually depends on instead of guessing at the cause: without this, a
+# failed sidecar copy surfaces as a bare "no such table: Connection" from sqlite3, which is
+# the very confusion this block exists to remove.
+if [ -z "$(sqlite3 "$tmp/db" "SELECT name FROM sqlite_master WHERE type='table' AND name='Connection';")" ]; then
+  echo "no Connection table in the copied database." >&2
+  echo "  - if the app was just installed or cleared, launch it once so Room creates the schema" >&2
+  echo "  - otherwise the $db-wal copy likely failed: check this is a debuggable build and run-as works" >&2
+  exit 1
+fi
+
 # name carries a UNIQUE index, so re-running updates in place rather than duplicating.
 sqlite3 "$tmp/db" <<SQL
 INSERT INTO \`Connection\` (name, hostname, port, username, password, domain, share, lastModified)
