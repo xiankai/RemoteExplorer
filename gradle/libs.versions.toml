@@ -15,6 +15,9 @@ sketch = "4.3.1"
 smbj = "0.14.0"
 kotlin = "2.3.10"
 room = "2.8.4"
+sqlite = "2.6.1"
+robolectric = "4.16"
+androidxTestCore = "1.7.0"
 navigationCompose = "2.9.7"
 workRuntimeKtx = "2.11.1"
 
@@ -55,6 +58,13 @@ room-common = { group = "androidx.room", name = "room-common", version.ref = "ro
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+# Ships SQLite itself, so Room's migration tests run on the JVM instead of needing a device.
+sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqlite" }
+# Room's MigrationTestHelper needs an Instrumentation even for a pure-SQL test; Robolectric
+# supplies one on the JVM, which is what keeps these tests inside CI's reach.
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
 

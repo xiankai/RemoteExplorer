@@ -135,9 +135,16 @@ Not yet fixed, roughly by user-visible impact:
 1. **SMB passwords are stored in plaintext** in Room (`ConnectionDao`), and the HTTP server
    still treats `connectionId` as the only thing resembling auth. It binds loopback now, so
    the exposure is other apps on the device rather than the whole LAN.
-2. **Tests are thin.** One unit test file (`FileRepositoryTest`) covering the cached-and-
-   filtered path; there is no `androidTest/` source set at all, so nothing exercises Room,
-   the Ktor server or the JNI decoder.
+2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
+   `AppDatabaseMigrationTest` covers the v5→v8 chain; the Ktor range server and the JNI
+   decoder are still untested, and there is no `androidTest/` source set at all.
+
+   The migration tests run under **Robolectric as JVM unit tests**, not on a device, because
+   `MigrationTestHelper` needs an `Instrumentation` but CI has no emulator — so they sit
+   inside `testDebugUnitTest`, which CI already runs. Robolectric serves the *variant's*
+   merged assets, which is why the exported schemas are attached to the `debug` source set in
+   `build.gradle.kts`: a `test` source set entry is invisible to it, and `main` would ship the
+   schemas inside the release APK.
 3. **The Firebase API key is still in git history** — accepted for now, tracked in issue #15.
 
 The entries that used to live here — search doing nothing, stacked collectors, tags not

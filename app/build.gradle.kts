@@ -98,6 +98,25 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        // Room's MigrationTestHelper reads the exported schemas through the asset manager, and
+        // Robolectric serves the VARIANT's merged assets — a `test` source set entry is simply
+        // not seen, which fails as "Cannot find the schema file in the assets folder".
+        //
+        // Hanging them off `debug` rather than `main` is what keeps ~40 KB of schema JSON out
+        // of the sideload release APK: unit tests run against the debug variant, so that is the
+        // only variant that needs them.
+        getByName("debug") {
+            assets.srcDir("$projectDir/schemas")
+        }
+    }
+    testOptions {
+        unitTests {
+            // Robolectric serves the assets above from the merged unit-test resources, which
+            // only exist when this is on.
+            isIncludeAndroidResources = true
+        }
+    }
     lint {
         // CI reads findings from the text report; without this only HTML is written, which
         // is useless in a log.
@@ -193,6 +212,12 @@ dependencies {
     // Misc
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Room's MigrationTestHelper plus a JVM SQLite, so the migration chain is exercised by
+    // `testDebugUnitTest` in CI rather than needing the arm64 emulator CI cannot run.
+    testImplementation(libs.room.testing)
+    testImplementation(libs.sqlite.bundled)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
