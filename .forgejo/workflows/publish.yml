@@ -1,8 +1,18 @@
-# Publish a signed release APK to the self-hosted file server, for sideloading via Obtainium.
+# Publish a signed release APK to the self-hosted file server, for sideloading via Obtainium,
+# and record it as a Forgejo release.
 #
-# ONE COPY, ALWAYS OVERWRITTEN. The APK lands at a fixed URL with no version in the name and
-# no archive of previous builds — there is one consumer (a tablet) and no rollback story that
-# keeping old copies would serve, so they would only cost NAS space.
+# TWO DESTINATIONS, DELIBERATELY DIFFERENT SHAPES. fileserver holds ONE COPY, ALWAYS OVERWRITTEN:
+# a fixed URL with no version in the name, because the tablet installs from it and a stable
+# URL is the whole point. Forgejo keeps the LATEST THREE releases, because a list of what
+# shipped when is worth something to a human and three is enough to answer "did the last
+# build break it" without unbounded storage. Neither is a backup of the other; the fileserver copy
+# is the one the tablet consumes, and it is uploaded first so a release failure cannot keep
+# a working APK away from it.
+#
+# OBTAINIUM CAN ONLY READ THE RELEASES IF THIS REPO IS PUBLIC. Its Forgejo source (still
+# named "Codeberg" in the app) has no token field, so a private repo's releases are invisible
+# to it. That is a repo-visibility decision, not a CI one — see issue #15 before flipping it,
+# since the Firebase key in git history was accepted on the premise that this repo is private.
 #
 # WHY THIS RUNS HERE AND NOT ON GITHUB. fileserver is published at
 # files.example.invalid, a TAILNET host, so a GitHub-hosted runner cannot
@@ -72,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends unzip curl
+          apt-get install -y -qq --no-install-recommends unzip curl jq
           mkdir -p "$ANDROID_HOME/cmdline-tools"
           echo "downloading cmdline-tools"
           curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
@@ -142,3 +152,49 @@ jobs:
           esac
         env:
           FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
+
+      - name: Publish a release, keeping only the latest three
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          apk=app/build/outputs/apk/release/app-release.apk
+          api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
+
+          # The tag is read back OUT OF THE APK rather than taken from the clock, so it can
+          # never describe a different build than the one being attached. versionCode is
+          # Instant.now().epochSecond (app/build.gradle.kts), so it is unique and monotonic;
+          # versionName is `yyyy-MM-dd HH:mm:ss`, whose space and colons git forbids in a ref,
+          # so that stays in the release title where it is readable.
+          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | head -1)
+          code=$(printf '%s\n' "$badging" | awk -F"'" '{ for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }')
+          name=$(printf '%s\n' "$badging" | awk -F"'" '{ for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }')
+          [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName from $apk"; exit 1; }
+          tag="v${code}"
+
+          id=$(curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg tag "$tag" --arg target "$GITHUB_SHA" --arg name "$name" \
+                        --arg body "$(git log -1 --pretty='%s%n%n%H')" \
+                        '{tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: false, prerelease: false}')" \
+            "$api/releases" | jq -r '.id')
+          [ -n "$id" ] && [ "$id" != "null" ] || { echo "::error::release creation returned no id"; exit 1; }
+
+          curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" \
+            -F "attachment=@${apk};type=application/vnd.android.package-archive" \
+            "$api/releases/${id}/assets?name=remote-explorer.apk" >/dev/null
+          echo "released $tag ($name)"
+
+          # Keep three. Deleting a release takes its attachment with it, which is the point:
+          # each APK is ~85 MB and this runs on every merge. The tag has to go separately, or
+          # the ref list grows without bound behind releases that no longer exist. Sorted by
+          # id rather than trusting list order, because newest-first is the API's default
+          # rather than a guarantee.
+          curl -fsS -H "Authorization: token ${RUN_TOKEN}" "$api/releases?limit=50" \
+            | jq -r 'sort_by(.id) | reverse | .[3:][] | "\(.id) \(.tag_name)"' \
+            | while read -r old_id old_tag; do
+                echo "pruning $old_tag"
+                curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/releases/${old_id}"
+                curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/tags/${old_tag}"
+              done
+        env:
+          RUN_TOKEN: ${{ github.token }}
+          ANDROID_HOME: /opt/android-sdk
