@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.bespectacledcyborg.remoteexplorer.data.crypto.SecretText
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
 import com.bespectacledcyborg.remoteexplorer.data.db.DEFAULT_SMB_PORT
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ConnectionDetailsButtons
@@ -58,7 +59,7 @@ fun ConnectionDetailsScreen(
     var hostname by remember { mutableStateOf(connection?.hostname ?: "") }
     var port by remember { mutableStateOf((connection?.port ?: DEFAULT_SMB_PORT).toString()) }
     var username by remember { mutableStateOf(connection?.username ?: "") }
-    var password by remember { mutableStateOf(connection?.password ?: "") }
+    var password by remember { mutableStateOf(connection?.password?.value ?: "") }
     var domain by remember { mutableStateOf(connection?.domain ?: "") }
     var share by remember { mutableStateOf(connection?.share ?: "") }
 
@@ -70,7 +71,7 @@ fun ConnectionDetailsScreen(
             // A blank or non-numeric entry falls back to the standard SMB port.
             port = port.toIntOrNull()?.takeIf { it in 1..65535 } ?: DEFAULT_SMB_PORT,
             username = username,
-            password = password,
+            password = SecretText(password),
             domain = domain,
             share = share,
             lastModified = Date()
@@ -206,7 +207,7 @@ fun PreviewConnectionDetailsScreen() {
                 name = "test",
                 hostname = "192.168.1.100",
                 username = "testuser",
-                password = "testpassword",
+                password = SecretText("testpassword"),
                 domain = "testdomain",
                 share = "testshare",
                 lastModified = Date()

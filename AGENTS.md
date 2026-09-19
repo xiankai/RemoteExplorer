@@ -77,6 +77,15 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
   is still in git history; accepted for now (private repo, internal-testing app) and tracked
   in issue #15. Note the general rule it illustrates: deleting a secret from `HEAD` does not
   remove it from history, so a real credential is rotated at the source, never just deleted.
+- **Credentials are encrypted by a Room type converter, not by callers.** `Connection.password`
+  is a `SecretText`, and `CredentialConverters` is the single place it changes form — so no
+  call site can forget. Two traps live here. `SecretText` must NOT become a `@JvmInline value
+  class`: Room unwraps those itself, which silently persists the plaintext and skips the
+  converter, and the failure looks exactly like success. And rows written outside the app stay
+  in the clear on purpose — `tools/dev-seed-connection.sh` talks to SQLite directly and cannot
+  reach the Keystore — so anything without the `enc:v1:` prefix is read back as-is rather than
+  decrypted into garbage. The 8→9 migration rewrites the plaintext already on disk and is
+  idempotent, because a re-run that double-encrypted would strand a user outside their share.
 - **Room schema directories are named after the database CLASS**, e.g.
   `app/schemas/com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase/`. Room reads only
   the directory matching the current fully-qualified name, so schemas left behind by a
@@ -132,9 +141,9 @@ pass; the second pass is incremental and cheap.
 
 Not yet fixed, roughly by user-visible impact:
 
-1. **SMB passwords are stored in plaintext** in Room (`ConnectionDao`), and the HTTP server
-   still treats `connectionId` as the only thing resembling auth. It binds loopback now, so
-   the exposure is other apps on the device rather than the whole LAN.
+1. **The HTTP server treats `connectionId` as the only thing resembling auth.** It binds
+   loopback now, so the exposure is other apps on the device rather than the whole LAN.
+   Passwords in Room are encrypted as of v9 — see below.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
    `AppDatabaseMigrationTest` covers the v5→v8 chain; the Ktor range server and the JNI
    decoder are still untested, and there is no `androidTest/` source set at all.

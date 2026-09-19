@@ -23,7 +23,10 @@ import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
+import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
+import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
+import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
@@ -136,10 +139,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // One cipher instance for both the converter and the migration, so a row written by
+        // one is readable by the other.
+        val credentialCipher = KeystoreCredentialCipher()
+
         val db = Room.databaseBuilder(
             application.applicationContext,
             AppDatabase::class.java, "remote-explorer"
         )
+            .addTypeConverter(CredentialConverters(credentialCipher))
+            .addMigrations(EncryptSavedPasswords(credentialCipher))
             // No destructive fallback. It was silently deleting the database on any schema
             // mismatch, and this database is not purely a cache: LocalFile rows can be
             // re-fetched from the share, but Connection rows are hand-entered hostnames and

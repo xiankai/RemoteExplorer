@@ -156,7 +156,7 @@ class ExplorerViewModel(
                     connection.hostname,
                     connection.port,
                     connection.username,
-                    connection.password,
+                    connection.password.value,
                     connection.domain,
                     connection.share,
                 )
@@ -180,7 +180,7 @@ class ExplorerViewModel(
                     connection.hostname,
                     connection.port,
                     connection.username,
-                    connection.password,
+                    connection.password.value,
                     connection.domain,
                     connection.share,
                 )
