@@ -125,24 +125,15 @@ pass; the second pass is incremental and cheap.
 
 Not yet fixed, roughly by user-visible impact:
 
-1. **Search is a no-op.** `ExplorerScreen` computes the filtered list and discards the
-   result, and the DAO's `filename LIKE :filter` has no wildcards, so only an exact filename
-   matches. The remote path uses case-sensitive `contains`.
-2. **Collectors stack up.** `ExplorerViewModel.listFiles()` launches a new permanent
-   `combine(path, search).collect` on every call — every connect and pull-to-refresh adds
-   another, all still reacting to path changes.
-3. **Tags never refresh in-session.** `_tags` is populated once in `init {}` and never
-   updated after `ScanTagsWorker` finishes, so a newly scanned tag is invisible until
-   restart.
-4. **The storage cache setting does nothing.** `MainActivity` builds a `Sketch` instance and
-   discards it without installing it as the singleton, and reads the setting before the DB
-   flow has emitted, so it is always the default.
-5. **`defaultColumnCount` is never wired** to `ExplorerViewModel`, which hardcodes 4.
-6. **The HTTP server binds `0.0.0.0`**, exposing the share to the LAN with `connectionId` as
-   the only thing resembling auth. SMB passwords are stored in plaintext in Room.
-7. **`fallbackToDestructiveMigration()`** despite exported schemas and real auto-migrations —
-   a schema bump silently wipes the cache.
-8. Dead code: `PropertiesLoader`, `ThumbnailRepository`, `VideoDataSource`,
-   `FileRepository.getDataSource`, `ThumbnailStatus.NESTED`, and a stale
-   `app/schemas/com.example.remoteexplorer.*` directory from the package rename.
-9. **No real tests.** `test/` and `androidTest/` hold only IDE scaffolding.
+1. **SMB passwords are stored in plaintext** in Room (`ConnectionDao`), and the HTTP server
+   still treats `connectionId` as the only thing resembling auth. It binds loopback now, so
+   the exposure is other apps on the device rather than the whole LAN.
+2. **Tests are thin.** One unit test file (`FileRepositoryTest`) covering the cached-and-
+   filtered path; there is no `androidTest/` source set at all, so nothing exercises Room,
+   the Ktor server or the JNI decoder.
+3. **The Firebase API key is still in git history** — accepted for now, tracked in issue #15.
+
+The entries that used to live here — search doing nothing, stacked collectors, tags not
+refreshing in-session, the two inert settings, `fallbackToDestructiveMigration()`, the dead
+code and the stale `com.example.remoteexplorer.*` schema directory — were cleared by PRs #6,
+#7, #9, #11 and #12. The reasoning is in those commits; this file tracks what is still true.
