@@ -91,7 +91,14 @@ Two systems, deliberately:
 |---|---|---|---|
 | Pre-merge checks | Forgejo, `.forgejo/workflows/build.yml` | `pull_request` | shellcheck, unit tests, lint |
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
+| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | push to `master` | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
+
+The sideload job is the one that pays for the NDK, holds a signing key of its own
+(`SIDELOAD_KEYSTORE_*`, generated 2026-09-19, alias `sideload`) and cannot be moved to GitHub,
+because fileserver is only reachable from the self-hosted. Obtainium installs from the fileserver URL; it
+could read the Forgejo releases instead only if this repo were public, since its Forgejo
+source has no token field.
 
 `origin` is Forgejo; the release pipeline lives on GitHub and holds the only copy of the
 release keystore (as Actions secrets, which cannot be read back).
