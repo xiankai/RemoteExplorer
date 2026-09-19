@@ -165,13 +165,19 @@ jobs:
           # Instant.now().epochSecond (app/build.gradle.kts), so it is unique and monotonic;
           # versionName is `yyyy-MM-dd HH:mm:ss`, whose space and colons git forbids in a ref,
           # so that stays in the release title where it is readable.
-          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | head -1)
+          # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
+          # first line, so a reader that exits early kills it with SIGPIPE, the pipeline
+          # returns 141 under `set -o pipefail`, and the step fails with a signed APK already
+          # published — which is exactly how run 67 failed. The same trap is documented above
+          # for `yes | sdkmanager`. Capturing the whole (few-KB) output and feeding awk a
+          # here-string leaves no pipe for an early `exit` to break.
+          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk")
           # The regexes below are ANCHORED AT THE END ONLY, on purpose: an awk regex matches a
           # substring, so ` versionCode=` (field 3 carries aapt2's separating space) matches
           # /versionCode=$/ while `compileSdkVersionCodename=` does not. Anchoring the end is
           # what guarantees the NEXT field is the value rather than something further along.
-          code=$(printf '%s\n' "$badging" | awk -F"'" '{ for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }')  # stack-reviewer-ignore: awk matches substrings, so the leading space does not defeat the end anchor — verified against real aapt2 output
-          name=$(printf '%s\n' "$badging" | awk -F"'" '{ for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }')  # stack-reviewer-ignore: same substring-match reasoning as versionCode above
+          code=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: awk matches substrings, so the leading space does not defeat the end anchor — verified against real aapt2 output
+          name=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: same substring-match reasoning as versionCode above
           [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName from $apk"; exit 1; }
           tag="v${code}"
 
