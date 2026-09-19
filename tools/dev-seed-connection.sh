@@ -68,6 +68,10 @@ fi
 # name carries a UNIQUE index, so re-running updates in place rather than duplicating.
 sqlite3 "$tmp/db" <<SQL
 INSERT INTO \`Connection\` (name, hostname, port, username, password, domain, share, lastModified)
+-- The password goes in as PLAINTEXT and stays that way. The app encrypts credentials with a
+-- key held in the Android Keystore, which nothing on this side of adb can reach, so a seeded
+-- row is deliberately exempt: CredentialCipher reads any value without the enc:v1: prefix
+-- as-is. It becomes ciphertext the first time the app saves that connection.
 VALUES ('$(q "$name")', '$(q "$host")', $port, '$(q "$user")', '$(q "$pass")', '$(q "$domain")', '$(q "$share")', $(date +%s)000)
 ON CONFLICT(name) DO UPDATE SET
   hostname=excluded.hostname, port=excluded.port, username=excluded.username,

@@ -16,7 +16,10 @@ import java.util.Date
         SettingsEntity::class,
     ],
     exportSchema = true,
-    version = 8,
+    // 9 carries no schema change: Connection.password is still one TEXT column. The bump
+    // exists so EncryptSavedPasswords has somewhere to run, turning the plaintext already on
+    // disk into ciphertext. See that class.
+    version = 9,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -28,7 +31,7 @@ import java.util.Date
         AutoMigration(from = 7, to = 8)
     ]
 )
-@TypeConverters(Converters::class)
+@TypeConverters(Converters::class, CredentialConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun connectionDao(): ConnectionDao
     abstract fun localDatabaseDao(): LocalDatabaseDao

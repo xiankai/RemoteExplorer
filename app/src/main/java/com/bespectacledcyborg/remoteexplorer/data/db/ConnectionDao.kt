@@ -6,6 +6,7 @@ import androidx.room.Delete
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.bespectacledcyborg.remoteexplorer.data.crypto.SecretText
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +35,8 @@ data class Connection(
     val hostname: String,
     @ColumnInfo(defaultValue = "445") val port: Int = DEFAULT_SMB_PORT,
     val username: String,
-    val password: String,
+    /** Encrypted at rest by CredentialConverters; plaintext only in memory. */
+    val password: SecretText,
     val domain: String,
     val share: String,
 

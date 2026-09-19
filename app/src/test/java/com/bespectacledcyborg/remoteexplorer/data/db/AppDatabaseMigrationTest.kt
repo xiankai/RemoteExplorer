@@ -2,6 +2,8 @@ package com.bespectacledcyborg.remoteexplorer.data.db
 
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
+import com.bespectacledcyborg.remoteexplorer.data.crypto.ReversingCipher
+import com.bespectacledcyborg.remoteexplorer.data.crypto.SecretText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -31,18 +33,23 @@ class AppDatabaseMigrationTest {
         AppDatabase::class.java,
     )
 
+    private val cipher = ReversingCipher()
+
+    /** 5 through 8 are AutoMigrations; 9 rewrites credentials and so has to be supplied. */
+    private fun migrateToLatest() =
+        helper.runMigrationsAndValidate(TEST_DB, 9, true, EncryptSavedPasswords(cipher))
+
     /**
      * The whole declared chain, validated against the exported v8 schema. This is the test that
      * would have caught `fallbackToDestructiveMigration()` wiping the cache on a version bump
      * before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 8 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 9 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
-        // Empty migration list: everything from 5 to 8 is an AutoMigration today, and a future
-        // hand-written one then has to be added here deliberately rather than slipping through.
-        helper.runMigrationsAndValidate(TEST_DB, 8, true).close()
+        // A future migration that nobody wires up fails here rather than on a user's device.
+        migrateToLatest().close()
     }
 
     /**
@@ -61,13 +68,15 @@ class AppDatabaseMigrationTest {
             )
         }
 
-        helper.runMigrationsAndValidate(TEST_DB, 8, true).use { db ->
+        migrateToLatest().use { db ->
             db.query("SELECT name, hostname, username, password, share, port FROM Connection").use { row ->
                 assertTrue("the saved connection did not survive the migration", row.moveToFirst())
                 assertEquals("fixture", row.getString(0))
                 assertEquals("10.0.2.2", row.getString(1))
                 assertEquals("smbuser", row.getString(2))
-                assertEquals("smbpass", row.getString(3))
+                // Encrypted by 9 on the way through, so the check is a round trip rather than
+                // a literal — the credential has to come back out intact, not stay readable.
+                assertEquals(SecretText("smbpass"), cipher.decrypt(row.getString(3)))
                 assertEquals("media", row.getString(4))
                 assertEquals(DEFAULT_SMB_PORT, row.getInt(5))
             }
