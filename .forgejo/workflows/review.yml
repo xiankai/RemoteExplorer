@@ -47,6 +47,12 @@
 #                         get is a one-variable edit, not a code change.
 #   TRUSTED_AUTHORS     — comma-separated allowlist of PR authors
 #
+# FORGEJO_URL below reads `vars.FORGEJO_URL` but that variable CANNOT EXIST: Forgejo
+# rejects any Actions variable whose name starts with FORGEJO_, GITHUB_ or GITEA_ with
+# `400 invalid secret name` (probed on this instance 2026-09-20). The fallback is not a
+# fallback here, it is the configuration. Do not try to set it; rename the variable if it
+# ever has to differ per org.
+#
 # TRIGGER POLICY (cost): push-triggered AND request-triggered — `synchronize`,
 # `reopened`, `review_requested` — with a `concurrency` group holding it to ONE live pass
 # per PR.
@@ -242,7 +248,7 @@ jobs:
           }
         env:
           FORGEJO_URL: ${{ vars.FORGEJO_URL || 'https://forgejo.example.invalid' }}
-          REVIEWER_REPO: ${{ vars.STACK_REVIEWER_REPO || 'xiankai-github/infra' }}
+          REVIEWER_REPO: ${{ vars.STACK_REVIEWER_REPO || 'xiankai-github/stack-reviewer' }}
           REVIEWER_REF: ${{ vars.STACK_REVIEWER_REF || 'reviewer-v1' }}
           STACK_REVIEWER_FORGEJO_TOKEN: ${{ secrets.STACK_REVIEWER_FORGEJO_TOKEN }}
       - name: Checkout the base ref (read-only data — the pre-PR side of the comparison)
