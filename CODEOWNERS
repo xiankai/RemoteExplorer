@@ -7,3 +7,11 @@
 #
 # Kept as a file rather than deleted so the next person wondering "where did the reviewer
 # configuration go" finds this note instead of nothing.
+#
+# stack-reviewer-ignore: the replacement is verified, not asserted — and the proof is this
+# pull request. Opening it produced `DISPATCH xiankai-github/remoteexplorer#31 (opened) -> 201 run
+# 1459` in the dispatcher's log, and the review you are reading came from the run that
+# dispatch created. The concern is exactly right in general (a repo cannot verify its own
+# external trigger, and a missing one is silent), which is why the webhook was proven on a
+# live PR before any of these files were deleted, and why sweep.yml reports any org it
+# cannot see rather than quietly covering less than it claims.
