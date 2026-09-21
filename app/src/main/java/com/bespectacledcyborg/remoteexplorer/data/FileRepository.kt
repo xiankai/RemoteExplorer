@@ -9,6 +9,9 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.hierynomus.smbj.share.File
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.Date
 
@@ -20,6 +23,36 @@ data class File(
     val fileAttributes: Long,
 )
 
+/** Whether a listing may be served from the cache, or must be reconciled first. */
+enum class RefreshMode {
+    /** Reconcile only if the directory has not been synced within the TTL. */
+    IF_STALE,
+
+    /**
+     * Reconcile regardless of the TTL — what pull-to-refresh asks for. Scoped to the one
+     * directory it was requested for; see `ExplorerViewModel.forceRefresh`.
+     */
+    FORCE,
+}
+
+/**
+ * One emission of a directory's contents.
+ *
+ * [syncing] says a reconcile against the share is still in flight, so these rows are the
+ * cached ones and another emission is coming.
+ */
+data class DirectoryListing(
+    val files: List<LocalFile>,
+    val syncing: Boolean,
+)
+
+/**
+ * How long a reconciled directory is trusted before the next visit re-reads it from the
+ * share. Long enough that walking back up and down a tree costs nothing, short enough that
+ * a file dropped on the NAS shows up without reaching for pull-to-refresh.
+ */
+const val DEFAULT_LISTING_TTL_MILLIS = 5 * 60 * 1000L
+
 class FileRepository(
     private val sambaFileDataSource: FileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
@@ -30,6 +63,9 @@ class FileRepository(
     // null (then NPEs inside Sketch) even with unitTests.isReturnDefaultValues. Testing the
     // caching logic should not require Robolectric just to classify a file extension.
     private val canHaveThumbnail: (String) -> Boolean = Utils::canHaveThumbnail,
+    // Injected for the same reason: a test needs to move time without sleeping through a TTL.
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
 ) {
     suspend fun connect(
         connectionId: Int,
@@ -49,7 +85,15 @@ class FileRepository(
         }
     }
 
-    private fun updateRemoteMapping(connectionId: Int, parentPath: String): List<LocalFile> {
+    /**
+     * Reconciles one directory against the share and records the sync.
+     *
+     * The mapped rows are what the *server* knows; the derived state carried in each
+     * [LocalFile] here (`tagStatus`, `thumbnailStatus`) is only meaningful for a file the
+     * cache has never seen, which is why the reconcile applies it to inserts and to changed
+     * files rather than to everything it is handed.
+     */
+    private fun syncDirectory(connectionId: Int, parentPath: String) {
         val remoteList = sambaFileDataSource.listFiles(connectionId, parentPath)
         val mappedRemoteList = remoteList.map {
             LocalFile(
@@ -70,41 +114,60 @@ class FileRepository(
                 lastModified = it.lastModified,
             )
         }
-        localDatabaseDataSource.updateFileList(mappedRemoteList)
-        return mappedRemoteList
+        localDatabaseDataSource.reconcileDirectory(
+            connectionId,
+            parentPath,
+            mappedRemoteList,
+            Date(clock()),
+        )
     }
 
-    suspend fun listFiles(
+    /**
+     * Emits the cached listing first and the reconciled one after, so a directory paints
+     * immediately and the round trip to the share happens behind what is already on screen.
+     *
+     * A directory that has been synced within [listingTtlMillis] is served from the cache
+     * alone — one emission, no network. Otherwise there are two: what we had (marked
+     * `syncing`), then what the share says.
+     *
+     * The single exception is a directory that has never been reconciled *and* has nothing
+     * cached, which emits only once, when the listing arrives. Emitting an empty list first
+     * would flash an empty folder at the user before filling it in.
+     */
+    fun listFiles(
         connectionId: Int,
         currentPath: String = "",
         filter: String = "",
-        forceRemote: Boolean = false
-    ): List<LocalFile> {
-        return withContext(dispatcher) {
-            if (forceRemote) {
-                fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
-            } else {
-                val localList = localDatabaseDataSource.getFiles(connectionId, currentPath, filter)
-                localList.ifEmpty {
-                    fetchRemoteFilesAndFilter(connectionId, currentPath, filter)
-                }
-            }
-        }
-    }
+        refresh: RefreshMode = RefreshMode.IF_STALE,
+    ): Flow<DirectoryListing> = flow {
+        val cached = localDatabaseDataSource.getFiles(connectionId, currentPath, filter)
+        val lastSyncedAt = localDatabaseDataSource.getLastSyncedAt(connectionId, currentPath)
 
-    private fun fetchRemoteFilesAndFilter(
-        connectionId: Int,
-        currentPath: String = "",
-        filter: String = ""
-    ): List<LocalFile> {
-        val unfiltered = updateRemoteMapping(connectionId, currentPath)
-        return if (filter.isNotBlank()) {
-            // ignoreCase to match the DB path, where SQLite's LIKE is already case-insensitive.
-            unfiltered.filter { it.filename.contains(filter, ignoreCase = true) }
-        } else {
-            unfiltered
+        val stale = lastSyncedAt == null ||
+                clock() - lastSyncedAt.time >= listingTtlMillis
+        if (refresh == RefreshMode.IF_STALE && !stale) {
+            emit(DirectoryListing(cached, syncing = false))
+            return@flow
         }
-    }
+
+        // Rows cached by a build that predates DirectorySync have no sync record, so the
+        // emptiness of `cached` is what stands in for "we have nothing to show yet".
+        if (cached.isNotEmpty() || lastSyncedAt != null) {
+            emit(DirectoryListing(cached, syncing = true))
+        }
+
+        syncDirectory(connectionId, currentPath)
+
+        // Re-read rather than emitting what the share returned: the reconcile preserved the
+        // thumbnail and tag status of everything it recognised, and those are not in the
+        // mapped remote rows.
+        emit(
+            DirectoryListing(
+                localDatabaseDataSource.getFiles(connectionId, currentPath, filter),
+                syncing = false,
+            )
+        )
+    }.flowOn(dispatcher)
 
     suspend fun getTagThumbnails(tag: LocalTag, limit: Int): List<String> {
         return localDatabaseDataSource.getFilesWithTag(tag).filter {

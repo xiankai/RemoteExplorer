@@ -58,9 +58,6 @@ interface LocalDatabaseDao {
     )
     fun getTags(): List<LocalTagWithMetadata>
 
-    @Upsert(entity = LocalFile::class)
-    fun updateFileList(files: List<LocalFile>)
-
     @Insert(entity = LocalTag::class, onConflict = OnConflictStrategy.IGNORE)
     fun addTag(tag: LocalTag)
 
@@ -77,6 +74,104 @@ interface LocalDatabaseDao {
         filename: String,
         status: ThumbnailStatus
     )
+
+    // --- Directory reconciliation -------------------------------------------------------
+    //
+    // A refresh used to be a single @Upsert of the whole remote listing, which wrote every
+    // column — including tagStatus and thumbnailStatus, rebuilt as UNPROCESSED by
+    // FileRepository.updateRemoteMapping. So one pull-to-refresh discarded the derived state
+    // of every file in the directory, and the app re-generated every thumbnail and re-read
+    // every .xmp sidecar for a listing that had usually not changed at all. Upsert also has
+    // no way to notice a deletion, so files removed on the server stayed in the cache
+    // forever.
+    //
+    // reconcileDirectory replaces it: insert what is new, touch only the columns the server
+    // owns on what already exists, and delete what the server no longer lists.
+
+    @Query("SELECT filename, lastModified FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun getFileStamps(connectionId: Int, parentPath: String): List<LocalFileStamp>
+
+    /**
+     * IGNORE rather than REPLACE: a row that already exists carries derived state this
+     * listing knows nothing about, and is handled by [refreshChangedFile] instead.
+     */
+    @Insert(entity = LocalFile::class, onConflict = OnConflictStrategy.IGNORE)
+    fun insertNewFiles(files: List<LocalFile>)
+
+    /**
+     * Applied only to a file whose [LocalFile.lastModified] actually moved, so the thumbnail
+     * and the tags are re-derived when the bytes changed and left alone when they did not.
+     */
+    @Query(
+        "UPDATE LocalFile SET type = :type, lastModified = :lastModified, " +
+                "thumbnailStatus = :thumbnailStatus, tagStatus = :tagStatus " +
+                "WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename"
+    )
+    fun refreshChangedFile(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        type: FileType,
+        lastModified: Date,
+        thumbnailStatus: ThumbnailStatus,
+        tagStatus: TagStatus = TagStatus.UNPROCESSED,
+    )
+
+    @Query("DELETE FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename IN (:filenames)")
+    fun deleteFiles(connectionId: Int, parentPath: String, filenames: List<String>)
+
+    // Left behind, a relation still counts towards LocalTag's total in getTags(), which
+    // joins on FileTagRelation rather than on LocalFile — so a deleted file would keep
+    // inflating its tags' counts.
+    @Query("DELETE FROM FileTagRelation WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename IN (:filenames)")
+    fun deleteFileTagRelations(connectionId: Int, parentPath: String, filenames: List<String>)
+
+    @Query("SELECT * FROM DirectorySync WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun getDirectorySync(connectionId: Int, parentPath: String): DirectorySync?
+
+    @Upsert(entity = DirectorySync::class)
+    fun upsertDirectorySync(sync: DirectorySync)
+
+    /**
+     * Brings one directory's cached rows in line with [remote] and records the sync, all in
+     * one transaction so a failure part-way cannot leave the cache claiming to be fresher
+     * than it is.
+     */
+    @Transaction
+    fun reconcileDirectory(
+        connectionId: Int,
+        parentPath: String,
+        remote: List<LocalFile>,
+        syncedAt: Date,
+    ) {
+        val cached = getFileStamps(connectionId, parentPath).associateBy { it.filename }
+        val (known, added) = remote.partition { cached.containsKey(it.filename) }
+
+        insertNewFiles(added)
+
+        known.forEach { file ->
+            if (cached.getValue(file.filename).lastModified != file.lastModified) {
+                refreshChangedFile(
+                    connectionId = connectionId,
+                    parentPath = parentPath,
+                    filename = file.filename,
+                    type = file.type,
+                    lastModified = file.lastModified,
+                    thumbnailStatus = file.thumbnailStatus,
+                )
+            }
+        }
+
+        val listed = remote.mapTo(mutableSetOf()) { it.filename }
+        // Chunked because the filenames become bind parameters, and SQLite caps how many a
+        // single statement may carry. A directory can hold more files than that cap.
+        (cached.keys - listed).chunked(DELETE_CHUNK).forEach { removed ->
+            deleteFileTagRelations(connectionId, parentPath, removed)
+            deleteFiles(connectionId, parentPath, removed)
+        }
+
+        upsertDirectorySync(DirectorySync(connectionId, parentPath, syncedAt))
+    }
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND tagStatus = :status LIMIT :limit")
     fun getUnprocessedTagFiles(
@@ -186,6 +281,37 @@ data class FileTagRelation(
     val filename: String,
     val tag: String
 )
+
+/**
+ * When a directory was last reconciled against the share.
+ *
+ * Its absence is the only thing that distinguishes "never fetched" from "fetched, and the
+ * folder is genuinely empty" — a distinction the cache could not previously make, so an
+ * empty folder re-hit SMB on every single visit.
+ */
+@Entity(
+    primaryKeys = [
+        "connectionId",
+        "parentPath",
+    ]
+)
+data class DirectorySync(
+    val connectionId: Int,
+    val parentPath: String,
+    val lastSyncedAt: Date,
+)
+
+/** Just enough of a cached row to decide insert / update / delete during a reconcile. */
+data class LocalFileStamp(
+    val filename: String,
+    val lastModified: Date,
+)
+
+/**
+ * How many filenames may go into one `IN (...)` clause. SQLite's default ceiling on bind
+ * parameters is 999; staying well under it leaves room for the statement's other arguments.
+ */
+private const val DELETE_CHUNK = 900
 
 enum class FileType {
     FILE, FOLDER, TAG, CONNECTION, ADD_CONNECTION

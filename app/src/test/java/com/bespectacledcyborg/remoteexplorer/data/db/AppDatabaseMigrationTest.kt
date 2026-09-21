@@ -35,21 +35,59 @@ class AppDatabaseMigrationTest {
 
     private val cipher = ReversingCipher()
 
-    /** 5 through 8 are AutoMigrations; 9 rewrites credentials and so has to be supplied. */
+    /**
+     * 5 through 8 and 9 through 10 are AutoMigrations; 9 rewrites credentials and so has to
+     * be supplied.
+     */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 9, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 10, true, EncryptSavedPasswords(cipher))
 
     /**
-     * The whole declared chain, validated against the exported v8 schema. This is the test that
-     * would have caught `fallbackToDestructiveMigration()` wiping the cache on a version bump
-     * before it reached a device, rather than after.
+     * The whole declared chain, validated against the exported v10 schema. This is the test
+     * that would have caught `fallbackToDestructiveMigration()` wiping the cache on a version
+     * bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 9 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 10 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
         migrateToLatest().close()
+    }
+
+    /**
+     * A cached listing from before 10 has no sync record, and must survive the upgrade
+     * intact: those rows are what the explorer paints from on the first launch afterwards,
+     * before the first reconcile has run. Losing them would turn the upgrade into a blank
+     * screen for as long as the share takes to answer.
+     */
+    @Test
+    fun `keeps the cached listing across the table added in 10`() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO LocalFile
+                    (connectionId, parentPath, filename, type, canHaveThumbnail, tagStatus, thumbnailStatus, lastModified)
+                VALUES (1, 'Photos', 'beach.jpg', 'FILE', 1, 'SUCCESS', 'SUCCESS', 0)
+                """.trimIndent()
+            )
+        }
+
+        migrateToLatest().use { db ->
+            db.query("SELECT filename, tagStatus, thumbnailStatus FROM LocalFile").use { row ->
+                assertTrue("the cached listing did not survive the migration", row.moveToFirst())
+                assertEquals("beach.jpg", row.getString(0))
+                // The derived state is the expensive part — a thumbnail already generated and
+                // a sidecar already parsed. An upgrade must not throw either away.
+                assertEquals("SUCCESS", row.getString(1))
+                assertEquals("SUCCESS", row.getString(2))
+            }
+
+            db.query("SELECT COUNT(*) FROM DirectorySync").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals("pre-10 rows must read as never reconciled", 0, row.getInt(0))
+            }
+        }
     }
 
     /**

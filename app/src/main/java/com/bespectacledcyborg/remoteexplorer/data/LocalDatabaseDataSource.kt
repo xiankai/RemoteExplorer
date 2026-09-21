@@ -5,13 +5,25 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import java.util.Date
 
 class LocalDatabaseDataSource(
     private val localDatabaseDao: LocalDatabaseDao,
     private val dispatcher: CoroutineDispatcher
 ) {
-    fun updateFileList(fileList: List<LocalFile>) {
-        localDatabaseDao.updateFileList(fileList)
+    fun reconcileDirectory(
+        connectionId: Int,
+        parentPath: String,
+        remote: List<LocalFile>,
+        syncedAt: Date,
+    ) {
+        localDatabaseDao.reconcileDirectory(connectionId, parentPath, remote, syncedAt)
+    }
+
+    suspend fun getLastSyncedAt(connectionId: Int, parentPath: String): Date? {
+        return withContext(dispatcher) {
+            localDatabaseDao.getDirectorySync(connectionId, parentPath)?.lastSyncedAt
+        }
     }
 
     suspend fun getFiles(connectionId: Int, parentPath: String, filter: String): List<LocalFile> {

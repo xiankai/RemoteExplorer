@@ -39,6 +39,7 @@ fun TagsScreen(
     val tags = explorerViewModel.tagsState.collectAsState()
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
+    val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
     val handleItemClick = { item: Item<LocalTagWithMetadata> ->
         {
@@ -95,6 +96,10 @@ fun TagsScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = { {} },
                     handleRefresh = { explorerViewModel.forceRefresh() },
+                    // Refreshing here re-syncs the directory last browsed, which is what
+                    // discovers new .xmp sidecars and so what makes new tags appear. The
+                    // spinner follows that sync rather than a fixed delay.
+                    isRefreshing = isRefreshing,
                     columnCount = 4,
                     viewType = viewType
                 )
