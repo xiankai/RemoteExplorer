@@ -420,16 +420,6 @@ class ExplorerViewModel(
         _columnCount.update { columnCount }
     }
 
-    fun openFileRange(
-        connectionId: Int,
-        fullPath: String,
-        buffer: ByteArray,
-        start: Int,
-        end: Int
-    ): Int {
-        return fileRepository.openFileRange(connectionId, fullPath, buffer, start, end)
-    }
-
     fun getFileSize(connectionId: Int, fullPath: String): Long {
         return fileRepository.getFileSize(connectionId, fullPath)
     }

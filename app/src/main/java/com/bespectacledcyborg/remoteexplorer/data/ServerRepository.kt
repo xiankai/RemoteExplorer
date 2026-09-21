@@ -27,6 +27,16 @@ import java.net.URLDecoder
 
 const val ENCODING = "UTF-8"
 
+/**
+ * How much to pull per SMB read while serving a range.
+ *
+ * The old loop used 8 KB, which was a sensible size for a buffered local stream and a poor
+ * one for a round trip to a file server: it put a request on the wire for every 8 KB of a
+ * video. 64 KB sits inside the usual SMB2 maximum read size, so it stays one round trip
+ * each while needing an eighth as many.
+ */
+private const val RANGE_CHUNK_BYTES = 64 * 1024
+
 class ServerRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher,
@@ -84,16 +94,29 @@ class ServerRepository(
                         val connectionId = extractConnectionId(call)
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
-                        val file =
-                            sambaFileDataSource.openFile(connectionId, fullPath ?: "")
-                        val totalLength = file.fileInformation.standardInformation.endOfFile
+                        // `use`, because this handler leaked an SMB handle on every call —
+                        // the GET below has always closed its own.
+                        sambaFileDataSource.openFile(connectionId, fullPath ?: "").use { file ->
+                            val totalLength =
+                                file.fileInformation.standardInformation.endOfFile
 
-                        val rangeHeader = call.request.headers[HttpHeaders.Range]
-                        val range = parseRangeHeaders(rangeHeader, totalLength)
-                        val standardHeaders = commonHeaders(file, range.first, range.last)
-                        for (name in standardHeaders.names()) {
-                            standardHeaders.getAll(name)?.forEach { value ->
-                                call.response.headers.append(name, value)
+                            val rangeHeader = call.request.headers[HttpHeaders.Range]
+                            val range = parseRangeHeaders(rangeHeader, totalLength)
+                            if (range == null) {
+                                respondUnsatisfiableRange(call, totalLength)
+                                return@head
+                            }
+
+                            val standardHeaders = commonHeaders(
+                                file, range.first, range.last, totalLength, rangeHeader != null
+                            )
+                            for (name in standardHeaders.names()) {
+                                standardHeaders.getAll(name)?.forEach { value ->
+                                    call.response.headers.append(name, value)
+                                }
+                            }
+                            if (rangeHeader != null) {
+                                call.response.status(HttpStatusCode.PartialContent)
                             }
                         }
                     }
@@ -170,8 +193,14 @@ class ServerRepository(
 
                             val rangeHeader = call.request.headers[HttpHeaders.Range]
                             val range = parseRangeHeaders(rangeHeader, totalLength)
+                            if (range == null) {
+                                respondUnsatisfiableRange(call, totalLength)
+                                return@use
+                            }
 
-                            val standardHeaders = commonHeaders(file, range.first, range.last)
+                            val standardHeaders = commonHeaders(
+                                file, range.first, range.last, totalLength, rangeHeader != null
+                            )
                             for (name in standardHeaders.names()) {
                                 standardHeaders.getAll(name)?.forEach { value ->
                                     call.response.headers.append(name, value)
@@ -183,23 +212,38 @@ class ServerRepository(
                                     "ServerRepository",
                                     "Received range request: $rangeHeader"
                                 )
+                                // A partial body has to say so. This answered 200 with a
+                                // Content-Range attached, which is not a thing: a client
+                                // entitled to take 200 at its word would treat the slice as
+                                // the whole file.
+                                call.response.status(HttpStatusCode.PartialContent)
                                 try {
                                     call.respondOutputStream {
-                                        val input = file.inputStream.buffered()
-                                        input.skip(range.first)
-                                        val buffer = ByteArray(8192)
-                                        var bytesRemaining = range.last - range.first + 1
+                                        // Read AT the offset rather than streaming from zero
+                                        // and discarding. The old code opened the file at
+                                        // byte 0 and skipped forward, so seeking to the end
+                                        // of a 2 GB video pulled 2 GB across the wire to
+                                        // throw it away — which is why seeking in an
+                                        // external player crawled.
+                                        //
+                                        // It was also wrong, not just slow: InputStream.skip
+                                        // may skip fewer bytes than asked and the result was
+                                        // ignored, so a short skip silently served the bytes
+                                        // AFTER the wrong offset. smbj takes the offset
+                                        // directly, which removes the question.
+                                        val buffer = ByteArray(RANGE_CHUNK_BYTES)
+                                        var offset = range.first
+                                        var remaining = range.last - range.first + 1
 
-                                        while (bytesRemaining > 0) {
-                                            // Let the buffered stream handle efficient reading
-                                            val bytesToRead =
-                                                minOf(buffer.size.toLong(), bytesRemaining).toInt()
-                                            val bytesRead = input.read(buffer, 0, bytesToRead)
+                                        while (remaining > 0) {
+                                            val want =
+                                                minOf(buffer.size.toLong(), remaining).toInt()
+                                            val read = file.read(buffer, offset, 0, want)
+                                            if (read <= 0) break
 
-                                            if (bytesRead <= 0) break
-
-                                            write(buffer, 0, bytesRead)
-                                            bytesRemaining -= bytesRead
+                                            write(buffer, 0, read)
+                                            offset += read
+                                            remaining -= read
                                         }
                                     }
                                 } catch (e: Exception) {
@@ -223,32 +267,71 @@ class ServerRepository(
         }
     }
 
-    private fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange {
-        if (rangeHeader != null) {
-            val range = rangeHeader.removePrefix("bytes=")
-            val (start, end) = range.split("-").map { it.toLongOrNull() }
-            return coerceRange(start, end, totalLength)
-        } else {
-            return coerceRange(null, null, totalLength)
-        }
+    /** 416, with the `bytes * /total` the spec asks for so the client can retry sensibly. */
+    private suspend fun respondUnsatisfiableRange(call: RoutingCall, totalLength: Long) {
+        call.response.headers.append(HttpHeaders.ContentRange, "bytes */$totalLength")
+        call.response.status(HttpStatusCode.RequestedRangeNotSatisfiable)
+        call.respondText("Requested range not satisfiable")
     }
 
-    private fun commonHeaders(file: File, start: Long, end: Long): Headers {
+    private fun commonHeaders(
+        file: File,
+        start: Long,
+        end: Long,
+        totalLength: Long,
+        isPartial: Boolean,
+    ): Headers {
         val mimeType = URLConnection.guessContentTypeFromName(file.uncPath)
 
         val requestedLength = end - start + 1
-        return headersOf(
+        val headers = mutableListOf(
             HttpHeaders.AcceptRanges to listOf("bytes"),
             HttpHeaders.ContentType to listOf(mimeType),
             HttpHeaders.ContentLength to listOf(requestedLength.toString()),
-            HttpHeaders.ContentRange to listOf("bytes $start-$end"),
         )
+        // Content-Range belongs on a 206 and nowhere else, and it has to carry the total —
+        // "bytes 0-99" without "/12345" is malformed, and a player that parses it strictly
+        // cannot work out how long the file is or how far it may seek. Both were wrong
+        // here: the total was missing, and the header went out on full responses too.
+        if (isPartial) {
+            headers += HttpHeaders.ContentRange to listOf("bytes $start-$end/$totalLength")
+        }
+        return headersOf(*headers.toTypedArray())
+    }
+}
+
+/**
+ * The byte range to serve, or null when the request asks for one that does not exist.
+ *
+ * Null rather than a clamped range on purpose. `coerceRange` used to pull an
+ * out-of-range start back down to the last byte, so `bytes=5000-` against a 100 byte
+ * file quietly returned byte 99 and called it a success. RFC 7233 wants a 416 there,
+ * and a client that asked past the end needs to be told, not handed something else.
+ */
+internal fun parseRangeHeaders(rangeHeader: String?, totalLength: Long): LongRange? {
+    if (rangeHeader == null) return coerceRange(null, null, totalLength)
+    if (totalLength <= 0) return null
+
+    val spec = rangeHeader.removePrefix("bytes=").substringBefore(",")
+    val start = spec.substringBefore("-").trim().toLongOrNull()
+    val end = spec.substringAfter("-", "").trim().toLongOrNull()
+
+    // "bytes=-500" is the LAST 500 bytes, not the first 501. Splitting on "-" and
+    // reading the halves positionally turned it into the latter, which hands a player
+    // seeking to the end of a file the beginning of it instead.
+    if (start == null) {
+        if (end == null || end <= 0) return null
+        val suffix = end.coerceAtMost(totalLength)
+        return LongRange(totalLength - suffix, totalLength - 1)
     }
 
-    private fun coerceRange(start: Long?, end: Long?, totalLength: Long): LongRange {
-        val actualEnd = end?.coerceAtMost(totalLength - 1) ?: (totalLength - 1)
-        val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
+    if (start >= totalLength) return null
+    return coerceRange(start, end, totalLength)
+}
 
-        return LongRange(actualStart, actualEnd)
-    }
+internal fun coerceRange(start: Long?, end: Long?, totalLength: Long): LongRange {
+    val actualEnd = end?.coerceAtMost(totalLength - 1) ?: (totalLength - 1)
+    val actualStart = start?.coerceAtLeast(0)?.coerceAtMost(actualEnd) ?: 0
+
+    return LongRange(actualStart, actualEnd)
 }
