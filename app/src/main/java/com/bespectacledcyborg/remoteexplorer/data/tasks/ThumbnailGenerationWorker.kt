@@ -48,11 +48,11 @@ class ThumbnailGenerationWorker(
                 val thumbnailManager = ThumbnailManager(applicationContext)
 
                 // Skip if thumbnail already exists
-                if (thumbnailManager.hasThumbnail(fullPath)) {
+                if (thumbnailManager.hasThumbnail(connectionId, fullPath)) {
                     return@withContext Result.success()
                 }
 
-                val thumbnailFile = thumbnailManager.getThumbnailPath(fullPath)
+                val thumbnailFile = thumbnailManager.getThumbnailPath(connectionId, fullPath)
 
                 // Open the original file
                 when (Utils.guessIconType(fullPath)) {
@@ -173,9 +173,16 @@ fun generateFfmpegVideoThumbnailViaLibraries(
 }
 
 fun resizeBitmap(bitmap: Bitmap, thumbnailFile: File) {
+    // Fit inside the box rather than filling it. Scaling straight to THUMBNAIL_SIZE square
+    // ignored the aspect ratio, so every thumbnail that was not already square came out
+    // stretched — which is most photographs.
+    val scale = THUMBNAIL_SIZE.toFloat() / maxOf(bitmap.width, bitmap.height)
+    val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+    val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+
     val scaledBitmap =
-        if (bitmap.width != THUMBNAIL_SIZE || bitmap.height != THUMBNAIL_SIZE) {
-            bitmap.scale(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+        if (bitmap.width != targetWidth || bitmap.height != targetHeight) {
+            bitmap.scale(targetWidth, targetHeight)
         } else {
             bitmap
         }

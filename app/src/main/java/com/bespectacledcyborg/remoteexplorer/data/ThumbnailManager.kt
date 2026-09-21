@@ -13,9 +13,17 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_C
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_FULL_PATH
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_PARENT_PATH
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.thumbnailCacheKey
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * How much of the app's cache directory the thumbnails may occupy. At the 128 px they are
+ * written out as, that is room for tens of thousands of them — far more than a browsing
+ * session touches, while still being a bound rather than no bound at all.
+ */
+private const val MAX_THUMBNAIL_CACHE_BYTES = 256L * 1024 * 1024
 
 class ThumbnailManager(
     val context: Context,
@@ -28,19 +36,43 @@ class ThumbnailManager(
         thumbnailCache.mkdirs()
     }
 
-    fun getThumbnailPath(originalPath: String): File {
-        val hash = originalPath.hashCode().toString() + ".jpg"
-        return File(thumbnailCache, hash)
-    }
+    fun getThumbnailPath(connectionId: Int, originalPath: String): File =
+        File(thumbnailCache, thumbnailCacheKey(connectionId, originalPath))
 
-    fun hasThumbnail(originalPath: String): Boolean {
-        return getThumbnailPath(originalPath).exists()
+    fun hasThumbnail(connectionId: Int, originalPath: String): Boolean =
+        getThumbnailPath(connectionId, originalPath).exists()
+
+    /**
+     * Drops the least recently used thumbnails until the cache is back under its ceiling.
+     *
+     * Nothing bounded this directory before: "Max Storage Cache Size" in settings governs
+     * Sketch's download cache, and these files are ours. Browsing a large library filled the
+     * app's cache directory without limit, and Android reclaims that by deleting the lot at
+     * the least convenient moment.
+     *
+     * Called after a write rather than on a schedule — the only thing that grows the cache
+     * is writing to it.
+     */
+    fun trimToSize(maxBytes: Long = MAX_THUMBNAIL_CACHE_BYTES) {
+        val files = thumbnailCache.listFiles() ?: return
+        var total = files.sumOf { it.length() }
+        if (total <= maxBytes) return
+
+        // lastModified stands in for last use: every entry is written once and then only
+        // read, so age is the only signal available without tracking reads ourselves.
+        files.sortedBy { it.lastModified() }.forEach { file ->
+            if (total <= maxBytes) return
+            val size = file.length()
+            if (file.delete()) total -= size
+        }
     }
 
     private fun queueThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String): Boolean {
         val key = "$connectionId:$parentPath:$fullPath"
         // Skip if already queued or exists
-        if (pendingThumbnails.putIfAbsent(key, true) != null || hasThumbnail(fullPath)) {
+        if (pendingThumbnails.putIfAbsent(key, true) != null ||
+            hasThumbnail(connectionId, fullPath)
+        ) {
             return true
         }
 
