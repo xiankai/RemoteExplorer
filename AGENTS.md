@@ -4,6 +4,10 @@ An Android SMB/CIFS browser aimed at media: save Samba connections, browse folde
 gallery, get thumbnails for images and video, swipe through images, hand other file types to
 external apps, and browse by tags harvested from XMP sidecars.
 
+Tags come from a `TagSource`, chosen per connection. Sidecars are the only implementation and
+the portable default; a remote tag database is the intended second one (issue #29). Whichever
+fills the index, reads always come back out of Room, so browsing by tag stays offline.
+
 Written pre-agentically between Nov 2024 and Apr 2025, dormant until Mar 2026. Treat older
 code as deliberate but undocumented — several oddities below turned out to be load-bearing.
 

@@ -150,6 +150,9 @@ class ExplorerViewModel(
                 _connection.update { connection }
                 _list.update { emptyMap() }
                 _thumbnails.update { emptyMap() }
+                _tagIndexIsPartial.update {
+                    !tagRepository.capabilitiesFor(connection.id).indexesUnvisitedDirectories
+                }
 
                 fileRepository.connect(
                     connection.id,
@@ -335,6 +338,15 @@ class ExplorerViewModel(
 
     private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
     val tagsState = _tags.asStateFlow()
+
+    /**
+     * Whether the tag list covers only what has been browsed.
+     *
+     * True for sidecars, which are discovered by listing the directory holding them — so the
+     * Tags screen has always under-reported, with nothing on screen admitting it.
+     */
+    private val _tagIndexIsPartial = MutableStateFlow(false)
+    val tagIndexIsPartialState: StateFlow<Boolean> = _tagIndexIsPartial.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
         viewModelScope.launch { _path.update { "${tagPrefix}${tag.tag}" } }

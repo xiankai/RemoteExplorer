@@ -7,8 +7,8 @@
 #   - an mp4 with faststart         -> the JNI/ffmpeg thumbnail decoder reads from the
 #                                      START of the stream, so a trailing moov atom would
 #                                      never be found within its 2 MB read window
-#   - .xmp sidecars next to images  -> ScanTagsWorker matches a sidecar to its image by
-#                                      basename, so beach.xmp binds to beach.jpg
+#   - .xmp sidecars next to images  -> a sidecar binds to its image by name, in both
+#                                      conventions: beach.xmp and city.jpg.xmp
 #   - a non-previewable file        -> exercises the ACTION_VIEW handoff path
 set -euo pipefail
 
@@ -65,6 +65,12 @@ XMP
 sidecar beach  holiday beach
 sidecar forest holiday nature
 sidecar sunset beach
+
+# Both sidecar naming conventions are in the wild, and only the first three above use the
+# one that replaces the extension (Lightroom, Bridge). darktable and digiKam keep the whole
+# filename and append .xmp, so this writes city.jpg.xmp next to city.jpg. That convention
+# used to bind to nothing at all and be discarded silently, so it stays covered here.
+sidecar city.jpg cityscape
 
 printf 'Opened through ACTION_VIEW rather than the in-app browser.\n' \
   > "$media/Documents/notes.txt"

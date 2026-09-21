@@ -48,8 +48,15 @@ class LocalDatabaseDataSource(
         }
     }
 
-    fun updateFileTags(connectionId: Int, tagFile: LocalFile, tags: List<String>) {
-        localDatabaseDao.updateFileTags(connectionId, tagFile, tags)
+    suspend fun updateFileTags(
+        connectionId: Int,
+        tagFile: LocalFile,
+        correspondingFilename: String?,
+        tags: List<String>,
+    ) {
+        withContext(dispatcher) {
+            localDatabaseDao.updateFileTags(connectionId, tagFile, correspondingFilename, tags)
+        }
     }
 
     fun updateThumbnailStatus(

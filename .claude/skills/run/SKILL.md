@@ -100,6 +100,9 @@ The fixture tree is built to cover the paths that actually break:
 - `Photos/` — four images, so the 2x2 folder gallery icon is populated
 - `Videos/clip.mp4` — the JNI/ffmpeg thumbnail decoder (written `+faststart`, since the
   decoder reads from the start of the stream and would never find a trailing moov atom)
-- `Photos/*.xmp` — sidecars bound to their image by basename, feeding the Tags screen;
-  `holiday` should show a count of 2
+- `Photos/*.xmp` — sidecars feeding the Tags screen, in both naming conventions: `beach.xmp`
+  binds to `beach.jpg` and `city.jpg.xmp` binds to `city.jpg`. `holiday` should show a count
+  of 2 and `cityscape` a count of 1 — a missing `cityscape` means the full-filename
+  convention has regressed. The screen also says "From folders you have opened", because
+  sidecars are only found in directories that have been listed
 - `Documents/notes.txt` — the `ACTION_VIEW` handoff to an external app

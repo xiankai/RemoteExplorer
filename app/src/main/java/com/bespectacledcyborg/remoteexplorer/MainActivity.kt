@@ -24,6 +24,7 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
+import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
 import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
 import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
@@ -78,9 +79,11 @@ class ExplorerViewModelFactory(
             localDatabaseDataSource,
             defaultDispatcher
         )
+        // Every connection resolves to sidecars, because that is the only source there is.
+        // A connection that names a remote tag database picks a different one here.
         val tagRepository = TagRepository(
-            fileRepository,
-            localDatabaseDataSource
+            localDatabaseDataSource,
+            { XmpSidecarTagSource(fileRepository, localDatabaseDataSource) },
         )
         val connectionDataSource = ConnectionDataSource(
             db.connectionDao()
