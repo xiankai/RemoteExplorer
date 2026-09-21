@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
@@ -164,7 +165,7 @@ class ExplorerViewModel(
                     connection.share,
                 )
 
-                listFiles(connection.id, false)
+                listFiles(connection.id)
             } catch (e: Exception) {
                 _toast.emit("Unable to connect to ${connection.hostname}")
             }
@@ -195,13 +196,27 @@ class ExplorerViewModel(
     }
 
     fun changePath(path: String) {
+        abandonRefreshRequest()
         _path.update { path }
         _navigationStack.update { it.plus(path) }
     }
 
     fun goBack() {
+        abandonRefreshRequest()
         _navigationStack.update { it.dropLast(1) }
         _path.update { _navigationStack.value.lastOrNull().orEmpty() }
+    }
+
+    /**
+     * Drops a pending refresh when we leave the directory it was made in.
+     *
+     * Without this, a refresh interrupted by navigating away stayed pending — and because
+     * the request is matched on path, it would fire later, forcing an unasked-for round trip
+     * the moment that directory was opened again. Leaving the directory abandons it.
+     */
+    private fun abandonRefreshRequest() {
+        _refreshRequest.update { null }
+        _isRefreshing.update { false }
     }
 
     fun getUrl(path: String, thumbnail: Boolean = false): String {
@@ -231,21 +246,34 @@ class ExplorerViewModel(
         _sort.update { sortType }
     }
 
-    // The collector that watches path/search. Held so a second call to listFiles replaces it
-    // rather than adding another: connect() and forceRefresh() both call in, so without this
-    // every refresh left an extra collector alive, each still reacting to later path changes
-    // and re-listing with its own stale forceRemote.
+    // The collector that watches path/search/refresh. Held so a second call to listFiles
+    // replaces it rather than adding another: reconnecting while one is already running
+    // would otherwise leave both alive, each reacting to every later path change.
+    //
+    // A refresh no longer restarts it at all — that is what used to make a single
+    // pull-to-refresh leak into every directory opened afterwards. It goes through
+    // _refreshRequest instead.
     private var listFilesCollector: Job? = null
 
-    private fun listFiles(connectionId: Int, forceRemote: Boolean) {
+    /**
+     * A pull-to-refresh, addressed to the directory it was made in.
+     *
+     * [token] exists so that refreshing the same directory twice produces a value the
+     * StateFlow considers new; without it the second refresh would be dropped as a duplicate.
+     */
+    private data class RefreshRequest(val path: String, val token: Long)
+
+    private val _refreshRequest = MutableStateFlow<RefreshRequest?>(null)
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshingState: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private fun listFiles(connectionId: Int) {
         listFilesCollector?.cancel()
         listFilesCollector = viewModelScope.launch(Dispatchers.IO) {
-            combine(pathState, searchState) { path, search ->
-                Pair(
-                    path,
-                    search
-                )
-            }.collectLatest { (path, search) ->
+            combine(pathState, searchState, _refreshRequest) { path, search, request ->
+                Triple(path, search, request)
+            }.collectLatest { (path, search, request) ->
                 // collectLatest cancels the previous body when a new value arrives, which is
                 // what the hand-rolled job juggling here was approximating.
                 //
@@ -255,31 +283,50 @@ class ExplorerViewModel(
                 // longer exists was a hard crash (STATUS_OBJECT_NAME_NOT_FOUND), so surface
                 // it the way connect() already surfaces a failed connection.
                 try {
-                    val files = if (path.startsWith(tagPrefix)) {
+                    if (path.startsWith(tagPrefix)) {
                         val tag = path.substringAfter(tagPrefix)
-                        fileRepository.getFilesWithTag(LocalTag(tag))
-                    } else {
-                        fileRepository.listFiles(
-                            connectionId,
-                            path,
-                            search,
-                            forceRemote
-                        )
-                    }.map {
-                        it.copy(
-                            canHaveThumbnail =
-                                Utils.canHaveThumbnail(it.filename)
-                        )
+                        val files = fileRepository.getFilesWithTag(LocalTag(tag))
+                        _list.update { it.plus(path to files.withThumbnailEligibility()) }
+                        fetchThumbnails(connectionId, files)
+                        // A tag listing is assembled from rows already in the database, so
+                        // there is nothing for a refresh to wait on.
+                        _isRefreshing.update { false }
+                        return@collectLatest
                     }
-                    _list.update { it.plus(path to files) }
 
-                    fetchThumbnails(connectionId, files)
-//                    thumbnailsJob(connectionId, files)
-                    scanTagsJob(connectionId, forceRemote)
+                    // The refresh applies to the directory it was requested in and nowhere
+                    // else. This used to be a flag captured by the collector itself, so a
+                    // single pull-to-refresh made *every* directory opened afterwards skip
+                    // the cache and go to the share, for the life of the collector.
+                    val refresh = if (request?.path == path) {
+                        RefreshMode.FORCE
+                    } else {
+                        RefreshMode.IF_STALE
+                    }
+
+                    fileRepository.listFiles(connectionId, path, search, refresh)
+                        .collect { listing ->
+                            _list.update {
+                                it.plus(path to listing.files.withThumbnailEligibility())
+                            }
+                            _isRefreshing.update { listing.syncing }
+
+                            fetchThumbnails(connectionId, listing.files)
+//                          thumbnailsJob(connectionId, listing.files)
+                            if (!listing.syncing) {
+                                scanTagsJob(connectionId, refresh == RefreshMode.FORCE)
+                            }
+                        }
+
+                    // Consumed. Clearing it means returning to this directory later goes
+                    // back through the TTL rather than forcing a second round trip, and the
+                    // identity check avoids swallowing a refresh requested in the meantime.
+                    _refreshRequest.update { if (it === request) null else it }
                 } catch (e: CancellationException) {
                     throw e // collectLatest cancels this body on every new value; not an error.
                 } catch (e: Exception) {
                     Log.e("ExplorerViewModel", "Failed to list '$path'", e)
+                    _isRefreshing.update { false }
                     _toast.emit(
                         "Could not open ${path.ifEmpty { "the share" }}: ${e.message ?: "unknown error"}"
                     )
@@ -288,11 +335,15 @@ class ExplorerViewModel(
         }
     }
 
+    private fun List<LocalFile>.withThumbnailEligibility(): List<LocalFile> = map {
+        it.copy(canHaveThumbnail = Utils.canHaveThumbnail(it.filename))
+    }
+
     fun forceRefresh() {
-        val connection = connectionState.value
-        Log.d("ForceRefresh", "Refreshing for connection: $connection")
-        if (connection != null) {
-            listFiles(connection.id, true)
+        if (connectionState.value == null) return
+        _isRefreshing.update { true }
+        _refreshRequest.update {
+            RefreshRequest(path = _path.value, token = (it?.token ?: 0) + 1)
         }
     }
 
@@ -349,7 +400,10 @@ class ExplorerViewModel(
     val tagIndexIsPartialState: StateFlow<Boolean> = _tagIndexIsPartial.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
-        viewModelScope.launch { _path.update { "${tagPrefix}${tag.tag}" } }
+        viewModelScope.launch {
+            abandonRefreshRequest()
+            _path.update { "${tagPrefix}${tag.tag}" }
+        }
     }
 
     private val _columnCount = MutableStateFlow(SettingsEntity().defaultColumnCount)

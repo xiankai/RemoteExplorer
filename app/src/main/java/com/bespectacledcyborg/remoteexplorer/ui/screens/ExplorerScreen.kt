@@ -73,6 +73,7 @@ fun ExplorerScreen(
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val columnCount by explorerViewModel.columnCountState.collectAsState()
+    val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
@@ -190,6 +191,7 @@ fun ExplorerScreen(
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = { explorerViewModel.forceRefresh() },
                     columnCount = columnCount,
+                    isRefreshing = isRefreshing,
                 )
             }
         },

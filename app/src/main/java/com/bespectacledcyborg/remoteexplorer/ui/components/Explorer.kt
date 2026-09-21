@@ -9,15 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 data class Item<T> (
     val name: String,
@@ -36,20 +29,15 @@ fun <T>Explorer(
     handleRefresh: () -> Unit,
     viewType: ViewType = ViewType.GRID,
     columnCount: Int,
+    // The spinner used to be driven by a local flag cleared after a hardcoded one-second
+    // delay, so it reported a duration rather than a refresh: it stopped while a slow share
+    // was still being listed, and span for a second over a screen that refreshes nothing.
+    // The caller owns it now, and a screen with nothing to refresh passes false.
+    isRefreshing: Boolean = false,
 ) {
-    var isRefreshing by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-
     PullToRefreshBox(
         isRefreshing = isRefreshing,
-        onRefresh = {
-            isRefreshing = true
-            handleRefresh()
-            coroutineScope.launch {
-                delay(1000)
-                isRefreshing = false
-            }
-        },
+        onRefresh = handleRefresh,
     ) {
         if (viewType == ViewType.LIST) {
             LazyColumn {
