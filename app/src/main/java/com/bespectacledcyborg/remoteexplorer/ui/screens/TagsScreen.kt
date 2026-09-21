@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -40,6 +41,7 @@ fun TagsScreen(
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
+    val tagIndexIsPartial by explorerViewModel.tagIndexIsPartialState.collectAsState()
 
     val handleItemClick = { item: Item<LocalTagWithMetadata> ->
         {
@@ -80,6 +82,20 @@ fun TagsScreen(
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Sidecars are only found by listing the folder they sit in, so this list is
+                // as complete as the browsing has been. Saying so beats letting a missing tag
+                // read as "not tagged".
+                if (tagIndexIsPartial) {
+                    Text(
+                        text = "From folders you have opened",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
                 Explorer(
                     getImageUrl = { fullPath, thumbnail -> explorerViewModel.getUrl(fullPath, thumbnail) },
                     items = tags.value.map {

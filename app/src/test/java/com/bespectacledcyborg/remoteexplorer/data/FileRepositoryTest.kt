@@ -472,13 +472,6 @@ private class FakeLocalDatabaseDao(
     override fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType): List<LocalFile> =
         notUsed()
 
-    override fun getCorrespondingFileForTagFile(
-        connectionId: Int,
-        parentPath: String,
-        tagFileType: FileType,
-        filenamePattern: String,
-    ): LocalFile? = notUsed()
-
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")
 }
