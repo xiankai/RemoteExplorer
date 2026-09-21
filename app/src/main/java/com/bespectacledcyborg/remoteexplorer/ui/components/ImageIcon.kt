@@ -47,7 +47,10 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
             placeholder(fallback)
             error(R.drawable.sentiment_very_dissatisfied_24px)
         })
-        val uri = getImageUrl(fullPath, iconType == IconType.VIDEO)
+        // Ask for the thumbnail, not the original. Only video used to, so every photo in the
+        // grid was fetched whole across the wire and downsampled after the bytes had already
+        // arrived — a folder of camera JPEGs is hundreds of megabytes to fill cells of 128 dp.
+        val uri = getImageUrl(fullPath, true)
         val progressPainter = rememberRingProgressPainter()
 
         AsyncImage(
