@@ -122,9 +122,12 @@ class ServerRepository(
                                 return@get
                             }
 
-                            if (source.render(connectionId, decodedPath, thumbnailFile)) {
-                                thumbnailManager.trimToSize()
-                                call.respondFile(thumbnailFile)
+                            val rendered = thumbnailManager.renderInto(connectionId, decodedPath) {
+                                source.render(connectionId, decodedPath, it)
+                            }
+
+                            if (rendered != null) {
+                                call.respondFile(rendered)
                             } else {
                                 Log.d("ServerRepository", "Nothing to render for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)
