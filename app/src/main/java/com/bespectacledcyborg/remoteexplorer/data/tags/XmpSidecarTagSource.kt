@@ -6,6 +6,7 @@ import com.adobe.internal.xmp.XMPMetaFactory
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
+import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 
 /** Dublin Core, the namespace nearly every tagging tool writes keywords into. */
 private const val DUBLIN_CORE_NAMESPACE = "http://purl.org/dc/elements/1.1/"
@@ -47,11 +48,38 @@ class XmpSidecarTagSource(
             val siblings = siblingsByDirectory[tagFile.parentPath].orEmpty()
             val taggedFile = pairSidecarWithMedia(tagFile.filename, siblings)
 
+            if (taggedFile == null) {
+                // Describes nothing in its directory. No point reading it.
+                localDatabaseDataSource.updateFileTags(connectionId, tagFile, null, emptyList())
+                return@forEach
+            }
+
+            // One unreadable sidecar must not take the batch down with it. Throwing here
+            // used to abort the whole scan: everything after the bad file went unindexed and
+            // kept its UNPROCESSED status, so the next scan picked the same file first and
+            // failed the same way — a permanent stall on one corrupt file.
+            //
+            // ERROR is what makes progress guaranteed: getUnprocessedTagFiles only returns
+            // UNPROCESSED, so a file that cannot be parsed is not retried until a refresh
+            // asks for everything again.
+            val tags = try {
+                readTags(connectionId, tagFile)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read tags from ${tagFile.fullPath()}", e)
+                localDatabaseDataSource.updateTagStatus(
+                    connectionId,
+                    tagFile.parentPath,
+                    tagFile.filename,
+                    TagStatus.ERROR,
+                )
+                return@forEach
+            }
+
             localDatabaseDataSource.updateFileTags(
                 connectionId,
                 tagFile,
-                taggedFile?.filename,
-                if (taggedFile == null) emptyList() else readTags(connectionId, tagFile),
+                taggedFile.filename,
+                tags,
             )
         }
 
@@ -59,15 +87,16 @@ class XmpSidecarTagSource(
         return tagFiles.size
     }
 
-    private fun readTags(connectionId: Int, tagFile: LocalFile): List<String> {
-        val handle = fileRepository.openFileDirectly(connectionId, tagFile.fullPath())
-        val xmpMeta = XMPMetaFactory.parse(handle.inputStream)
+    /** Closes the handle: one leaked SMB handle per sidecar exhausts the share's supply. */
+    private fun readTags(connectionId: Int, tagFile: LocalFile): List<String> =
+        fileRepository.openFileDirectly(connectionId, tagFile.fullPath()).use { handle ->
+            val xmpMeta = XMPMetaFactory.parse(handle.inputStream)
 
-        // XMP arrays are 1-indexed.
-        return (1..xmpMeta.countArrayItems(DUBLIN_CORE_NAMESPACE, SUBJECT_PROPERTY)).map {
-            xmpMeta.getArrayItem(DUBLIN_CORE_NAMESPACE, SUBJECT_PROPERTY, it).value
+            // XMP arrays are 1-indexed.
+            (1..xmpMeta.countArrayItems(DUBLIN_CORE_NAMESPACE, SUBJECT_PROPERTY)).map {
+                xmpMeta.getArrayItem(DUBLIN_CORE_NAMESPACE, SUBJECT_PROPERTY, it).value
+            }
         }
-    }
 
     private companion object {
         const val TAG = "XmpSidecarTagSource"

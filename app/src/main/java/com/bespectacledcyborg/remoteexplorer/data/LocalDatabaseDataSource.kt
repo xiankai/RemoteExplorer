@@ -2,6 +2,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
+import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -56,6 +57,17 @@ class LocalDatabaseDataSource(
     ) {
         withContext(dispatcher) {
             localDatabaseDao.updateFileTags(connectionId, tagFile, correspondingFilename, tags)
+        }
+    }
+
+    suspend fun updateTagStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        status: TagStatus,
+    ) {
+        withContext(dispatcher) {
+            localDatabaseDao.updateTagStatus(connectionId, parentPath, filename, status)
         }
     }
 
