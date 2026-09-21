@@ -19,6 +19,17 @@ need magick
 need ffmpeg
 
 here=$(cd "$(dirname "$0")" && pwd)
+
+# The one input this script does not generate. Checked up front alongside the tools,
+# because without it `set -e` would abort mid-seed on a raw ImageMagick error that names
+# neither this script nor the file it wanted.
+exif_source="$here/../fixture/assets/portrait-with-exif-thumbnail.jpg"
+[ -f "$exif_source" ] || {
+  echo "missing fixture asset: $exif_source" >&2
+  echo "it is the only source of an embedded EXIF thumbnail here — see its README" >&2
+  exit 1
+}
+
 mkdir -p "$bench"
 
 # Everything here is deliberately high-entropy. The first attempt at this file used plain
@@ -75,8 +86,7 @@ embedded_photo() {
   local name=$1
   [ -f "$bench/$name" ] && return 0
   echo "  generating $name"
-  magick "$here/../fixture/assets/portrait-with-exif-thumbnail.jpg" \
-    -resize 4000x6000 +noise Gaussian -quality 88 "$bench/$name"
+  magick "$exif_source" -resize 4000x6000 +noise Gaussian -quality 88 "$bench/$name"
 }
 
 embedded_photo embedded-1.jpg

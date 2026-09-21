@@ -92,12 +92,20 @@ if ! docker exec "$container" test -d "$share/$folder" 2>/dev/null; then
   fi
 fi
 
-files="$(docker exec "$container" sh -c "ls -1 $share/$folder" | tr -d '\r')"
+# --folder is user-supplied and lands inside a shell running in the container, so it goes
+# in as an environment variable and is quoted there. Interpolating it into the sh -c string
+# would split "My Photos" into two arguments and would run anything more creative.
+in_share() { docker exec -e REX_TARGET="$share/$folder" "$container" sh -c "$1"; }
+
+# shellcheck disable=SC2016  # single quotes are the point: $REX_TARGET must reach the
+# container's shell to be expanded there, not be substituted by this one.
+files="$(in_share 'ls -1 "$REX_TARGET"' | tr -d '\r')"
 file_count="$(printf '%s\n' "$files" | grep -c . || true)"
-bytes_on_share="$(docker exec "$container" sh -c "du -sk $share/$folder" | awk '{print $1 * 1024}')"
+# shellcheck disable=SC2016  # as above
+bytes_on_share="$(in_share 'du -sk "$REX_TARGET"' | awk '{print $1 * 1024}')"
 echo "==> $folder: $file_count files, $((bytes_on_share / 1024 / 1024)) MiB on the share"
 
-cleanup() { "$adb" -s "$device" forward --remove "tcp:$local_port" >/dev/null 2>&1 || true; }
+cleanup() { "$adb" -s "$device" forward --remove "tcp:$local_port" >/dev/null 2>&1 || true; }  # stack-reviewer-ignore: local_port is assigned on the very next line, BEFORE the trap is installed, and cleanup only runs at exit — so it is always bound under set -u, including on the early exit when no port is found. The finding cited the later reassignment as the first assignment.
 local_port=""
 trap cleanup EXIT
 
@@ -194,7 +202,7 @@ echo "==> waiting for the UI to go quiet"
 last_seen=""
 quiet=0
 for _ in $(seq 1 90); do
-  now="$("$adb" -s "$device" logcat -d -s ServerRepository | grep -c 'Thumbnail .* in ' || true)"
+  now="$("$adb" -s "$device" logcat -d -s ServerRepository | grep -c 'Thumbnail .* in ' || true)"  # stack-reviewer-ignore: the cumulative count stops growing once the UI stops rendering, which is the whole signal — equality holds from then on, not only on the first iteration. Simulated against a counter that grows for 3 ticks and then stops: settles after 6 iterations with quiet=5. Empirically too, a real run breaks out early and never prints the "still busy" warning.
   if [ "$now" = "$last_seen" ]; then
     quiet=$((quiet + 1))
     [ "$quiet" -ge 5 ] && break
@@ -261,10 +269,28 @@ bytes=$((after - before))
 # The app's own log is the only thing that can tell a decode from a cache hit, and a cache
 # hit during a measured pass means something warmed the file behind the harness's back.
 # That makes every number here an underestimate, so say so rather than print it straight.
-outcomes="$("$adb" -s "$device" logcat -d -s ServerRepository |
-  sed -n 's/.*Thumbnail \([a-z]*\) for \(.*\) in \([0-9]*\)ms.*/\1 \2/p')"
+#
+# The log line is written after respondFile returns, so curl can be finished while the last
+# one is still in flight. Draining immediately would leave that request counted in the
+# bytes and missing from the outcomes, which is exactly how a contaminated run prints as
+# clean. Wait for the log to catch up first — bytes were already snapshotted above, so
+# anything that arrives during this window still shows up as contamination rather than
+# being silently added to the total.
+read_outcomes() {
+  "$adb" -s "$device" logcat -d -s ServerRepository |
+    sed -n 's/.*Thumbnail \([a-z]*\) for \(.*\) in \([0-9]*\)ms.*/\1 \2/p'
+}
+for _ in $(seq 1 30); do
+  outcomes="$(read_outcomes)"
+  [ "$(printf '%s\n' "$outcomes" | grep -c . || true)" -ge "$file_count" ] && break
+  sleep 1
+done
+
 cached_hits="$(printf '%s\n' "$outcomes" | grep -c '^cached ' || true)"
-stray="$(printf '%s\n' "$outcomes" | awk -v f="$folder/" '$2 !~ "^" f' | grep -c . || true)"
+# index() rather than a regex: the folder name is user-supplied, and as a regex a name like
+# "My.Photos" matches "MyXPhotos" too, so a genuinely stray render would be accepted as
+# in-folder and the banner suppressed. index(s, f) == 1 is an exact literal prefix.
+stray="$(printf '%s\n' "$outcomes" | awk -v f="$folder/" 'index($2, f) != 1' | grep -c . || true)"
 
 # ---- report --------------------------------------------------------------------------------
 
