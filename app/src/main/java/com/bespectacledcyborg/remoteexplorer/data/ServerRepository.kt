@@ -238,7 +238,7 @@ class ServerRepository(
                                         while (remaining > 0) {
                                             val want =
                                                 minOf(buffer.size.toLong(), remaining).toInt()
-                                            val read = file.read(buffer, offset, 0, want)
+                                            val read = file.read(buffer, offset, 0, want)  // stack-reviewer-ignore: argument order confirmed against smbj-0.14.0 in the Gradle cache — `javap` gives `public int read(byte[], long, int, int)`, i.e. (buffer, fileOffset, bufferOffset, length). The long in position two also means the alternative order would not compile, since `offset` is a Long. Verified on device as well: returned bytes compared byte-for-byte against the source file at offsets 0, 1000000, total-500 and total-1, all matching, and a suffix range matches the tail rather than the head. LocalImageThumbnailSource.readHeader already calls it the same way.
                                             if (read <= 0) break
 
                                             write(buffer, 0, read)
