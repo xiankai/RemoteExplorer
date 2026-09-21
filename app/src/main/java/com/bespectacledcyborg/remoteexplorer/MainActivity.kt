@@ -25,6 +25,9 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalVideoThumbnailSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
 import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
 import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
@@ -104,10 +107,22 @@ class ExplorerViewModelFactory(
 
         // ThumbnailManager needs WorkManager up and running
         val thumbnailManager = ThumbnailManager(application.applicationContext)
+
+        // Resolved per media type, so video can be pointed elsewhere without moving images
+        // with it. Both are on-device today and neither writes to the share.
+        val videoThumbnails = LocalVideoThumbnailSource(sambaFileDataSource)
+        val thumbnailSources = ThumbnailSources { type ->
+            when (type) {
+                IconType.VIDEO -> videoThumbnails
+                else -> null
+            }
+        }
+
         val serverRepository = ServerRepository(
             sambaFileDataSource,
             defaultDispatcher,
-            thumbnailManager
+            thumbnailManager,
+            thumbnailSources,
         )
 
         @Suppress("UNCHECKED_CAST")

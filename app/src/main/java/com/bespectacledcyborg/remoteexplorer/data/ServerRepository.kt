@@ -1,8 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
-import com.bespectacledcyborg.remoteexplorer.data.tasks.generateFfmpegVideoThumbnailViaLibraries
-import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
 import com.hierynomus.smbj.share.File
@@ -32,6 +31,7 @@ class ServerRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher,
     private val thumbnailManager: ThumbnailManager,
+    private val thumbnailSources: ThumbnailSources,
 ) {
     private fun extractConnectionId(call: RoutingCall): Int {
         val connectionId: Int =
@@ -104,29 +104,34 @@ class ServerRepository(
                         )
 
                         if (isThumbnail) {
+                            val thumbnailFile =
+                                thumbnailManager.getThumbnailPath(connectionId, decodedPath)
 
-                            if (thumbnailManager.hasThumbnail(decodedPath)) {
-                                // Serve thumbnail
-                                val thumbnailFile =
-                                    thumbnailManager.getThumbnailPath(decodedPath)
+                            if (thumbnailFile.exists()) {
                                 call.respondFile(thumbnailFile)
+                                return@get
+                            }
+
+                            // Which source handles this file is decided by its media type,
+                            // so images and video can be served from different places.
+                            val source = thumbnailSources.forType(Utils.guessIconType(decodedPath))
+                            if (source == null) {
+                                Log.d("ServerRepository", "No thumbnail source for $decodedPath")
+                                call.response.status(HttpStatusCode.NotFound)
+                                call.respondText("No thumbnail available")
+                                return@get
+                            }
+
+                            val rendered = thumbnailManager.renderInto(connectionId, decodedPath) {
+                                source.render(connectionId, decodedPath, it)
+                            }
+
+                            if (rendered != null) {
+                                call.respondFile(rendered)
                             } else {
-                                if (Utils.guessIconType(decodedPath) == IconType.VIDEO) {
-                                    // Sync video thumbnail generation
-                                    val thumbnailFile =
-                                        thumbnailManager.getThumbnailPath(decodedPath)
-                                    val stream = sambaFileDataSource.openFile(
-                                        connectionId,
-                                        decodedPath
-                                    ).inputStream
-                                    generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
-                                    call.respondFile(thumbnailFile)
-                                } else {
-                                    Log.d("ServerRepository", "Thumbnail not yet available")
-                                    // Respond with a placeholder or error
-                                    call.response.status(HttpStatusCode.NotFound)
-                                    call.respondText("Thumbnail not yet available")
-                                }
+                                Log.d("ServerRepository", "Nothing to render for $decodedPath")
+                                call.response.status(HttpStatusCode.NotFound)
+                                call.respondText("No thumbnail available")
                             }
                             return@get
                         }
