@@ -21,6 +21,10 @@ Useful flags: `--variant releaseDebug` (installs side by side under a `.released
 application id, signed with the debug keystore so it installs without CI's signing
 material), `--device <serial>`, `--no-build`.
 
+To measure rather than eyeball — how much a folder of thumbnails costs in bytes and wall
+clock — use `tools/bench/thumbnails.sh`; `tools/bench/README.md` explains what it does and
+does not cover.
+
 **Check anything touching ffmpeg/JNI, the Ktor server or packaging on `releaseDebug`.**
 Several bugs in this repo's history reproduced only there and never in `debug`.
 

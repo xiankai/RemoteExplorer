@@ -45,6 +45,11 @@ class ServerRepository(
 
     suspend fun startup() {
         val port = findAvailablePort()
+        // The port is chosen at random each launch, and until now nothing said which one.
+        // Every consumer gets it through constructUrl, so the app never needed to know —
+        // but anything outside the app does, and there was no way to find out short of
+        // reading /proc/net/tcp. tools/bench reads this line.
+        Log.i("ServerRepository", "Serving SMB over HTTP on 127.0.0.1:$port")
         return withContext(dispatcher) {
             // Loopback only. This server re-serves the whole SMB share over plain HTTP with
             // no authentication — `connectionId` is a small integer, not a credential — so
@@ -104,11 +109,25 @@ class ServerRepository(
                         )
 
                         if (isThumbnail) {
+                            // How long this request took, and which of the three ways it
+                            // ended. A cache hit and a render differ by orders of magnitude,
+                            // so a single average over them says nothing — tools/bench
+                            // separates them on this line. It is also the only per-file
+                            // timing the app emits at all, which is what made the cost of
+                            // this endpoint guesswork before.
+                            val startedAt = System.currentTimeMillis()
+                            fun logOutcome(outcome: String) = Log.d(
+                                "ServerRepository",
+                                "Thumbnail $outcome for $decodedPath in " +
+                                        "${System.currentTimeMillis() - startedAt}ms"
+                            )
+
                             val thumbnailFile =
                                 thumbnailManager.getThumbnailPath(connectionId, decodedPath)
 
                             if (thumbnailFile.exists()) {
                                 call.respondFile(thumbnailFile)
+                                logOutcome("cached")
                                 return@get
                             }
 
@@ -119,6 +138,7 @@ class ServerRepository(
                                 Log.d("ServerRepository", "No thumbnail source for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)
                                 call.respondText("No thumbnail available")
+                                logOutcome("unsupported")
                                 return@get
                             }
 
@@ -128,10 +148,12 @@ class ServerRepository(
 
                             if (rendered != null) {
                                 call.respondFile(rendered)
+                                logOutcome("rendered")
                             } else {
                                 Log.d("ServerRepository", "Nothing to render for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)
                                 call.respondText("No thumbnail available")
+                                logOutcome("failed")
                             }
                             return@get
                         }
