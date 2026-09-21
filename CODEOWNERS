@@ -1,5 +1,9 @@
-# stack-reviewer (Level 2, .forgejo/workflows/review.yml) reviews every PR to this
-# repo. CODEOWNERS makes Forgejo auto-request its review when a PR opens, which fires
-# the `review_requested` workflow trigger for the initial round (and on re-request).
-# Forgejo matches paths with regex; ".*" covers every file.
-.* @stack-reviewer
+# Nothing is owned by the reviewer any more.
+#
+# This file existed to make Forgejo auto-request `stack-reviewer` on every PR, which fired
+# review.yml's `review_requested` trigger. Both are gone: reviews now come from
+# xiankai-github/stack-reviewer, which hears about this repo through a SYSTEM webhook and
+# sweeps it hourly regardless. A repo no longer carries anything to be reviewed.
+#
+# Kept as a file rather than deleted so the next person wondering "where did the reviewer
+# configuration go" finds this note instead of nothing.
