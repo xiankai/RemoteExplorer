@@ -93,41 +93,33 @@ interface LocalDatabaseDao {
         type: FileType = FileType.TAG
     ): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND type != :tagFileType AND filename LIKE :filenamePattern LIMIT 1")
-    fun getCorrespondingFileForTagFile(
-        connectionId: Int,
-        parentPath: String,
-        tagFileType: FileType = FileType.TAG,
-        filenamePattern: String
-    ): LocalFile?
-
+    /**
+     * Records one sidecar's tags against the file it describes.
+     *
+     * Which file that is used to be decided here, by a `LIKE` query against the directory.
+     * That belonged to the source rather than to the DAO — see
+     * `com.bespectacledcyborg.remoteexplorer.data.tags.pairSidecarWithMedia`, which also
+     * documents the two ways the query got it wrong. [correspondingFilename] is null when the
+     * sidecar describes nothing in its directory, which marks it REMOVED.
+     */
     @Transaction
-    fun updateFileTags(connectionId: Int, tagFile: LocalFile, tags: List<String>) {
-        // Find corresponding tag file
-        val filenamePattern = tagFile.filename.substringBeforeLast('.').plus(".%")
+    fun updateFileTags(
+        connectionId: Int,
+        tagFile: LocalFile,
+        correspondingFilename: String?,
+        tags: List<String>,
+    ) {
         val parentPath = tagFile.parentPath
-        val correspondingFile = getCorrespondingFileForTagFile(
-            connectionId,
-            parentPath,
-            filenamePattern = filenamePattern
-        )
 
-        // If cannot find, mark as REMOVED
-        if (correspondingFile == null) {
+        if (correspondingFilename == null) {
             updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.REMOVED)
             return
         }
 
-        // Add tag mappings
-        tags.map {
+        tags.forEach {
             addTag(LocalTag(it))
             addFileTagRelation(
-                FileTagRelation(
-                    connectionId,
-                    parentPath,
-                    correspondingFile.filename,
-                    it
-                )
+                FileTagRelation(connectionId, parentPath, correspondingFilename, it)
             )
         }
         updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.SUCCESS)
