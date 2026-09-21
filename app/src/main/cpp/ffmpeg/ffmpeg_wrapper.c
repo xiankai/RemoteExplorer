@@ -88,12 +88,43 @@ static int64_t seek_packet(void *opaque, int64_t offset, int whence) {
     return ctx->position;
 }
 
+// Fits (width, height) inside a max_size box, preserving aspect ratio.
+//
+// Never enlarges: max_size <= 0, or a frame already inside the box, comes back unchanged.
+// Upscaling here would only move work that resizeBitmap on the Kotlin side already does,
+// and doing it in two places is how the two drift apart.
+static void fit_within(int width, int height, int max_size, int *out_width, int *out_height) {
+    int longest = width > height ? width : height;
+    if (max_size <= 0 || longest <= max_size) {
+        *out_width = width;
+        *out_height = height;
+        return;
+    }
+
+    double scale = (double) max_size / (double) longest;
+    // At least one pixel each way: a 4000x1 frame would otherwise round to zero height and
+    // sws_getContext would fail on it.
+    int w = (int) (width * scale);
+    int h = (int) (height * scale);
+    *out_width = w > 0 ? w : 1;
+    *out_height = h > 0 ? h : 1;
+}
+
 // Function to convert frame to RGBA for Android bitmap and include dimensions
-static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame) {
-    // Create a SwsContext for the color conversion
+//
+// The scale happens HERE, in the colour conversion that has to run anyway, rather than
+// after the frame has crossed JNI. sws_scale resizes and converts in one pass, so asking
+// it for the thumbnail size costs nothing extra and shrinks everything downstream: a 4K
+// frame handed back whole is ~33 MB of RGBA, which was then copied again by copyOfRange in
+// VideoDecoder and finally thrown away at 128 px. At the target size it is ~64 KB.
+static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame, int max_size) {
+    int dst_width, dst_height;
+    fit_within(frame->width, frame->height, max_size, &dst_width, &dst_height);
+
+    // Create a SwsContext for the colour conversion AND the resize
     struct SwsContext *sws_ctx = sws_getContext(
             frame->width, frame->height, frame->format,   // Source format
-            frame->width, frame->height,
+            dst_width, dst_height,
             AV_PIX_FMT_RGBA, // Destination format (Android bitmap format)
             SWS_BILINEAR, NULL, NULL, NULL);
 
@@ -111,12 +142,12 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame) {
     }
 
     // Set dimensions and format
-    rgba_frame->width = frame->width;
-    rgba_frame->height = frame->height;
+    rgba_frame->width = dst_width;
+    rgba_frame->height = dst_height;
     rgba_frame->format = AV_PIX_FMT_RGBA;
 
     // Calculate required buffer size and allocate
-    int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
+    int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, dst_width, dst_height, 1);
     uint8_t *buffer = (uint8_t *) av_malloc(buffer_size);
     if (!buffer) {
         LOGE("Could not allocate RGBA buffer");
@@ -127,28 +158,35 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame) {
 
     // Setup the data pointers and linesize for the output frame
     av_image_fill_arrays(rgba_frame->data, rgba_frame->linesize, buffer,
-                         AV_PIX_FMT_RGBA, frame->width, frame->height, 1);
+                         AV_PIX_FMT_RGBA, dst_width, dst_height, 1);
 
-    // Convert the frame from its current format to RGBA
+    // Convert the frame from its current format to RGBA, at the destination size.
+    // srcSliceH stays the SOURCE height — it describes how much of the input is being fed
+    // in, not how big the output is.
     sws_scale(sws_ctx, (const uint8_t *const *) frame->data, frame->linesize, 0,
               frame->height, rgba_frame->data, rgba_frame->linesize);
+
+    LOGI("Converted frame %dx%d -> %dx%d (%d bytes)", frame->width, frame->height,
+         dst_width, dst_height, buffer_size);
 
     // Create Java byte array for the RGBA data with extra 8 bytes for width and height
     jbyteArray result = (*env)->NewByteArray(env, buffer_size + 8);
     if (result) {
-        // First 4 bytes: width (int)
+        // First 4 bytes: width (int). The DESTINATION size — the caller builds a bitmap of
+        // exactly these dimensions and copies the pixels in, so reporting the source size
+        // here would overrun.
         jbyte width_bytes[4];
-        width_bytes[0] = (frame->width >> 24) & 0xFF;
-        width_bytes[1] = (frame->width >> 16) & 0xFF;
-        width_bytes[2] = (frame->width >> 8) & 0xFF;
-        width_bytes[3] = frame->width & 0xFF;
+        width_bytes[0] = (dst_width >> 24) & 0xFF;
+        width_bytes[1] = (dst_width >> 16) & 0xFF;
+        width_bytes[2] = (dst_width >> 8) & 0xFF;
+        width_bytes[3] = dst_width & 0xFF;
 
         // Next 4 bytes: height (int)
         jbyte height_bytes[4];
-        height_bytes[0] = (frame->height >> 24) & 0xFF;
-        height_bytes[1] = (frame->height >> 16) & 0xFF;
-        height_bytes[2] = (frame->height >> 8) & 0xFF;
-        height_bytes[3] = frame->height & 0xFF;
+        height_bytes[0] = (dst_height >> 24) & 0xFF;
+        height_bytes[1] = (dst_height >> 16) & 0xFF;
+        height_bytes[2] = (dst_height >> 8) & 0xFF;
+        height_bytes[3] = dst_height & 0xFF;
 
         // Set the width and height bytes
         (*env)->SetByteArrayRegion(env, result, 0, 4, width_bytes);
@@ -171,7 +209,8 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame) {
 JNIEXPORT jbyteArray JNICALL
 Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env,
                                                                                     jobject thiz,
-                                                                                    jbyteArray videoBytes) {
+                                                                                    jbyteArray videoBytes,
+                                                                                    jint maxSize) {
     jbyteArray bitmapData = NULL;
     AVFormatContext *format_ctx = NULL;
     AVCodecContext *codec_ctx = NULL;
@@ -353,7 +392,7 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
             LOGI("Decoded frame (width: %d, height: %d)", frame->width, frame->height);
 
             // Convert to bitmap format (RGBA) with embedded dimensions
-            bitmapData = frame_to_bitmap_bytes(env, frame);
+            bitmapData = frame_to_bitmap_bytes(env, frame, (int) maxSize);
 
             av_packet_unref(packet);
             break; // Stop after first frame

@@ -3,6 +3,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.graphics.createBitmap
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 
 class VideoDecoder {
     companion object {
@@ -27,8 +28,12 @@ class VideoDecoder {
 
         Log.d(TAG, "Decoding video frame from ${videoBytes.size} bytes")
 
-        // Call native method to decode frame
-        val combinedData = decodeVideoFrameNative(videoBytes) ?: run {
+        // Call native method to decode frame, already scaled to the thumbnail box. The
+        // native side used to hand back the frame at full resolution — a 4K frame is about
+        // 33 MB of RGBA — which crossed JNI, was copied again below, and was then thrown
+        // away at 128 px. sws_scale has to run anyway for the colour conversion, so giving
+        // it the target size costs nothing and shrinks everything after it.
+        val combinedData = decodeVideoFrameNative(videoBytes, THUMBNAIL_SIZE) ?: run {
             Log.e(TAG, "Failed to decode video frame")
             return null
         }
@@ -74,6 +79,8 @@ class VideoDecoder {
     }
 
     // Native method - returns byte array with width (4 bytes) and height (4 bytes)
-    // followed by the actual RGBA bitmap data
-    private external fun decodeVideoFrameNative(videoBytes: ByteArray): ByteArray?
+    // followed by the actual RGBA bitmap data, scaled so its longest edge is at most
+    // maxSize. The bound is passed in rather than duplicated in C, so THUMBNAIL_SIZE has
+    // one definition; a frame already inside the box comes back untouched.
+    private external fun decodeVideoFrameNative(videoBytes: ByteArray, maxSize: Int): ByteArray?
 }

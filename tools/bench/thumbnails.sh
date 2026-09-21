@@ -112,7 +112,15 @@ trap cleanup EXIT
 # ---- start the app and find the server -------------------------------------------------
 
 echo "==> launching $appid"
-"$adb" -s "$device" shell am force-stop "$appid"
+# Stop the OTHER variant too. They install side by side and each runs its own SMB session,
+# HTTP server and ffmpeg decodes, so one left running competes for the emulator's CPU and
+# the share. Measured: a releaseDebug pass read 76s with debug still up and 28s without
+# it — enough to look like a release-only regression that does not exist.
+for other in com.bespectacledcyborg.remoteexplorer.debug \
+             com.bespectacledcyborg.remoteexplorer.releasedebug \
+             com.bespectacledcyborg.remoteexplorer; do
+  "$adb" -s "$device" shell am force-stop "$other"
+done
 "$adb" -s "$device" exec-out run-as "$appid" sh -c 'rm -f cache/thumbnails/*' || true
 "$adb" -s "$device" logcat -c
 "$adb" -s "$device" shell am start -W \
