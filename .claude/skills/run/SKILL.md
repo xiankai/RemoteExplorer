@@ -18,7 +18,8 @@ Builds, installs, launches, screenshots, and prints any crash from logcat. Read 
 screenshot back to confirm the change — a green build proves nothing about the UI.
 
 Useful flags: `--variant releaseDebug` (installs side by side under a `.releasedebug`
-application id), `--device <serial>`, `--no-build`.
+application id, signed with the debug keystore so it installs without CI's signing
+material), `--device <serial>`, `--no-build`.
 
 **Check anything touching ffmpeg/JNI, the Ktor server or packaging on `releaseDebug`.**
 Several bugs in this repo's history reproduced only there and never in `debug`.
@@ -41,6 +42,13 @@ Then add the connection to the app — write it straight into Room rather than t
 
 ```bash
 tools/dev-seed-connection.sh
+```
+
+It targets the `debug` application id. Each variant has its own data directory, so a
+side-by-side `releaseDebug` install needs its own row:
+
+```bash
+REX_APPID=com.bespectacledcyborg.remoteexplorer.releasedebug tools/dev-seed-connection.sh
 ```
 
 | field | value |
