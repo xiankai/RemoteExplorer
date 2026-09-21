@@ -165,6 +165,9 @@ interface LocalDatabaseDao {
         val listed = remote.mapTo(mutableSetOf()) { it.filename }
         // Chunked because the filenames become bind parameters, and SQLite caps how many a
         // single statement may carry. A directory can hold more files than that cap.
+        //
+        // An empty `remote` deletes the directory's cached rows, and that is intended.
+        // stack-reviewer-ignore: reaching here at all means SMB answered successfully — smbj throws on a failed or missing directory (STATUS_OBJECT_NAME_NOT_FOUND was a hard crash here until it was caught in ExplorerViewModel), so an empty listing is the server saying the directory is empty, not a transient blip. Guarding the delete on `remote.isEmpty()` would trade a speculative failure mode for a certain one: a directory genuinely emptied on the share would keep its stale rows forever, which is the exact staleness this reconcile exists to remove. The loss is also recoverable — rows re-insert on the next listing and sidecars come back UNPROCESSED, so tags re-index.
         (cached.keys - listed).chunked(DELETE_CHUNK).forEach { removed ->
             deleteFileTagRelations(connectionId, parentPath, removed)
             deleteFiles(connectionId, parentPath, removed)

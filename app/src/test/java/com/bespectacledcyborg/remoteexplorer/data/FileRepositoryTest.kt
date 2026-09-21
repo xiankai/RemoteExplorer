@@ -241,6 +241,21 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `an empty listing empties the directory`() = runTest {
+        // Deliberate, and the reason is in the pragma on the delete pass: getting here means
+        // SMB answered, and smbj throws rather than returning empty when a directory is
+        // missing or the share is unreachable. Guarding this would leave a directory that was
+        // genuinely emptied on the share showing its old contents forever.
+        val remote = FakeFileDataSource(emptyList())
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("gone.jpg")))
+
+        val emissions = repository(remote, dao).listFiles(1, "Photos").toList()
+
+        assertEquals(emptyList<String>(), emissions.last().files.map { it.filename })
+        assertEquals(emptyList<String>(), dao.getFiles(1, "Photos").map { it.filename })
+    }
+
+    @Test
     fun `records the sync so the next visit can be served from the cache`() = runTest {
         val remote = FakeFileDataSource(listOf(remoteFile("city.jpg")))
         val dao = FakeLocalDatabaseDao(cached = emptyList())

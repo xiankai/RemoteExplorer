@@ -193,13 +193,27 @@ class ExplorerViewModel(
     }
 
     fun changePath(path: String) {
+        abandonRefreshRequest()
         _path.update { path }
         _navigationStack.update { it.plus(path) }
     }
 
     fun goBack() {
+        abandonRefreshRequest()
         _navigationStack.update { it.dropLast(1) }
         _path.update { _navigationStack.value.lastOrNull().orEmpty() }
+    }
+
+    /**
+     * Drops a pending refresh when we leave the directory it was made in.
+     *
+     * Without this, a refresh interrupted by navigating away stayed pending — and because
+     * the request is matched on path, it would fire later, forcing an unasked-for round trip
+     * the moment that directory was opened again. Leaving the directory abandons it.
+     */
+    private fun abandonRefreshRequest() {
+        _refreshRequest.update { null }
+        _isRefreshing.update { false }
     }
 
     fun getUrl(path: String, thumbnail: Boolean = false): String {
@@ -374,7 +388,10 @@ class ExplorerViewModel(
     val tagsState = _tags.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
-        viewModelScope.launch { _path.update { "${tagPrefix}${tag.tag}" } }
+        viewModelScope.launch {
+            abandonRefreshRequest()
+            _path.update { "${tagPrefix}${tag.tag}" }
+        }
     }
 
     private val _columnCount = MutableStateFlow(SettingsEntity().defaultColumnCount)
