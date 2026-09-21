@@ -97,7 +97,13 @@ screenshot alone. `am start -W` blocks until it is drawn.
 
 The fixture tree is built to cover the paths that actually break:
 
-- `Photos/` — four images, so the 2x2 folder gallery icon is populated
+- `Photos/` — four plain images, so the 2x2 folder gallery icon is populated. They carry no
+  EXIF, so their thumbnails come from the decode-the-file fallback
+- `Photos/portrait.jpg` — carries an embedded EXIF thumbnail and orientation 6, so it
+  exercises the fast path: look for `Served … from its embedded thumbnail` in logcat. It is
+  portrait with a top-to-bottom gradient, so a correctly rotated thumbnail shows as
+  landscape with the gradient running left to right — if it appears portrait, rotation has
+  regressed
 - `Videos/clip.mp4` — the JNI/ffmpeg thumbnail decoder (written `+faststart`, since the
   decoder reads from the start of the stream and would never find a trailing moov atom)
 - `Photos/*.xmp` — sidecars feeding the Tags screen, in both naming conventions: `beach.xmp`

@@ -25,6 +25,7 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
@@ -111,9 +112,11 @@ class ExplorerViewModelFactory(
         // Resolved per media type, so video can be pointed elsewhere without moving images
         // with it. Both are on-device today and neither writes to the share.
         val videoThumbnails = LocalVideoThumbnailSource(sambaFileDataSource)
+        val imageThumbnails = LocalImageThumbnailSource(sambaFileDataSource)
         val thumbnailSources = ThumbnailSources { type ->
             when (type) {
                 IconType.VIDEO -> videoThumbnails
+                IconType.IMAGE -> imageThumbnails
                 else -> null
             }
         }

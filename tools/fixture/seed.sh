@@ -23,6 +23,10 @@ need() { command -v "$1" >/dev/null || { echo "missing required tool: $1" >&2; e
 need magick
 need ffmpeg
 
+# Where the committed fixture assets live, relative to this script rather than to the
+# caller's working directory.
+here=$(cd "$(dirname "$0")" && pwd)
+
 rm -rf "$media"
 mkdir -p "$media/Photos" "$media/Videos" "$media/Documents"
 
@@ -35,6 +39,18 @@ image beach  blue
 image forest green
 image city   gray
 image sunset orange
+
+# A photo carrying the thumbnail its camera embedded, which is the fast path for the image
+# grid: the app reads the first ~128 KB and lifts that thumbnail out, rather than pulling
+# the whole file across to throw almost all of it away. The four above have no EXIF at all,
+# so between them the two paths are both covered.
+#
+# The one file here that is copied rather than generated. Neither ImageMagick nor ffmpeg can
+# write an IFD1 thumbnail, and assembling the APP1 segment by hand needs a language runtime
+# this script should not depend on for test data. It is portrait with orientation 6 — a
+# quarter turn clockwise — so a thumbnail that ignores rotation is obvious on sight rather
+# than subtly wrong. See assets/README.md for how it was built.
+cp "$here/assets/portrait-with-exif-thumbnail.jpg" "$media/Photos/portrait.jpg"
 
 # +faststart moves the moov atom to the front; without it the in-app decoder cannot find
 # the stream header in the first chunks it reads and the thumbnail silently fails.
