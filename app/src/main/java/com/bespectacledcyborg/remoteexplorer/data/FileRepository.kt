@@ -185,18 +185,6 @@ class FileRepository(
         return sambaFileDataSource.openFile(connectionId, fullPath)
     }
 
-    fun openFileRange(
-        connectionId: Int,
-        fullPath: String,
-        buffer: ByteArray,
-        start: Int,
-        len: Int
-    ): Int {
-        val inputStream = sambaFileDataSource.openFile(connectionId, fullPath).inputStream
-        inputStream.skipNBytes(start.toLong())
-        return inputStream.readNBytes(buffer, 0, len)
-    }
-
     fun getFileSize(connectionId: Int, fullPath: String): Long {
         val file = sambaFileDataSource.openFile(connectionId, fullPath)
         return file.fileInformation.standardInformation.allocationSize
