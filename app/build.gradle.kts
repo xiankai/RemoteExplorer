@@ -83,9 +83,26 @@ android {
             applicationIdSuffix = ".debug"
         }
 
+        // Runs the release configuration on a dev machine, side by side with debug. It is
+        // never distributed — no CI job builds it — so the two departures below buy local
+        // usability at no cost to what ships. What it is actually for is the packaging and
+        // native half of release: the 16 KB page-size fix, the ktor/Jetty breakage and an NDK
+        // segfault all reproduced only in release, and none of them turns on either setting.
         register("releaseDebug") {
             initWith(getByName("release"))
             applicationIdSuffix = ".releasedebug"
+            // `run-as` is refused on a non-debuggable package, and it is the only way into the
+            // app's private data directory on a Play-image emulator, where `adb root` is not
+            // available. Without this, tools/dev-seed-connection.sh cannot write the fixture
+            // connection and the variant cannot be driven past the empty Connections screen.
+            isDebuggable = true
+            // initWith copies release's signing config, which a plain clone does not have —
+            // keystore.properties and the .jks live only in CI secrets. An unsigned APK still
+            // builds and then fails at install with INSTALL_PARSE_FAILED_NO_CERTIFICATES, so
+            // fall back to the debug keystore, which the SDK generates on demand.
+            if (!hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {

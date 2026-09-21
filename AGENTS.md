@@ -59,11 +59,17 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
 - **Release-only bugs are a recurring class here.** The 16 KB page-size fix, the ktor/Jetty
   breakage and an NDK segfault all reproduced only in release. Check anything touching
   ffmpeg/JNI, the Ktor server or packaging with `--variant releaseDebug`, which installs
-  side by side under a `.releasedebug` application id.
+  side by side under a `.releasedebug` application id. It departs from `release` in exactly
+  two ways, both so it can be run at all on a dev machine: it is `isDebuggable` (otherwise
+  `run-as` is refused and `dev-seed-connection.sh` cannot write the fixture connection, and
+  a Play-image emulator has no `adb root`), and it falls back to the debug keystore. Neither
+  touches packaging or the native build, which is what the variant is for.
 - **Signing is optional by design.** `keystore.properties` and the `.jks` are gitignored;
   the build registers the release signing config only when both exist, so a plain clone can
-  build `debug`. CI writes both before building. Consequence: a release task with no
-  signing material produces an *unsigned* artifact rather than failing loudly.
+  build `debug`. CI writes both before building. Consequence: a `release` task with no
+  signing material produces an *unsigned* artifact rather than failing loudly — and an
+  unsigned APK builds fine and then dies at install with
+  `INSTALL_PARSE_FAILED_NO_CERTIFICATES`. `releaseDebug` is exempt, per above.
 - **macOS ships bash 3.2.** No `mapfile`, no `${var^}`. Scripts in `tools/` target 3.2.
 - **Port 445 is taken on macOS** by its own SMB server, which is why the fixture publishes
   1445 and why `Connection.port` exists.
