@@ -20,6 +20,16 @@
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
 
+# ffmpeg_wrapper.c calls back into RemoteRandomAccess by name — readAt(J[BII)I and size()J
+# — so nothing on the Kotlin side references those from Kotlin, and a shrinker is free to
+# rename or remove them. Minification is currently off (see app/build.gradle.kts), which
+# makes this rule inert rather than unnecessary: turning it on without this would break
+# video thumbnails at run time, in release only, with nothing to see at compile time.
+-keepclassmembers class com.bespectacledcyborg.remoteexplorer.data.thumbnails.RemoteRandomAccess {
+    public int readAt(long, byte[], int, int);
+    public long size();
+}
+
 # Please add these rules to your existing keep rules in order to suppress warnings.
 # This is generated automatically by the Android Gradle plugin.
 -dontwarn java.lang.Module

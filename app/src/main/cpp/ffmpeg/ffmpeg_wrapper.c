@@ -96,8 +96,18 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
         return AVERROR(EIO);
     }
 
-    if (read <= 0)
+    if (read < 0)
         return AVERROR_EOF;
+
+    if (read == 0) {
+        // Not end of file: the check above already established there are bytes left, so a
+        // zero-length read is the share answering with nothing rather than the file ending.
+        // Reporting EOF here would be the same lie the old shim told — the demuxer would
+        // take a stalled read as the end of the stream and stop looking.
+        LOGE("readAt returned nothing at position %lld of %lld", (long long) ctx->position,
+             (long long) ctx->length);
+        return AVERROR(EIO);
+    }
 
     (*env)->GetByteArrayRegion(env, ctx->transfer, 0, read, (jbyte *) buf);
     ctx->position += read;
