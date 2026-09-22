@@ -1,9 +1,12 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import LocalDatabaseDataSource
+import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectorySync
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
+import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
+import com.bespectacledcyborg.remoteexplorer.data.db.TaggedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFileStamp
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -545,6 +548,27 @@ private class FakeLocalDatabaseDao(
 
     override fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType): List<LocalFile> =
         notUsed()
+
+    // The rolled-up tag index. None of it is reachable from FileRepository, and the real
+    // queries are covered against a real database in TagIndexDaoTest — a fake reimplementing
+    // a UNION would only ever agree with whatever this file thought it said.
+    override fun getDirectoriesWithTag(tag: String): List<TaggedDirectory> = notUsed()
+
+    override fun getTagIndexIngest(connectionId: Int): TagIndexIngest? = notUsed()
+
+    override fun upsertTagIndexIngest(ingest: TagIndexIngest) = notUsed()
+
+    override fun upsertTaggedDirectory(directory: TaggedDirectory) = notUsed()
+
+    override fun addDirTagRelation(relation: DirTagRelation) = notUsed()
+
+    override fun deleteDirTagRelations(connectionId: Int, parentPath: String) = notUsed()
+
+    override fun deleteTaggedDirectory(connectionId: Int, parentPath: String) = notUsed()
+
+    override fun deleteAllDirTagRelations(connectionId: Int) = notUsed()
+
+    override fun deleteAllTaggedDirectories(connectionId: Int) = notUsed()
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

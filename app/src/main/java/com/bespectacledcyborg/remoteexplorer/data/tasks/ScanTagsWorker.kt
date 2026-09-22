@@ -26,9 +26,13 @@ class ScanTagsWorker(
         }
 
         return try {
-            val scannedTagCount = tagRepository.scanTags(connectionId, forceRemote, batchSize)
-            if (scannedTagCount == batchSize) {
-                // Since we hit the max limit, there may be more requests to process
+            val progress = tagRepository.scanTags(connectionId, forceRemote, batchSize)
+            if (progress.mayHaveMore) {
+                // The source says another pass would find more. This used to be inferred
+                // from the count equalling the batch size, which only holds for a source
+                // that walks files one at a time — one that fetches a whole index in a
+                // single go returns a count unrelated to the limit, and the walk sharing
+                // the pass would have stopped after its first batch.
                 val workRequest = OneTimeWorkRequestBuilder<ScanTagsWorker>()
                     .setInputData(
                         workDataOf(

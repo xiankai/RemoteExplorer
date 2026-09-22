@@ -14,15 +14,47 @@ import java.util.Date
 
 @Dao
 interface LocalDatabaseDao {
+    /**
+     * Files carrying [tag], from either kind of relation.
+     *
+     * Two sources with different shapes: a sidecar tags one file, the rolled-up index tags a
+     * whole gallery. UNION rather than UNION ALL, because a file can legitimately be reached
+     * both ways — a gallery tagged `artist:foo` whose own sidecar also says `artist:foo`
+     * would otherwise appear twice in the grid.
+     */
     @Query(
         "SELECT LocalFile.* FROM LocalFile " +
                 "INNER JOIN FileTagRelation " +
                 "ON LocalFile.connectionId = FileTagRelation.connectionId " +
                 "AND LocalFile.parentPath = FileTagRelation.parentPath " +
                 "AND LocalFile.filename = FileTagRelation.filename " +
-                "WHERE FileTagRelation.tag = :tag"
+                "WHERE FileTagRelation.tag = :tag " +
+                "UNION " +
+                "SELECT LocalFile.* FROM LocalFile " +
+                "INNER JOIN DirTagRelation " +
+                "ON LocalFile.connectionId = DirTagRelation.connectionId " +
+                "AND LocalFile.parentPath = DirTagRelation.parentPath " +
+                "WHERE DirTagRelation.tag = :tag"
     )
     fun getFilesWithTag(tag: String): List<LocalFile>
+
+    /**
+     * Directories carrying [tag], whether or not anyone has browsed into them.
+     *
+     * The reason a tag listing can show anything at all for a gallery nobody has opened.
+     * [getFilesWithTag] can only return files the listing cache knows about, so on a fresh
+     * install it answers nothing for the whole index — which is the under-reporting the
+     * index exists to remove, reappearing one level up.
+     */
+    @Query(
+        "SELECT TaggedDirectory.* FROM TaggedDirectory " +
+                "INNER JOIN DirTagRelation " +
+                "ON TaggedDirectory.connectionId = DirTagRelation.connectionId " +
+                "AND TaggedDirectory.parentPath = DirTagRelation.parentPath " +
+                "WHERE DirTagRelation.tag = :tag " +
+                "ORDER BY TaggedDirectory.parentPath"
+    )
+    fun getDirectoriesWithTag(tag: String): List<TaggedDirectory>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun getFiles(connectionId: Int, parentPath: String): List<LocalFile>
@@ -51,10 +83,31 @@ interface LocalDatabaseDao {
         limit: Int = 4
     ): List<String>
 
+    /**
+     * Every tag with how many files carry it.
+     *
+     * The two relations are counted separately and added, rather than joined together: a
+     * single query joining both produces the product of the two matches per tag, so a tag
+     * appearing on three files inside a gallery already tagged with it would report nine.
+     *
+     * The directory side adds up stored file counts rather than counting rows, because
+     * there are no per-file rows to count — and because counting [LocalFile] instead would
+     * report a gallery as holding nothing until someone had browsed into it, which is the
+     * under-reporting this whole index exists to remove.
+     */
     @Query(
-        "SELECT LocalTag.tag, COUNT(FileTagRelation.filename) AS count FROM LocalTag " +
-                "LEFT JOIN FileTagRelation ON LocalTag.tag = FileTagRelation.tag " +
-                "GROUP BY LocalTag.tag"
+        "SELECT LocalTag.tag AS tag, " +
+                "COALESCE(( " +
+                "  SELECT COUNT(*) FROM FileTagRelation " +
+                "  WHERE FileTagRelation.tag = LocalTag.tag " +
+                "), 0) + COALESCE(( " +
+                "  SELECT SUM(TaggedDirectory.fileCount) FROM DirTagRelation " +
+                "  INNER JOIN TaggedDirectory " +
+                "    ON TaggedDirectory.connectionId = DirTagRelation.connectionId " +
+                "   AND TaggedDirectory.parentPath = DirTagRelation.parentPath " +
+                "  WHERE DirTagRelation.tag = LocalTag.tag " +
+                "), 0) AS count " +
+                "FROM LocalTag"
     )
     fun getTags(): List<LocalTagWithMetadata>
 
@@ -246,7 +299,154 @@ interface LocalDatabaseDao {
         }
         updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.SUCCESS)
     }
+
+    // ---- the rolled-up tag index ------------------------------------------------------
+
+    @Query("SELECT * FROM TagIndexIngest WHERE connectionId = :connectionId")
+    fun getTagIndexIngest(connectionId: Int): TagIndexIngest?
+
+    @Upsert
+    fun upsertTagIndexIngest(ingest: TagIndexIngest)
+
+    @Upsert
+    fun upsertTaggedDirectory(directory: TaggedDirectory)
+
+    @Insert(entity = DirTagRelation::class, onConflict = OnConflictStrategy.IGNORE)
+    fun addDirTagRelation(relation: DirTagRelation)
+
+    @Query("DELETE FROM DirTagRelation WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun deleteDirTagRelations(connectionId: Int, parentPath: String)
+
+    @Query("DELETE FROM TaggedDirectory WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun deleteTaggedDirectory(connectionId: Int, parentPath: String)
+
+    @Query("DELETE FROM DirTagRelation WHERE connectionId = :connectionId")
+    fun deleteAllDirTagRelations(connectionId: Int)
+
+    @Query("DELETE FROM TaggedDirectory WHERE connectionId = :connectionId")
+    fun deleteAllTaggedDirectories(connectionId: Int)
+
+    /**
+     * Throws away everything one connection ingested from the index.
+     *
+     * For a full pull, which replaces rather than adds to: the log it is reading is a
+     * different one from whatever produced these rows, so a path that has since lost its
+     * tags would otherwise keep them forever. Sidecar-derived rows are untouched — they came
+     * from files on the share and this knows nothing about them.
+     */
+    @Transaction
+    fun clearIngestedTags(connectionId: Int) {
+        deleteAllDirTagRelations(connectionId)
+        deleteAllTaggedDirectories(connectionId)
+    }
+
+    /**
+     * Applies one record, replacing whatever that path had before.
+     *
+     * The log is append-only and the last record for a path wins, so a re-appended gallery
+     * arrives here as a whole new set of tags rather than a delta — which means the old ones
+     * have to go first. Adding without deleting would accumulate every tag a gallery ever
+     * had, and a tag removed upstream would never disappear.
+     *
+     * A tombstone is the same operation without the insert.
+     */
+    @Transaction
+    fun applyDirectoryTags(
+        connectionId: Int,
+        parentPath: String,
+        tags: List<String>,
+        fileCount: Int,
+        deleted: Boolean,
+    ) {
+        deleteDirTagRelations(connectionId, parentPath)
+
+        if (deleted) {
+            deleteTaggedDirectory(connectionId, parentPath)
+            return
+        }
+
+        // Recorded even with no tags: the directory is still one the index knows about, and
+        // its file count is what a tag added to it later will be counted by.
+        upsertTaggedDirectory(TaggedDirectory(connectionId, parentPath, fileCount))
+        tags.forEach {
+            addTag(LocalTag(it))
+            addDirTagRelation(DirTagRelation(connectionId, parentPath, it))
+        }
+    }
+
+    /**
+     * Applies a file-scoped record, which is the same idea against the other relation.
+     *
+     * Rare — the real index has none today, since the one site that nests has no usable
+     * tags — but the format allows it and a record this cannot store would be dropped
+     * silently, which is the failure this project has produced most often.
+     */
+    @Transaction
+    fun applyFileTags(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+        tags: List<String>,
+        deleted: Boolean,
+    ) {
+        deleteFileTagRelations(connectionId, parentPath, listOf(filename))
+        if (deleted) return
+
+        tags.forEach {
+            addTag(LocalTag(it))
+            addFileTagRelation(FileTagRelation(connectionId, parentPath, filename, it))
+        }
+    }
+
+    /**
+     * One pass over the index, applied as a single transaction.
+     *
+     * All of it or none: a pass that stopped half way would leave the stored offset
+     * disagreeing with the rows, and the next pass would resume from a point it never
+     * actually reached. Since the offset is written here too, either both land or neither
+     * does and the pass simply runs again.
+     *
+     * [replace] is set for a full pull, where the log being read is a different one from
+     * whatever produced the existing rows — so a path that has since lost its tags has to
+     * lose them here rather than keeping them forever.
+     */
+    @Transaction
+    fun applyTagIndex(
+        connectionId: Int,
+        replace: Boolean,
+        directories: List<DirectoryTagUpdate>,
+        files: List<FileTagUpdate>,
+        generation: String,
+        bytesRead: Long,
+    ) {
+        if (replace) clearIngestedTags(connectionId)
+
+        directories.forEach {
+            applyDirectoryTags(connectionId, it.parentPath, it.tags, it.fileCount, it.deleted)
+        }
+        files.forEach {
+            applyFileTags(connectionId, it.parentPath, it.filename, it.tags, it.deleted)
+        }
+
+        upsertTagIndexIngest(TagIndexIngest(connectionId, generation, bytesRead))
+    }
 }
+
+/** One directory-scoped record, in the terms the database stores. */
+data class DirectoryTagUpdate(
+    val parentPath: String,
+    val tags: List<String>,
+    val fileCount: Int,
+    val deleted: Boolean,
+)
+
+/** One file-scoped record, likewise. */
+data class FileTagUpdate(
+    val parentPath: String,
+    val filename: String,
+    val tags: List<String>,
+    val deleted: Boolean,
+)
 
 @Entity(
     primaryKeys = [
@@ -299,6 +499,92 @@ data class FileTagRelation(
     val parentPath: String,
     val filename: String,
     val tag: String
+)
+
+/**
+ * A tag on every file directly inside a directory.
+ *
+ * The shape the rolled-up index actually has: gallery-dl tags a gallery, not a file. Storing
+ * it file-scoped would mean fanning each record out across its contents — about 3.0M rows
+ * for the real library against roughly 17k for this, and every re-ingest would have to
+ * rewrite the fan-out rather than three columns.
+ *
+ * "Directly inside" is exact, not a simplification. Every tagged gallery holds its files at
+ * one level, which the generator now enforces rather than leaving to the current layout, so
+ * this joins to [LocalFile] on `parentPath` equality. If that ever has to bend, the join
+ * becomes a prefix range rather than a different table.
+ */
+@Entity(
+    primaryKeys = [
+        "connectionId",
+        "parentPath",
+        "tag",
+    ]
+)
+data class DirTagRelation(
+    val connectionId: Int,
+    val parentPath: String,
+    val tag: String,
+)
+
+/**
+ * A directory the index has tagged, and how many files it held when it was last tagged.
+ *
+ * The count is stored because a directory-scoped tag has no per-file rows to count, and the
+ * tag list shows a number next to each tag. It comes from the index rather than from
+ * [LocalFile], which only knows about directories that have been browsed — counting rows
+ * there would report a tag as covering nothing until someone happened to visit its gallery.
+ *
+ * Accurate as of the last tag change rather than as of now: the generator re-emits when a
+ * gallery's tags change or its directory's mtime moves, so a count can lag by a rebuild.
+ * That is a number in a list being slightly stale, which nobody can see.
+ */
+@Entity(
+    primaryKeys = [
+        "connectionId",
+        "parentPath",
+    ]
+)
+data class TaggedDirectory(
+    val connectionId: Int,
+    val parentPath: String,
+    val fileCount: Int,
+) {
+    /**
+     * The directory as a listing row, so a tag can show a gallery the app has never browsed
+     * into.
+     *
+     * Not stored, because it is not a fact about the share — it is this row rendered the way
+     * the grid understands. `lastModified` is the epoch for the same reason: the index knows
+     * when a gallery was tagged, not when it was written, and inventing a plausible date
+     * would be worse than an obviously absent one.
+     */
+    fun asFolder(): LocalFile {
+        val path = Paths.get(parentPath)
+        return LocalFile(
+            connectionId = connectionId,
+            parentPath = path.parent?.toString().orEmpty(),
+            filename = path.fileName?.toString() ?: parentPath,
+            type = FileType.FOLDER,
+            canHaveThumbnail = false,
+            lastModified = Date(0),
+        )
+    }
+}
+
+/**
+ * How far one connection's ingest of the rolled-up index has got.
+ *
+ * [bytesRead] is a byte offset into the log rather than a record count, because that is what
+ * makes the next pass a ranged read instead of a re-parse of everything. It only means
+ * anything together with [generation]: the same offset in a rebuilt log points somewhere
+ * arbitrary, which is why a generation change throws both away.
+ */
+@Entity(primaryKeys = ["connectionId"])
+data class TagIndexIngest(
+    val connectionId: Int,
+    val generation: String,
+    val bytesRead: Long,
 )
 
 /**

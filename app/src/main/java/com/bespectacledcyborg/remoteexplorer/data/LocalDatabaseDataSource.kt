@@ -1,4 +1,8 @@
+import com.bespectacledcyborg.remoteexplorer.data.db.DirectoryTagUpdate
+import com.bespectacledcyborg.remoteexplorer.data.db.FileTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
+import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
+import com.bespectacledcyborg.remoteexplorer.data.db.TaggedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
@@ -49,6 +53,23 @@ class LocalDatabaseDataSource(
         }
     }
 
+    suspend fun getTagIndexIngest(connectionId: Int): TagIndexIngest? =
+        withContext(dispatcher) { localDatabaseDao.getTagIndexIngest(connectionId) }
+
+    /** One pass over the rolled-up index, rows and resume offset together. See the DAO. */
+    suspend fun applyTagIndex(
+        connectionId: Int,
+        replace: Boolean,
+        directories: List<DirectoryTagUpdate>,
+        files: List<FileTagUpdate>,
+        generation: String,
+        bytesRead: Long,
+    ) = withContext(dispatcher) {
+        localDatabaseDao.applyTagIndex(
+            connectionId, replace, directories, files, generation, bytesRead
+        )
+    }
+
     suspend fun getTags(): List<LocalTagWithMetadata> {
         return withContext(dispatcher) {
             localDatabaseDao.getTags()
@@ -58,6 +79,12 @@ class LocalDatabaseDataSource(
     suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
         return withContext(dispatcher) {
             localDatabaseDao.getFilesWithTag(tag.tag)
+        }
+    }
+
+    suspend fun getDirectoriesWithTag(tag: LocalTag): List<TaggedDirectory> {
+        return withContext(dispatcher) {
+            localDatabaseDao.getDirectoriesWithTag(tag.tag)
         }
     }
 

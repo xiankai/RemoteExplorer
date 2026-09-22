@@ -30,9 +30,13 @@ class XmpSidecarTagSource(
         supportsWrites = false,
     )
 
-    override suspend fun index(connectionId: Int, reindexAll: Boolean, limit: Int): Int {
+    override suspend fun index(
+        connectionId: Int,
+        reindexAll: Boolean,
+        limit: Int,
+    ): TagIndexProgress {
         val tagFiles = localDatabaseDataSource.getTagFiles(connectionId, reindexAll, limit)
-        if (tagFiles.isEmpty()) return 0
+        if (tagFiles.isEmpty()) return TagIndexProgress.NOTHING
 
         Log.d(TAG, "Scanning ${tagFiles.size} sidecars")
 
@@ -84,7 +88,10 @@ class XmpSidecarTagSource(
         }
 
         Log.d(TAG, "Scanned ${tagFiles.size} sidecars")
-        return tagFiles.size
+        // A full batch means the query was capped rather than exhausted, so there is more of
+        // the share to walk. This is the one source where the count and the limit really do
+        // answer that question, because it processes one sidecar at a time.
+        return TagIndexProgress(tagFiles.size, mayHaveMore = tagFiles.size == limit)
     }
 
     /** Closes the handle: one leaked SMB handle per sidecar exhausts the share's supply. */

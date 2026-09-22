@@ -27,7 +27,13 @@ need ffmpeg
 # caller's working directory.
 here=$(cd "$(dirname "$0")" && pwd)
 
-rm -rf "$media"
+# Empty it rather than replace it. `rm -rf "$media"` deletes the directory the running
+# container has bind-mounted, and a bind mount follows the inode, not the path — so the
+# share the container serves goes empty and STAYS empty however many times this is re-run,
+# until the container is restarted. The app then browses happily from its Room cache and
+# shows a tree that no longer exists, which is a confusing way to discover the problem.
+mkdir -p "$media"
+find "$media" -mindepth 1 -delete
 mkdir -p "$media/Photos" "$media/Videos" "$media/Documents"
 
 # Distinct colours so a thumbnail grid is readable at a glance in a screenshot. No text
