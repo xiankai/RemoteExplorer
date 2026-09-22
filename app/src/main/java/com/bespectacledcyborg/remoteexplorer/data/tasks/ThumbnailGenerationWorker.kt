@@ -11,13 +11,13 @@ import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.RemoteRandomAccess
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 
 const val THUMBNAIL_SIZE = 128
 const val THUMBNAIL_GENERATION_WORK_TAG = "generateThumbnail"
@@ -69,9 +69,18 @@ class ThumbnailGenerationWorker(
                     }
 
                     IconType.VIDEO -> {
-                        val stream =
-                            fileRepository.openFileDirectly(connectionId, fullPath).inputStream
-                        generateFfmpegVideoThumbnailViaLibraries(thumbnailFile, stream)
+                        // The same seekable reader the thumbnail sources use. This worker
+                        // is enqueued from a path that is currently switched off
+                        // (ExplorerViewModel.thumbnailsJob), but it must not be the one
+                        // copy of the old growing-prefix read left behind to be switched
+                        // back on.
+                        RemoteRandomAccess {
+                            fileRepository.openFileDirectly(connectionId, fullPath)
+                        }.use { reader ->
+                            val frame = VideoDecoder().decodeVideoFrame(reader)
+                                ?: throw IllegalStateException("No decodable frame in $fullPath")
+                            resizeBitmap(frame, thumbnailFile)
+                        }
 
                         fileRepository.updateFileThumbnailStatus(
                             connectionId,
@@ -143,33 +152,6 @@ class ThumbnailGenerationWorker(
         // Scale to exact size if needed
         resizeBitmap(bitmap, thumbnailFile)
     }
-}
-
-fun generateFfmpegVideoThumbnailViaLibraries(
-    thumbnailFile: File,
-    inputStream: InputStream
-) {
-    val decoder = VideoDecoder()
-    val bufferSize = 2 * 1024 * 1024
-    val maxTries = 10
-    var nthTry = 1
-    var bytes = inputStream.readNBytes(bufferSize)
-    var bitmap: Bitmap? = null
-    while (nthTry < maxTries) {
-        bitmap = decoder.decodeVideoFrame(bytes)
-        if (bitmap == null) {
-            nthTry++
-            bytes += inputStream.readNBytes(bufferSize)
-        } else {
-            break
-        }
-    }
-
-    resizeBitmap(
-        bitmap
-            ?: throw java.lang.IllegalStateException("Failed to decode video frame after $maxTries"),
-        thumbnailFile
-    )
 }
 
 fun resizeBitmap(bitmap: Bitmap, thumbnailFile: File) {

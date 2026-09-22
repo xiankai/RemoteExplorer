@@ -12,39 +12,97 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-// Custom IO context for reading from memory
+// The buffer FFmpeg reads through. Every refill crosses JNI and then the network, so this
+// is the I/O granularity on the share. It is one constant because the previous code
+// allocated 32 KB and then told avio_alloc_context 4096, so the intended increase never
+// took effect and every read stayed a 4 KB round trip.
+#define AVIO_BUFFER_SIZE 32768
+
+/**
+ * Bridges FFmpeg's AVIO to a RemoteRandomAccess on the Kotlin side — the same seekable
+ * file the platform extractor is handed through MediaDataSource.
+ *
+ * What matters here is the LENGTH. This used to wrap a byte[] holding a 2 MB prefix of the
+ * file and answer AVSEEK_SIZE with that array's length, so the demuxer was told every video
+ * was 2 MB long. A file whose moov atom sits at the end — anything written without
+ * +faststart — could not be reached at all: the demuxer tried to seek there, correctly, and
+ * was refused for being past an end that was not the real one. FFmpeg's seeking was never
+ * the problem; it was reading a truncated buffer impersonating a whole file.
+ */
 typedef struct {
-    uint8_t *buffer;
-    size_t buffer_size;
-    size_t position;
-} MemoryContext;
+    JavaVM *vm;
+    jobject reader;       // Local ref: valid for the whole native call, which is the only
+                          // window in which these callbacks run.
+    jmethodID read_at;
+    jbyteArray transfer;  // readAt fills a Java array, so its bytes need staging somewhere
+                          // before they can be copied into FFmpeg's own buffer.
+    jint transfer_size;
+    int64_t position;
+    int64_t length;
+} ReaderContext;
+
+// Demuxing runs entirely on the thread that called in — avcodec's worker threads decode
+// packets that have already been read, and never touch the AVIOContext — so the env is
+// always found. It is fetched per call rather than cached so that a caller who breaks that
+// assumption fails here instead of using a JNIEnv belonging to another thread.
+static JNIEnv *reader_env(ReaderContext *ctx) {
+    JNIEnv *env = NULL;
+    if ((*ctx->vm)->GetEnv(ctx->vm, (void **) &env, JNI_VERSION_1_6) != JNI_OK)
+        return NULL;
+    return env;
+}
 
 // Read callback for custom IO
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
-    if (!opaque || !buf)
+    if (!opaque || !buf || buf_size <= 0)
         return AVERROR(EINVAL);
 
-    MemoryContext *ctx = (MemoryContext *) opaque;
+    ReaderContext *ctx = (ReaderContext *) opaque;
 
-    if (!ctx->buffer)
-        return AVERROR(EINVAL);
+    JNIEnv *env = reader_env(ctx);
+    if (!env) {
+        LOGE("read_packet called from a thread with no JNI env");
+        return AVERROR(EIO);
+    }
 
-    // Check if we're at or past the end of the buffer
-    if (ctx->position >= ctx->buffer_size)
+    if (ctx->position >= ctx->length)
         return AVERROR_EOF;
 
-    // Calculate how many bytes we can actually read
-    buf_size = FFMIN(buf_size, ctx->buffer_size - ctx->position);
-    if (buf_size <= 0)
+    if (ctx->transfer_size < buf_size) {
+        // FFmpeg normally asks for exactly AVIO_BUFFER_SIZE, but a caller wanting more than
+        // that goes straight through avio_read rather than being split into refills.
+        jbyteArray grown = (*env)->NewByteArray(env, buf_size);
+        if (!grown) {
+            LOGE("Could not allocate a %d byte transfer array", buf_size);
+            return AVERROR(ENOMEM);
+        }
+        if (ctx->transfer)
+            (*env)->DeleteLocalRef(env, ctx->transfer);
+        ctx->transfer = grown;
+        ctx->transfer_size = buf_size;
+    }
+
+    jint read = (*env)->CallIntMethod(env, ctx->reader, ctx->read_at,
+                                      (jlong) ctx->position, ctx->transfer, 0, buf_size);
+
+    if ((*env)->ExceptionCheck(env)) {
+        // The share threw. Clear it so the JNI calls that unwind after this one still work:
+        // the reader has already recorded the cause on the Kotlin side, which is where the
+        // caller looks to tell a share that went away from a file with no frame in it.
+        // Reporting EIO rather than EOF also stops FFmpeg treating a broken connection as a
+        // short file and "succeeding" with whatever it had.
+        (*env)->ExceptionClear(env);
+        LOGE("readAt threw at position %lld", (long long) ctx->position);
+        return AVERROR(EIO);
+    }
+
+    if (read <= 0)
         return AVERROR_EOF;
 
-    // Copy the data
-    memcpy(buf, ctx->buffer + ctx->position, buf_size);
-    ctx->position += buf_size;
+    (*env)->GetByteArrayRegion(env, ctx->transfer, 0, read, (jbyte *) buf);
+    ctx->position += read;
 
-    LOGI("Read %d bytes at position %zu", buf_size, ctx->position - buf_size);
-
-    return buf_size;
+    return read;
 }
 
 // Seek callback for custom IO
@@ -52,14 +110,14 @@ static int64_t seek_packet(void *opaque, int64_t offset, int whence) {
     if (!opaque)
         return AVERROR(EINVAL);
 
-    MemoryContext *ctx = (MemoryContext *) opaque;
-
-    if (!ctx->buffer)
-        return AVERROR(EINVAL);
+    ReaderContext *ctx = (ReaderContext *) opaque;
 
     int64_t new_position;
 
-    switch (whence) {
+    // AVSEEK_FORCE is a flag riding along with the mode, not a mode of its own. Nothing here
+    // streams, so every seek is already forceable and the flag can simply be masked off —
+    // left in, it falls through to the default and fails a seek that should have worked.
+    switch (whence & ~AVSEEK_FORCE) {
         case SEEK_SET:
             new_position = offset;
             break;
@@ -67,23 +125,25 @@ static int64_t seek_packet(void *opaque, int64_t offset, int whence) {
             new_position = ctx->position + offset;
             break;
         case SEEK_END:
-            new_position = ctx->buffer_size + offset;
+            new_position = ctx->length + offset;
             break;
         case AVSEEK_SIZE:
-            return ctx->buffer_size;
+            // The whole point of this rewrite: the real size on the share, so the demuxer
+            // can reach a trailing moov atom instead of being told the file stops early.
+            return ctx->length;
         default:
             LOGE("Invalid whence value: %d", whence);
             return AVERROR(EINVAL);
     }
 
-    if (new_position < 0 || new_position > ctx->buffer_size) {
-        LOGE("Invalid seek position: %lld (buffer size: %zu)", (long long) new_position,
-             ctx->buffer_size);
+    // Landing exactly on the end is legal — it means the next read reports EOF.
+    if (new_position < 0 || new_position > ctx->length) {
+        LOGE("Seek outside the file: %lld (length %lld)", (long long) new_position,
+             (long long) ctx->length);
         return AVERROR(EINVAL);
     }
 
     ctx->position = new_position;
-    LOGI("Seek to position %zu", ctx->position);
 
     return ctx->position;
 }
@@ -209,7 +269,7 @@ static jbyteArray frame_to_bitmap_bytes(JNIEnv *env, AVFrame *frame, int max_siz
 JNIEXPORT jbyteArray JNICALL
 Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNative(JNIEnv *env,
                                                                                     jobject thiz,
-                                                                                    jbyteArray videoBytes,
+                                                                                    jobject reader,
                                                                                     jint maxSize) {
     jbyteArray bitmapData = NULL;
     AVFormatContext *format_ctx = NULL;
@@ -219,46 +279,54 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
     AVFrame *frame = NULL;
     AVIOContext *avio_ctx = NULL;
     uint8_t *avio_buffer = NULL;
-    MemoryContext mem_ctx = {0};
+    ReaderContext reader_ctx = {0};
+    jclass reader_class = NULL;
+    jmethodID size_method = NULL;
+    jlong length = 0;
     int video_stream_idx = -1;
     int ret = 0;
 
-    // Get input video bytes
-    jsize video_length = (*env)->GetArrayLength(env, videoBytes);
-
-    if (video_length <= 0) {
-        LOGE("Invalid input video data (empty array)");
+    if (!reader) {
+        LOGE("No reader supplied");
         goto cleanup;
     }
 
-    LOGI("Received %d bytes of video data", video_length);
-
-    // Create a copy of the Java byte array to ensure memory safety
-    uint8_t *video_data_copy = (uint8_t *) av_malloc(video_length);
-    if (!video_data_copy) {
-        LOGE("Could not allocate memory for video data copy");
+    if ((*env)->GetJavaVM(env, &reader_ctx.vm) != JNI_OK) {
+        LOGE("Could not reach the JavaVM");
         goto cleanup;
     }
 
-    // Get the Java byte array elements and copy them
-    jbyte *video_buffer = (*env)->GetByteArrayElements(env, videoBytes, NULL);
-    if (!video_buffer) {
-        LOGE("Could not access Java byte array");
-        av_free(video_data_copy);
+    // Looked up by name and signature rather than against a fixed class, so the reader is
+    // whatever the caller passes. RemoteRandomAccess is the only one today; keeping the
+    // binding this loose is what lets it and the platform extractor share one reader.
+    reader_class = (*env)->GetObjectClass(env, reader);
+    reader_ctx.read_at = (*env)->GetMethodID(env, reader_class, "readAt", "(J[BII)I");
+    size_method = (*env)->GetMethodID(env, reader_class, "size", "()J");
+    if (!reader_ctx.read_at || !size_method) {
+        LOGE("Reader is missing readAt(J[BII)I or size()J");
+        (*env)->ExceptionClear(env);
         goto cleanup;
     }
 
-    // Copy the data
-    memcpy(video_data_copy, video_buffer, video_length);
+    // Asking for the length first also forces the file open, so a share that has gone away
+    // fails here — before any of FFmpeg's state exists — rather than inside a callback.
+    length = (*env)->CallLongMethod(env, reader, size_method);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        LOGE("size() threw");
+        goto cleanup;
+    }
 
-    // Release the Java byte array immediately after copying
-    (*env)->ReleaseByteArrayElements(env, videoBytes, video_buffer, JNI_ABORT);
-    video_buffer = NULL; // Set to NULL to avoid using it later
+    if (length <= 0) {
+        LOGE("Invalid input video data (empty file)");
+        goto cleanup;
+    }
 
-    // Initialize memory context with our safe copy
-    mem_ctx.buffer = video_data_copy;
-    mem_ctx.buffer_size = video_length;
-    mem_ctx.position = 0;
+    LOGI("Decoding a %lld byte video", (long long) length);
+
+    reader_ctx.reader = reader;
+    reader_ctx.length = length;
+    reader_ctx.position = 0;
 
     // Allocate format context
     format_ctx = avformat_alloc_context();
@@ -267,8 +335,8 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
         goto cleanup;
     }
 
-    // Allocate custom IO buffer with a larger size for better performance
-    avio_buffer = av_malloc(32768); // Increased from 4096 to 32KB
+    // Allocate custom IO buffer
+    avio_buffer = av_malloc(AVIO_BUFFER_SIZE);
     if (!avio_buffer) {
         LOGE("Could not allocate AVIO buffer");
         goto cleanup;
@@ -276,7 +344,7 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
 
     // Create custom IO context
     avio_ctx = avio_alloc_context(
-            avio_buffer, 4096, 0, &mem_ctx,
+            avio_buffer, AVIO_BUFFER_SIZE, 0, &reader_ctx,
             &read_packet, NULL, &seek_packet);
     if (!avio_ctx) {
         LOGE("Could not allocate AVIO context");
@@ -408,15 +476,10 @@ Java_com_bespectacledcyborg_remoteexplorer_data_VideoDecoder_decodeVideoFrameNat
     }
 
     cleanup:
-    // Release video bytes if not already released
-    if (video_buffer) {
-        (*env)->ReleaseByteArrayElements(env, videoBytes, video_buffer, JNI_ABORT);
-    }
-
-    // Free our copy of the video data if it was allocated
-    if (mem_ctx.buffer && mem_ctx.buffer != (uint8_t *) video_buffer) {
-        av_free(mem_ctx.buffer);
-    }
+    // Nothing owns a copy of the file any more — the reader on the Kotlin side does, and
+    // render() closes it. What is left here is FFmpeg's own state plus the staging array.
+    if (reader_ctx.transfer)
+        (*env)->DeleteLocalRef(env, reader_ctx.transfer);
 
     // Clean up FFmpeg resources
     if (frame)

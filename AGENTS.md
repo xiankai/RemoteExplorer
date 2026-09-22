@@ -34,8 +34,13 @@ per-file `tagStatus` / `thumbnailStatus` state machines. `listFiles` serves from
 only hits SMB when the DB is empty or you pull-to-refresh.
 
 **Native.** Prebuilt FFmpeg (`app/src/main/cpp/ffmpeg/`) plus a JNI wrapper that decodes the
-first video frame from an in-memory buffer. It exists because Sketch/Coil's HTTP fetchers
-cannot do partial requests for video.
+first video frame. It is the *second* video decoder: `PlatformVideoThumbnailSource` goes
+first and is cheaper, and FFmpeg covers what the device has no codec for — about 7.6% of the
+real library is DivX/Xvid `.avi`, which is why the native build cannot be deleted (#41).
+
+Both decoders read through one `RemoteRandomAccess`, a seekable ranged reader over SMB:
+Android's `MediaDataSource` and FFmpeg's AVIO callbacks are the same abstraction spelled
+differently. Nothing copies a prefix of the file any more.
 
 ## Running it
 
@@ -79,8 +84,11 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
   silently. `tools/dev-seed-connection.sh` writes the row into Room instead.
 - **Tap by real bounds**, never by eyeballing a screenshot: `adb shell uiautomator dump`,
   then tap the node's centre. Cold start is ~10s; `am start -W` blocks until drawn.
-- **Video fixtures need `+faststart`.** The decoder reads from the start of the stream and
-  will never find a trailing `moov` atom inside its read window.
+- **A trailing `moov` atom is handled now, and used to be fatal.** Neither decoder needs
+  `+faststart` any more — both seek to the end for the index. It was fatal because our AVIO
+  shim answered `AVSEEK_SIZE` with the length of the 2 MB prefix it had copied, so the
+  demuxer was told the file ended before its own index. `no-faststart.mp4` in the bench
+  fixture is the regression test: it must come back 200, not 404.
 - **There is no Firebase.** The `google-services` plugin is applied nowhere, so a
   `google-services.json` would be inert — one was committed for a long time and never read.
   Adding the file alone does nothing; adding the plugin is the actual decision. Its API key

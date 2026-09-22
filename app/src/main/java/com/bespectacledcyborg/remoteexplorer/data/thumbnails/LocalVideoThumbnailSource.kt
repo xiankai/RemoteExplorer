@@ -2,43 +2,52 @@ package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
-import com.bespectacledcyborg.remoteexplorer.data.tasks.generateFfmpegVideoThumbnailViaLibraries
+import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
+import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap
 import java.io.File
 
 /**
  * Decodes the first usable frame with the bundled FFmpeg, on the device.
  *
- * This is the existing behaviour, moved behind [ThumbnailSource] unchanged — including its
- * cost, which is the subject of #28: it reads a growing prefix of the file and re-decodes
- * the whole accumulated buffer on each attempt. Putting it here is what lets that be
- * replaced, or pointed at a server, without touching the caller.
+ * Second in the chain behind [PlatformVideoThumbnailSource], and not redundant: roughly
+ * 7.6% of the library is DivX/Xvid `.avi`, which no Android device has a codec for (#41).
+ *
+ * It now reads through the same [RemoteRandomAccess] the platform extractor uses, so both
+ * ends of the chain seek instead of streaming. What this replaced copied a 2 MB prefix into
+ * a byte array, told FFmpeg that array was the whole file, and — when the frame was not in
+ * it — read another 2 MB and re-probed the whole accumulated buffer, up to nine times. A
+ * file whose `moov` atom sits at the end was unreachable however many rounds it ran.
  */
 class LocalVideoThumbnailSource(
     private val sambaFileDataSource: SambaFileDataSource,
 ) : ThumbnailSource {
 
     override suspend fun render(connectionId: Int, path: String, destination: File): Boolean {
-        sambaFileDataSource.openFile(connectionId, path).use { handle ->
-            // The decoder throws when it cannot find a frame within its read window — an
-            // unsupported codec, a truncated file, or a video whose moov atom sits at the
-            // end (see AGENTS.md on +faststart). That is "nothing to show", not a failure of
-            // the server, so it becomes false and the caller answers 404. A share that has
-            // gone away still throws out of openFile, which is the distinction the interface
-            // documents.
-            try {
-                generateFfmpegVideoThumbnailViaLibraries(destination, handle.inputStream)
-            } catch (e: IllegalStateException) {
-                Log.d(TAG, "No decodable frame in $path", e)
-                return false
-            } catch (e: OutOfMemoryError) {
-                // A large frame can exhaust the heap between the native buffer and the
-                // bitmap. Nothing to show rather than a broken share, and rethrowing would
-                // surface it as a 500 on a file that simply cannot be done here.
-                Log.d(TAG, "Ran out of memory decoding $path", e)
+        val reader = RemoteRandomAccess(sambaFileDataSource, connectionId, path)
+
+        return try {
+            val frame = VideoDecoder().decodeVideoFrame(reader)
+            if (frame == null) {
+                // FFmpeg's read callback can only answer with an error code, so a share
+                // that went away arrives here looking exactly like an unsupported codec —
+                // the same ambiguity the platform extractor has. The reader is what knows
+                // the difference, and the interface requires it: false is "nothing to
+                // show", a throw is a broken backend.
+                reader.failure?.let { throw it }
+                Log.d(TAG, "No decodable frame in $path")
                 return false
             }
+            resizeBitmap(frame, destination)
+            true
+        } catch (e: OutOfMemoryError) {
+            // A large frame can exhaust the heap between the native buffer and the bitmap.
+            // Nothing to show rather than a broken share, and rethrowing would surface it
+            // as a 500 on a file that simply cannot be done here.
+            Log.d(TAG, "Ran out of memory decoding $path", e)
+            false
+        } finally {
+            reader.close()
         }
-        return true
     }
 
     private companion object {
