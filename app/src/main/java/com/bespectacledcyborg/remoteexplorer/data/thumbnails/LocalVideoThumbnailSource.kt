@@ -30,6 +30,12 @@ class LocalVideoThumbnailSource(
             } catch (e: IllegalStateException) {
                 Log.d(TAG, "No decodable frame in $path", e)
                 return false
+            } catch (e: OutOfMemoryError) {
+                // A large frame can exhaust the heap between the native buffer and the
+                // bitmap. Nothing to show rather than a broken share, and rethrowing would
+                // surface it as a 500 on a file that simply cannot be done here.
+                Log.d(TAG, "Ran out of memory decoding $path", e)
+                return false
             }
         }
         return true

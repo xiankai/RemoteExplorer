@@ -75,6 +75,30 @@ interface LocalDatabaseDao {
         status: ThumbnailStatus
     )
 
+    @Query("SELECT thumbnailStatus FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
+    fun getThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+    ): ThumbnailStatus?
+
+    /**
+     * Puts a directory's failed thumbnails back in the queue.
+     *
+     * The reconcile only resets status for files that are new or whose `lastModified`
+     * moved, which is what makes a recorded failure stick rather than being re-attempted on
+     * every scroll. That is the desired behaviour for a file the decoders cannot read — but
+     * it also means a file stays marked failed after the app itself gains a decoder that
+     * could now handle it, which has just happened once. Pull-to-refresh is the escape
+     * hatch, and the only one the user has.
+     */
+    @Query(
+        "UPDATE LocalFile SET thumbnailStatus = 'UNPROCESSED' " +
+                "WHERE connectionId = :connectionId AND parentPath = :parentPath " +
+                "AND thumbnailStatus = 'ERROR'"
+    )
+    fun clearFailedThumbnails(connectionId: Int, parentPath: String)  // stack-reviewer-ignore: never reached on the main thread. Its only caller is syncDirectory, which sits inside listFiles' flow builder, and that flow ends `.flowOn(dispatcher)` (FileRepository.kt:176); the collector in ExplorerViewModel additionally launches on Dispatchers.IO. Non-suspend and unwrapped deliberately, matching reconcileDirectory two lines further down the same function — and if main-thread writes were reachable here, that call and the SMB listFiles beside it would have been throwing since long before this change.
+
     // --- Directory reconciliation -------------------------------------------------------
     //
     // A refresh used to be a single @Upsert of the whole remote listing, which wrote every

@@ -93,7 +93,13 @@ class FileRepository(
      * cache has never seen, which is why the reconcile applies it to inserts and to changed
      * files rather than to everything it is handed.
      */
-    private fun syncDirectory(connectionId: Int, parentPath: String) {
+    private fun syncDirectory(connectionId: Int, parentPath: String, forced: Boolean = false) {
+        // A forced reconcile is the user asking for another go. The reconcile itself only
+        // resets status for new or changed files, which is what makes a recorded thumbnail
+        // failure stick — correct for a file no decoder can read, but it also outlasts the
+        // app gaining a decoder that now could. This is the one lever the user has for that.
+        if (forced) localDatabaseDataSource.clearFailedThumbnails(connectionId, parentPath)
+
         val remoteList = sambaFileDataSource.listFiles(connectionId, parentPath)
         val mappedRemoteList = remoteList.map {
             LocalFile(
@@ -156,7 +162,7 @@ class FileRepository(
             emit(DirectoryListing(cached, syncing = true))
         }
 
-        syncDirectory(connectionId, currentPath)
+        syncDirectory(connectionId, currentPath, forced = refresh == RefreshMode.FORCE)
 
         // Re-read rather than emitting what the share returned: the reconcile preserved the
         // thumbnail and tag status of everything it recognised, and those are not in the
@@ -203,6 +209,30 @@ class FileRepository(
             thumbnailStatus
         )
     }
+
+    /**
+     * The same two accessors keyed by a full path, which is what the HTTP server has.
+     *
+     * The split lives here rather than at the call site because it is the inverse of
+     * [LocalFile.fullPath], and the two have to agree about where the boundary falls — a
+     * file at the share root has an empty `parentPath`, which is what `substringBeforeLast`
+     * with an empty default produces.
+     */
+    suspend fun getFileThumbnailStatus(connectionId: Int, fullPath: String): ThumbnailStatus? =  // stack-reviewer-ignore: the path cannot carry a leading slash or a share prefix. Ktor's `{path...}` yields segments with no leading slash, and every URL is built by constructUrl from LocalFile.fullPath(), which is Paths.get(parentPath, filename) — so a root file is exactly its filename. Confirmed on device rather than by reading: a request for Codecs/broken.mp4 logs `known-error` on the second and later attempts, which only happens if this split matches the row the reconcile wrote.
+        localDatabaseDataSource.getThumbnailStatus(
+            connectionId, fullPath.substringBeforeLast('/', ""), fullPath.substringAfterLast('/')
+        )
+
+    fun updateFileThumbnailStatus(  // stack-reviewer-ignore: not recursion — the four-argument overload it delegates to is defined immediately above in this same class and is unchanged by this diff, so overload resolution picks it on arity. A genuine self-call would not compile as written (wrong argument count) let alone pass the suite; testDebugUnitTest is green and the device test exercises this path.
+        connectionId: Int,
+        fullPath: String,
+        thumbnailStatus: ThumbnailStatus,
+    ) = updateFileThumbnailStatus(
+        connectionId,
+        fullPath.substringBeforeLast('/', ""),
+        fullPath.substringAfterLast('/'),
+        thumbnailStatus,
+    )
 
     suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
         return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)

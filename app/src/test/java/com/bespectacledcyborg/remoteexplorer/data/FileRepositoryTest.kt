@@ -197,6 +197,64 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `a failed thumbnail survives an ordinary reconcile`() = runTest {
+        // The point of recording ERROR at all: an undecodable file must not be re-read and
+        // re-decoded every time its cell scrolls back into view. An unforced listing is
+        // exactly that case, so the record has to outlive it.
+        val remote = FakeFileDataSource(listOf(remoteFile("clip.mp4", lastModified = 10)))
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile("clip.mp4", lastModified = 10, thumbnailStatus = ThumbnailStatus.ERROR)
+            )
+        )
+        now += ttl + 1
+
+        repository(remote, dao).listFiles(1, "Photos").toList()
+
+        assertEquals(ThumbnailStatus.ERROR, dao.getFiles(1, "Photos").single().thumbnailStatus)
+    }
+
+    @Test
+    fun `pull-to-refresh puts a failed thumbnail back in the queue`() = runTest {
+        // And the escape hatch. A recorded failure otherwise outlives the app gaining a
+        // decoder that could now read the file, which has already happened once, so the
+        // user needs some way to ask again that is not reinstalling.
+        val remote = FakeFileDataSource(listOf(remoteFile("clip.mp4", lastModified = 10)))
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile("clip.mp4", lastModified = 10, thumbnailStatus = ThumbnailStatus.ERROR)
+            )
+        )
+
+        repository(remote, dao).listFiles(1, "Photos", refresh = RefreshMode.FORCE).toList()
+
+        assertEquals(
+            ThumbnailStatus.UNPROCESSED,
+            dao.getFiles(1, "Photos").single().thumbnailStatus,
+        )
+    }
+
+    @Test
+    fun `pull-to-refresh leaves a successful thumbnail alone`() = runTest {
+        // Only failures are retried. Clearing SUCCESS too would make every refresh throw
+        // away the whole directory's thumbnails and regenerate them, which is the cost this
+        // work exists to remove.
+        val remote = FakeFileDataSource(listOf(remoteFile("beach.jpg", lastModified = 10)))
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile("beach.jpg", lastModified = 10, thumbnailStatus = ThumbnailStatus.SUCCESS)
+            )
+        )
+
+        repository(remote, dao).listFiles(1, "Photos", refresh = RefreshMode.FORCE).toList()
+
+        assertEquals(
+            ThumbnailStatus.SUCCESS,
+            dao.getFiles(1, "Photos").single().thumbnailStatus,
+        )
+    }
+
+    @Test
     fun `reconciling re-derives a file whose contents changed`() = runTest {
         val remote = FakeFileDataSource(listOf(remoteFile("beach.jpg", lastModified = 20)))
         val dao = FakeLocalDatabaseDao(
@@ -461,6 +519,22 @@ private class FakeLocalDatabaseDao(
         filename: String,
         status: ThumbnailStatus,
     ) = notUsed()
+
+    override fun getThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+    ): ThumbnailStatus? = files.firstOrNull { it.filename == filename }?.thumbnailStatus
+
+    override fun clearFailedThumbnails(connectionId: Int, parentPath: String) {
+        files.replaceAll {
+            if (it.thumbnailStatus == ThumbnailStatus.ERROR) {
+                it.copy(thumbnailStatus = ThumbnailStatus.UNPROCESSED)
+            } else {
+                it
+            }
+        }
+    }
 
     override fun getUnprocessedTagFiles(
         connectionId: Int,

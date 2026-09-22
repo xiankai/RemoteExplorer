@@ -30,11 +30,13 @@ import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnail
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.PlatformVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
 import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
 import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
+import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
@@ -136,11 +138,26 @@ class ExplorerViewModelFactory(
             }
         }
 
+        // Backed by the listing cache, which already carries a thumbnailStatus per file and
+        // already resets it when a file changes on the share — so a recorded failure
+        // expires on exactly the right event without a second store to keep in step.
+        val thumbnailStatuses = object : ThumbnailStatusStore {
+            override suspend fun statusOf(connectionId: Int, path: String) =
+                fileRepository.getFileThumbnailStatus(connectionId, path)
+
+            override suspend fun record(
+                connectionId: Int,
+                path: String,
+                status: ThumbnailStatus,
+            ) = fileRepository.updateFileThumbnailStatus(connectionId, path, status)
+        }
+
         val serverRepository = ServerRepository(
             sambaFileDataSource,
             defaultDispatcher,
             thumbnailManager,
             thumbnailSources,
+            thumbnailStatuses,
         )
 
         @Suppress("UNCHECKED_CAST")
@@ -151,6 +168,7 @@ class ExplorerViewModelFactory(
             connectionRepository,
             tagRepository,
             SettingsRepository(db.settingsDao()),
+            thumbnailManager,
         ) as T
     }
 }
