@@ -80,6 +80,31 @@ class ThumbnailManager(
     }
 
     /**
+     * Renders to a throwaway file, never touching the cache.
+     *
+     * For the `?decoder=` comparison in #41: two implementations rendering the same file
+     * would otherwise share one cache key, so the second would be served the first one's
+     * output and measured at zero. Bypassing the cache also makes every diagnostic request
+     * a cold render, which is the only kind worth timing.
+     *
+     * The caller gets a file it owns and must delete.
+     */
+    suspend fun renderUncached(render: suspend (File) -> Boolean): File? {
+        val scratch = File.createTempFile("probe", SCRATCH_SUFFIX, thumbnailCache)
+        val rendered = try {
+            render(scratch)
+        } catch (e: Exception) {
+            scratch.delete()
+            throw e
+        }
+        if (!rendered || scratch.length() == 0L) {
+            scratch.delete()
+            return null
+        }
+        return scratch
+    }
+
+    /**
      * Drops the least recently used thumbnails until the cache is back under its ceiling.
      *
      * Nothing bounded this directory before: "Max Storage Cache Size" in settings governs

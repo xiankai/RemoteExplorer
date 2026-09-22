@@ -25,8 +25,10 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.FallbackThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalVideoThumbnailSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.PlatformVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
@@ -110,12 +112,25 @@ class ExplorerViewModelFactory(
         val thumbnailManager = ThumbnailManager(application.applicationContext)
 
         // Resolved per media type, so video can be pointed elsewhere without moving images
-        // with it. Both are on-device today and neither writes to the share.
-        val videoThumbnails = LocalVideoThumbnailSource(sambaFileDataSource)
+        // with it. All of these are on-device today and none writes to the share.
+        //
+        // The two video decoders cover different formats, so the default is both in order
+        // rather than a choice between them — see FallbackThumbnailSource. `?decoder=` still
+        // selects one on its own, which is how they get measured separately (#41).
+        val ffmpegVideoThumbnails = LocalVideoThumbnailSource(sambaFileDataSource)
+        val platformVideoThumbnails = PlatformVideoThumbnailSource(sambaFileDataSource)
+        val videoThumbnails = FallbackThumbnailSource(
+            listOf(platformVideoThumbnails, ffmpegVideoThumbnails)
+        )
         val imageThumbnails = LocalImageThumbnailSource(sambaFileDataSource)
-        val thumbnailSources = ThumbnailSources { type ->
+        val thumbnailSources = ThumbnailSources { type, variant ->
             when (type) {
-                IconType.VIDEO -> videoThumbnails
+                IconType.VIDEO -> when (variant) {
+                    "platform" -> platformVideoThumbnails
+                    "ffmpeg" -> ffmpegVideoThumbnails
+                    else -> videoThumbnails
+                }
+
                 IconType.IMAGE -> imageThumbnails
                 else -> null
             }

@@ -145,10 +145,20 @@ class ServerRepository(
                                         "${System.currentTimeMillis() - startedAt}ms"
                             )
 
+                            // `?decoder=` names a specific implementation instead of the
+                            // default for this media type. It is how the two video decoders
+                            // get measured against each other on one build and one set of
+                            // files (#41) — rebuilding between runs makes a before/after
+                            // impossible to trust. A diagnostic request bypasses the cache
+                            // entirely: both decoders would otherwise share one cache key,
+                            // so the second would be handed the first one's output and
+                            // timed at zero.
+                            val variant = call.queryParameters["decoder"]
+
                             val thumbnailFile =
                                 thumbnailManager.getThumbnailPath(connectionId, decodedPath)
 
-                            if (thumbnailFile.exists()) {
+                            if (variant == null && thumbnailFile.exists()) {
                                 call.respondFile(thumbnailFile)
                                 logOutcome("cached")
                                 return@get
@@ -156,7 +166,9 @@ class ServerRepository(
 
                             // Which source handles this file is decided by its media type,
                             // so images and video can be served from different places.
-                            val source = thumbnailSources.forType(Utils.guessIconType(decodedPath))
+                            val source = thumbnailSources.forType(
+                                Utils.guessIconType(decodedPath), variant
+                            )
                             if (source == null) {
                                 Log.d("ServerRepository", "No thumbnail source for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)
@@ -165,13 +177,30 @@ class ServerRepository(
                                 return@get
                             }
 
-                            val rendered = thumbnailManager.renderInto(connectionId, decodedPath) {
-                                source.render(connectionId, decodedPath, it)
+                            val rendered = if (variant != null) {
+                                thumbnailManager.renderUncached {
+                                    source.render(connectionId, decodedPath, it)
+                                }
+                            } else {
+                                thumbnailManager.renderInto(connectionId, decodedPath) {
+                                    source.render(connectionId, decodedPath, it)
+                                }
                             }
 
                             if (rendered != null) {
-                                call.respondFile(rendered)
-                                logOutcome("rendered")
+                                try {
+                                    call.respondFile(rendered)
+                                    logOutcome(
+                                        if (variant != null) "rendered:$variant" else "rendered"
+                                    )
+                                } finally {
+                                    // renderUncached hands over a file the caller owns, and
+                                    // trimToSize deliberately skips .tmp so an orphan is
+                                    // never evicted. respondFile throws if the client hangs
+                                    // up mid-transfer, which a timed benchmark request can
+                                    // do, so the delete cannot sit after it.
+                                    if (variant != null) rendered.delete()
+                                }
                             } else {
                                 Log.d("ServerRepository", "Nothing to render for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)

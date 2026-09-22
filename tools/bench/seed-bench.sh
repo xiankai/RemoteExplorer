@@ -104,5 +104,38 @@ plain_photo() {
 plain_photo plain-1.jpg
 plain_photo plain-2.jpg
 
+# A codec and container spread, in its own folder. Small files on purpose — this set is
+# about which formats each decoder can open, not how fast it does it, so a few seconds of
+# each is enough. It is what showed that the platform extractor and FFmpeg cover different
+# formats rather than one dominating (#41), and what caught a decode failure escaping as a
+# 500 instead of a 404.
+#
+# Each encode is optional: a local ffmpeg without libaom or libtheora should skip that one
+# and carry on rather than abort the whole seed.
+codecs="$media/Codecs"
+mkdir -p "$codecs"
+
+codec() {
+  local name=$1
+  shift
+  [ -f "$codecs/$name" ] && return 0
+  if ffmpeg -loglevel error -y \
+      -f lavfi -i "testsrc=size=1280x720:rate=24,noise=alls=40:allf=t+u" \
+      -t 4 "$@" "$codecs/$name" 2>/dev/null; then
+    echo "  encoded $name"
+  else
+    echo "  skipped $name (this ffmpeg cannot encode it)"
+    rm -f "$codecs/$name"
+  fi
+}
+
+codec h264.mp4  -c:v libx264    -pix_fmt yuv420p -movflags +faststart
+codec hevc.mp4  -c:v libx265    -pix_fmt yuv420p -tag:v hvc1 -movflags +faststart
+codec vp9.webm  -c:v libvpx-vp9 -pix_fmt yuv420p -b:v 1M
+codec av1.mp4   -c:v libaom-av1 -pix_fmt yuv420p -cpu-used 8 -b:v 1M
+codec h264.mkv  -c:v libx264    -pix_fmt yuv420p
+codec mpeg4.avi -c:v mpeg4      -pix_fmt yuv420p
+codec theora.ogv -c:v libtheora -pix_fmt yuv420p -q:v 5
+
 echo "bench tree at $bench:"
 find "$bench" -type f -exec ls -lh {} + | awk '{print "  " $9 " (" $5 ")"}' | sed "s|$bench/||"

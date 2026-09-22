@@ -32,6 +32,13 @@ interface ThumbnailSource {
  * stay local.
  */
 fun interface ThumbnailSources {
-    /** null when nothing can make a thumbnail for this kind of file. */
-    fun forType(type: IconType): ThumbnailSource?
+    /**
+     * null when nothing can make a thumbnail for this kind of file.
+     *
+     * [variant] names a specific implementation instead of the default one for this type.
+     * It exists so the two video decoders can be compared on the same build and the same
+     * files — see #41 — rather than by rebuilding between measurements, which makes a
+     * before/after impossible to trust. An unknown name falls back to the default.
+     */
+    fun forType(type: IconType, variant: String?): ThumbnailSource?
 }
