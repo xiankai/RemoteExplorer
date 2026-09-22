@@ -68,14 +68,20 @@ class TagIndexReader(
      *
      * Streamed rather than collected: the compressed log is the whole library, and the
      * point of ingesting it is to put it in Room, not to hold it twice in memory first.
+     *
+     * Returns the plan that was actually carried out, which is not always the one passed
+     * in — a resume that turns out to be misaligned is upgraded to a full pull here rather
+     * than reported for someone else to handle. The caller has to look at it either way,
+     * because a full pull replaces what it has for this connection while a resume adds to
+     * it, so there is no version of using this correctly that ignores the answer.
      */
     suspend fun read(
         connectionId: Int,
         plan: TagIndexPlan,
         onRecord: (TagIndexRecord) -> Unit,
-    ): TagIndexReadOutcome {
+    ): TagIndexPlan {
         when (plan) {
-            is TagIndexPlan.NothingToDo -> return TagIndexReadOutcome.COMPLETE
+            is TagIndexPlan.NothingToDo -> return plan
 
             is TagIndexPlan.FullPull -> {
                 val compressed = files.openCompressed(connectionId, TagIndex.COMPRESSED_LOG)
@@ -89,13 +95,22 @@ class TagIndexReader(
                     files.openRange(connectionId, TagIndex.LOG, 0L, plan.meta.bytes)
                         ?.use { readLines(it, onRecord) }
                 }
-                return TagIndexReadOutcome.COMPLETE
+                return plan
             }
 
             is TagIndexPlan.Resume -> {
                 val stream = files.openRange(connectionId, TagIndex.LOG, plan.from, plan.meta.bytes)
-                    ?: return TagIndexReadOutcome.COMPLETE
-                return stream.use { readResumed(it, onRecord) }
+                    ?: return plan
+                val outcome = stream.use { readResumed(it, onRecord) }
+                if (outcome == ResumeOutcome.COMPLETE) return plan
+
+                // Nothing was emitted, so upgrading here costs nothing to undo — and doing
+                // it here rather than reporting it is what stops the guard being inert.
+                // A caller that forgot to react would otherwise see an empty, "successful"
+                // pass and leave the index wrong until the next generation bump.
+                Log.w(TAG, "Resume from ${plan.from} landed mid-record; re-pulling")
+                val full = TagIndexPlan.FullPull(plan.meta)
+                return read(connectionId, full, onRecord)
             }
         }
     }
@@ -117,23 +132,23 @@ class TagIndexReader(
      * The offset is then still *below* `bytes`, so the clamp in [plan] cannot see it.
      *
      * Emitting from the middle of that file would attach one gallery's tags to another and
-     * report success, so nothing is emitted at all and the caller is told to start over.
-     * The cost of being wrong is one extra transfer; the cost of being right and ignoring
-     * it is a tag index that is quietly incorrect until the next generation bump.
+     * report success, so nothing is emitted at all and [read] re-pulls instead. The cost of
+     * being wrong is one extra transfer; the cost of being right and carrying on is a tag
+     * index that is quietly incorrect until the next generation bump.
      */
     private fun readResumed(
         stream: InputStream,
         onRecord: (TagIndexRecord) -> Unit,
-    ): TagIndexReadOutcome {
+    ): ResumeOutcome {
         val lines = BufferedReader(stream.reader())
 
         var line = lines.readLine()
         while (line != null && line.isBlank()) line = lines.readLine()
         // Nothing but blank lines. Not misaligned — there is simply nothing there.
-        if (line == null) return TagIndexReadOutcome.COMPLETE
+        if (line == null) return ResumeOutcome.COMPLETE
 
         // Checked before anything is emitted, so a misaligned read costs nothing to undo.
-        val first = parseTagIndexLine(line) ?: return TagIndexReadOutcome.MISALIGNED
+        val first = parseTagIndexLine(line) ?: return ResumeOutcome.MISALIGNED
         onRecord(first)
 
         // Past the first line the ordinary rule applies again: skip what cannot be read
@@ -142,7 +157,7 @@ class TagIndexReader(
             line = lines.readLine() ?: break
             parseTagIndexLine(line)?.let(onRecord)
         }
-        return TagIndexReadOutcome.COMPLETE
+        return ResumeOutcome.COMPLETE
     }
 
     private companion object {
@@ -151,13 +166,11 @@ class TagIndexReader(
 }
 
 /**
- * How a pass ended.
- *
- * [MISALIGNED] is the caller's cue to throw away what it has for this connection and plan
- * again from nothing — it means the log is not the one the stored offset belongs to, which
- * the generation alone cannot always tell you.
+ * How a resume ended, internal to [TagIndexReader] because it is not a decision the caller
+ * gets to make: [MISALIGNED] means the log is not the one the stored offset belongs to, and
+ * the only correct response is to take the whole thing again.
  */
-enum class TagIndexReadOutcome { COMPLETE, MISALIGNED }
+private enum class ResumeOutcome { COMPLETE, MISALIGNED }
 
 /** What a pass over the index should fetch. */
 sealed interface TagIndexPlan {

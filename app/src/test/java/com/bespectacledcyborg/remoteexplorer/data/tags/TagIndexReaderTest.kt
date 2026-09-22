@@ -149,16 +149,23 @@ class TagIndexReaderTest {
      * Emitting from there would attach one gallery's tags to another and report success.
      */
     @Test
-    fun `a resume that lands mid-record reports misalignment and emits nothing`() = runTest {
-        val files = FakeFiles(meta = meta(), log = log)
+    fun `a resume that lands mid-record re-pulls instead`() = runTest {
+        val files = FakeFiles(meta = meta(), log = log, compressed = gzip(log))
         val reader = TagIndexReader(files)
 
         val seen = mutableListOf<TagIndexRecord>()
         // Deliberately not a line boundary: partway through the first record.
-        val outcome = reader.read(1, TagIndexPlan.Resume(TagIndexMeta(1, "g1", 3, log.size.toLong()), 12L), seen::add)
+        val carried = reader.read(
+            1,
+            TagIndexPlan.Resume(TagIndexMeta(1, "g1", 3, log.size.toLong()), 12L),
+            seen::add,
+        )
 
-        assertEquals(TagIndexReadOutcome.MISALIGNED, outcome)
-        assertTrue("nothing may be emitted from a log this is not aligned to", seen.isEmpty())
+        // Reported as the full pull it became, because a caller has to replace what it has
+        // rather than append — the whole reason this is not a boolean it could drop.
+        assertTrue(carried is TagIndexPlan.FullPull)
+        // And every record arrives exactly once: nothing was emitted before the check.
+        assertEquals(listOf("g/one", "g/two", "g/three/x.jpg"), seen.map { it.path })
     }
 
     /**
@@ -172,13 +179,11 @@ class TagIndexReaderTest {
         val reader = TagIndexReader(files)
 
         val seen = mutableListOf<TagIndexRecord>()
-        val outcome = reader.read(
-            1,
-            TagIndexPlan.Resume(TagIndexMeta(1, "g1", 2, spliced.size.toLong()), 0L),
-            seen::add,
-        )
+        val plan = TagIndexPlan.Resume(TagIndexMeta(1, "g1", 2, spliced.size.toLong()), 0L)
+        val carried = reader.read(1, plan, seen::add)
 
-        assertEquals(TagIndexReadOutcome.COMPLETE, outcome)
+        // Still the resume it was asked for — one bad line is not evidence of a replaced log.
+        assertEquals(plan, carried)
         assertEquals(listOf("g/one", "g/two"), seen.map { it.path })
     }
 
