@@ -43,15 +43,18 @@ class ThumbnailManager(
     private val workManager = WorkManager.getInstance(context)
 
     // Resolving touches the filesystem — a mount-state check and an mkdirs — so the
-    // directory is kept until the volume changes rather than recomputed per thumbnail.
-    // An ejected card is not detected here and does not need to be: the resolved directory
-    // simply stops having files in it, which reads as a cache miss.
+    // directory is kept rather than recomputed from scratch per thumbnail.
     @Volatile
     private var resolved: Pair<String?, File>? = null
 
     private suspend fun thumbnailCache(): File {
         val id = volumeId()
-        resolved?.let { (cachedId, dir) -> if (cachedId == id) return dir }
+        // Both halves matter. The id catches the user repointing the cache; isDirectory
+        // catches the card being taken out, which the id cannot see because the setting
+        // still names the volume that has gone. Without it the stale path is handed back
+        // forever and createTempFile throws on it — a 500 on every thumbnail rather than
+        // the fallback to internal storage that resolveThumbnailCacheDir is there to do.
+        resolved?.let { (cachedId, dir) -> if (cachedId == id && dir.isDirectory) return dir }
         val dir = resolveThumbnailCacheDir(context, id)
         resolved = id to dir
         return dir
