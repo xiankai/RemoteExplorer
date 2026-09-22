@@ -73,9 +73,9 @@ class TagIndexReader(
         connectionId: Int,
         plan: TagIndexPlan,
         onRecord: (TagIndexRecord) -> Unit,
-    ) {
+    ): TagIndexReadOutcome {
         when (plan) {
-            is TagIndexPlan.NothingToDo -> return
+            is TagIndexPlan.NothingToDo -> return TagIndexReadOutcome.COMPLETE
 
             is TagIndexPlan.FullPull -> {
                 val compressed = files.openCompressed(connectionId, TagIndex.COMPRESSED_LOG)
@@ -89,11 +89,14 @@ class TagIndexReader(
                     files.openRange(connectionId, TagIndex.LOG, 0L, plan.meta.bytes)
                         ?.use { readLines(it, onRecord) }
                 }
+                return TagIndexReadOutcome.COMPLETE
             }
 
-            is TagIndexPlan.Resume ->
-                files.openRange(connectionId, TagIndex.LOG, plan.from, plan.meta.bytes)
-                    ?.use { readLines(it, onRecord) }
+            is TagIndexPlan.Resume -> {
+                val stream = files.openRange(connectionId, TagIndex.LOG, plan.from, plan.meta.bytes)
+                    ?: return TagIndexReadOutcome.COMPLETE
+                return stream.use { readResumed(it, onRecord) }
+            }
         }
     }
 
@@ -103,10 +106,58 @@ class TagIndexReader(
         }
     }
 
+    /**
+     * A resume, refusing to emit anything if it does not start on a record boundary.
+     *
+     * Within one generation the log is only appended to, so a stored offset always lands
+     * exactly at the start of a line — which makes a first line that will not parse the
+     * signal that the file underneath has been replaced. That can happen with the
+     * generation unchanged: a rebuild unlinking the log while an ordinary run is still
+     * appending leaves the old meta describing a file that no longer exists at that length.
+     * The offset is then still *below* `bytes`, so the clamp in [plan] cannot see it.
+     *
+     * Emitting from the middle of that file would attach one gallery's tags to another and
+     * report success, so nothing is emitted at all and the caller is told to start over.
+     * The cost of being wrong is one extra transfer; the cost of being right and ignoring
+     * it is a tag index that is quietly incorrect until the next generation bump.
+     */
+    private fun readResumed(
+        stream: InputStream,
+        onRecord: (TagIndexRecord) -> Unit,
+    ): TagIndexReadOutcome {
+        val lines = BufferedReader(stream.reader())
+
+        var line = lines.readLine()
+        while (line != null && line.isBlank()) line = lines.readLine()
+        // Nothing but blank lines. Not misaligned — there is simply nothing there.
+        if (line == null) return TagIndexReadOutcome.COMPLETE
+
+        // Checked before anything is emitted, so a misaligned read costs nothing to undo.
+        val first = parseTagIndexLine(line) ?: return TagIndexReadOutcome.MISALIGNED
+        onRecord(first)
+
+        // Past the first line the ordinary rule applies again: skip what cannot be read
+        // rather than abandoning a pass that is evidently in the right place.
+        while (true) {
+            line = lines.readLine() ?: break
+            parseTagIndexLine(line)?.let(onRecord)
+        }
+        return TagIndexReadOutcome.COMPLETE
+    }
+
     private companion object {
         const val TAG = "TagIndexReader"
     }
 }
+
+/**
+ * How a pass ended.
+ *
+ * [MISALIGNED] is the caller's cue to throw away what it has for this connection and plan
+ * again from nothing — it means the log is not the one the stored offset belongs to, which
+ * the generation alone cannot always tell you.
+ */
+enum class TagIndexReadOutcome { COMPLETE, MISALIGNED }
 
 /** What a pass over the index should fetch. */
 sealed interface TagIndexPlan {

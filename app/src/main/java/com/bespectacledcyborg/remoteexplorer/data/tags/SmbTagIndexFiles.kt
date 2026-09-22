@@ -36,7 +36,16 @@ class SmbTagIndexFiles(
                 if (read <= 0) break
                 filled += read
             }
-            if (filled == buffer.size) buffer else buffer.copyOf(filled)
+            // All of it or none. A prefix of this file is not a smaller version of it: the
+            // whole point of the meta is the byte length it states, and a truncated copy
+            // either fails to parse — swallowed as "no index" — or parses into a length
+            // that is not the log's, which every later pass then resumes against.
+            if (filled == buffer.size) {
+                buffer
+            } else {
+                Log.w(TAG, "$path stopped after $filled of $length bytes")
+                null
+            }
         }
 
     override suspend fun openRange(

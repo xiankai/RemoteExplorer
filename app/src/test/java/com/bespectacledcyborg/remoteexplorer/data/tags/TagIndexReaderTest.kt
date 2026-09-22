@@ -140,6 +140,48 @@ class TagIndexReaderTest {
         assertEquals(head.size.toLong(), files.lastRangeFrom)
     }
 
+    /**
+     * A rebuild that unlinks the log while an ordinary run is still appending leaves the
+     * old meta describing a file that no longer exists at that length — with the generation
+     * unchanged, so nothing above notices. The stored offset is still below `bytes`, so it
+     * lands in the middle of a record instead of at the start of one.
+     *
+     * Emitting from there would attach one gallery's tags to another and report success.
+     */
+    @Test
+    fun `a resume that lands mid-record reports misalignment and emits nothing`() = runTest {
+        val files = FakeFiles(meta = meta(), log = log)
+        val reader = TagIndexReader(files)
+
+        val seen = mutableListOf<TagIndexRecord>()
+        // Deliberately not a line boundary: partway through the first record.
+        val outcome = reader.read(1, TagIndexPlan.Resume(TagIndexMeta(1, "g1", 3, log.size.toLong()), 12L), seen::add)
+
+        assertEquals(TagIndexReadOutcome.MISALIGNED, outcome)
+        assertTrue("nothing may be emitted from a log this is not aligned to", seen.isEmpty())
+    }
+
+    /**
+     * Past the first line the ordinary rule applies again — one unreadable record must not
+     * abandon a pass that is evidently in the right place.
+     */
+    @Test
+    fun `a bad line after the first is skipped, not fatal`() = runTest {
+        val spliced = (records[0] + "\nnot json\n" + records[1] + "\n").toByteArray()
+        val files = FakeFiles(meta = meta(bytes = spliced.size.toLong()), log = spliced)
+        val reader = TagIndexReader(files)
+
+        val seen = mutableListOf<TagIndexRecord>()
+        val outcome = reader.read(
+            1,
+            TagIndexPlan.Resume(TagIndexMeta(1, "g1", 2, spliced.size.toLong()), 0L),
+            seen::add,
+        )
+
+        assertEquals(TagIndexReadOutcome.COMPLETE, outcome)
+        assertEquals(listOf("g/one", "g/two"), seen.map { it.path })
+    }
+
     private fun gzip(bytes: ByteArray): ByteArray =
         ByteArrayOutputStream().also { out ->
             GZIPOutputStream(out).use { it.write(bytes) }
