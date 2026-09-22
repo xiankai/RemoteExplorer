@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap

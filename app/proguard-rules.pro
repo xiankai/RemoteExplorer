@@ -25,7 +25,7 @@
 # rename or remove them. Minification is currently off (see app/build.gradle.kts), which
 # makes this rule inert rather than unnecessary: turning it on without this would break
 # video thumbnails at run time, in release only, with nothing to see at compile time.
--keepclassmembers class com.bespectacledcyborg.remoteexplorer.data.thumbnails.RemoteRandomAccess {
+-keepclassmembers class com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess {
     public int readAt(long, byte[], int, int);
     public long size();
 }

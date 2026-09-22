@@ -1,6 +1,5 @@
-package com.bespectacledcyborg.remoteexplorer.data.thumbnails
+package com.bespectacledcyborg.remoteexplorer.data
 
-import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.hierynomus.smbj.share.File
 import java.io.Closeable
 

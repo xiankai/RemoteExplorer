@@ -12,7 +12,7 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
-import com.bespectacledcyborg.remoteexplorer.data.thumbnails.RemoteRandomAccess
+import com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.Dispatchers

@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
-import com.bespectacledcyborg.remoteexplorer.data.thumbnails.RemoteRandomAccess
+
 
 class VideoDecoder {
     companion object {
