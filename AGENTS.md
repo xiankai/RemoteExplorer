@@ -20,7 +20,7 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
   ├ ExplorerViewModel   path/nav stack, files, connections, tags, thumbnails, sort/filter
   └ SettingsViewModel
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
-       DataSources:  SambaFileDataSource (SMBJ)  +  LocalDatabaseDataSource (Room v8)
+       DataSources:  SambaFileDataSource (SMBJ)  +  LocalDatabaseDataSource (Room v11)
 ```
 
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
@@ -104,6 +104,11 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
   reach the Keystore — so anything without the `enc:v1:` prefix is read back as-is rather than
   decrypted into garbage. The 8→9 migration rewrites the plaintext already on disk and is
   idempotent, because a re-run that double-encrypted would strand a user outside their share.
+- **The thumbnail cache is not always in `cacheDir`.** A setting can point it at an SD card
+  (#43), so anything that clears or counts it has to ask where it is —
+  `tools/bench/thumbnails.sh --cache-dir`. A harness that assumes `cache/thumbnails` clears
+  nothing, passes its own "cache is empty" check, and then measures cache hits as if they
+  were work.
 - **Room schema directories are named after the database CLASS**, e.g.
   `app/schemas/com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase/`. Room reads only
   the directory matching the current fully-qualified name, so schemas left behind by a

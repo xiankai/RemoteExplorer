@@ -8,6 +8,7 @@ import androidx.core.graphics.scale
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
@@ -30,7 +31,8 @@ const val THUMBNAIL_WORKER_OUTPUT_FULL_PATH = "FULL_PATH"
 class ThumbnailGenerationWorker(
     appContext: Context,
     params: WorkerParameters,
-    private val fileRepository: FileRepository
+    private val fileRepository: FileRepository,
+    private val settingsRepository: SettingsRepository,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result =
         withContext(Dispatchers.IO) {
@@ -45,7 +47,9 @@ class ThumbnailGenerationWorker(
                 }
 
                 // Get dependencies
-                val thumbnailManager = ThumbnailManager(applicationContext)
+                val thumbnailManager = ThumbnailManager(applicationContext) {
+                    settingsRepository.getSettingsOnce()?.thumbnailCacheVolume
+                }
 
                 // Skip if thumbnail already exists
                 if (thumbnailManager.hasThumbnail(connectionId, fullPath)) {

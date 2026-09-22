@@ -67,7 +67,9 @@ class ExplorerViewModel(
     private val connectionRepository: ConnectionRepository,
     private val tagRepository: TagRepository,
     private val settingsRepository: SettingsRepository,
-    private val thumbnailManager: ThumbnailManager = ThumbnailManager(application)
+    // No default: one built here would resolve its cache directory from nothing and quietly
+    // disagree with the one the server is writing to.
+    private val thumbnailManager: ThumbnailManager,
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()

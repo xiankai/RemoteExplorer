@@ -13,36 +13,54 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_C
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_FULL_PATH
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_PARENT_PATH
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.maxThumbnailCacheBytes
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.resolveThumbnailCacheDir
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.thumbnailCacheKey
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-
-/**
- * How much of the app's cache directory the thumbnails may occupy. At the 128 px they are
- * written out as, that is room for tens of thousands of them — far more than a browsing
- * session touches, while still being a bound rather than no bound at all.
- */
-private const val MAX_THUMBNAIL_CACHE_BYTES = 256L * 1024 * 1024
 
 /** Marks a render in progress, so a trim running alongside it leaves it alone. */
 private const val SCRATCH_SUFFIX = ".tmp"
 
 class ThumbnailManager(
     val context: Context,
+    /**
+     * Which volume to write to, as a UUID or null for internal storage.
+     *
+     * Asked each time rather than resolved once at construction, because the answer moves
+     * underneath us in two ways: the user can repoint the cache in settings, and a card can
+     * be ejected at any moment. Three ThumbnailManagers exist in the process, so resolving
+     * at construction would also let whichever was built first decide for all of them.
+     *
+     * It is a single indexed read of a one-row table, next to an SMB read and a video
+     * decode, so it is asked per use rather than mirrored into something that could go
+     * stale.
+     */
+    private val volumeId: suspend () -> String?,
 ) {
-    private val thumbnailCache = File(context.cacheDir, "thumbnails")
     private val pendingThumbnails = ConcurrentHashMap<String, Boolean>()
     private val workManager = WorkManager.getInstance(context)
 
-    init {
-        thumbnailCache.mkdirs()
+    // Resolving touches the filesystem — a mount-state check and an mkdirs — so the
+    // directory is kept until the volume changes rather than recomputed per thumbnail.
+    // An ejected card is not detected here and does not need to be: the resolved directory
+    // simply stops having files in it, which reads as a cache miss.
+    @Volatile
+    private var resolved: Pair<String?, File>? = null
+
+    private suspend fun thumbnailCache(): File {
+        val id = volumeId()
+        resolved?.let { (cachedId, dir) -> if (cachedId == id) return dir }
+        val dir = resolveThumbnailCacheDir(context, id)
+        resolved = id to dir
+        return dir
     }
 
-    fun getThumbnailPath(connectionId: Int, originalPath: String): File =
-        File(thumbnailCache, thumbnailCacheKey(connectionId, originalPath))
+    suspend fun getThumbnailPath(connectionId: Int, originalPath: String): File =
+        File(thumbnailCache(), thumbnailCacheKey(connectionId, originalPath))
 
-    fun hasThumbnail(connectionId: Int, originalPath: String): Boolean =
+    suspend fun hasThumbnail(connectionId: Int, originalPath: String): Boolean =
         getThumbnailPath(connectionId, originalPath).exists()
 
     /**
@@ -59,9 +77,13 @@ class ThumbnailManager(
         path: String,
         render: suspend (File) -> Boolean,
     ): File? {
-        val destination = getThumbnailPath(connectionId, path)
-        // .tmp rather than .jpg so a concurrent trim cannot delete a render in flight.
-        val scratch = File.createTempFile("render", SCRATCH_SUFFIX, thumbnailCache)
+        val cache = thumbnailCache()
+        val destination = File(cache, thumbnailCacheKey(connectionId, path))
+        // .tmp rather than .jpg so a concurrent trim cannot delete a render in flight. In
+        // the same directory as the destination, so publishing it is a rename rather than
+        // a copy — which also means it has to follow the cache onto whichever volume that
+        // is, since a rename across volumes is not one.
+        val scratch = File.createTempFile("render", SCRATCH_SUFFIX, cache)
 
         val rendered = try {
             render(scratch)
@@ -75,7 +97,7 @@ class ThumbnailManager(
             return null
         }
 
-        trimToSize()
+        trimToSize(cache)
         return destination
     }
 
@@ -90,7 +112,7 @@ class ThumbnailManager(
      * The caller gets a file it owns and must delete.
      */
     suspend fun renderUncached(render: suspend (File) -> Boolean): File? {
-        val scratch = File.createTempFile("probe", SCRATCH_SUFFIX, thumbnailCache)
+        val scratch = File.createTempFile("probe", SCRATCH_SUFFIX, thumbnailCache())
         val rendered = try {
             render(scratch)
         } catch (e: Exception) {
@@ -114,9 +136,15 @@ class ThumbnailManager(
      *
      * Called after a write rather than on a schedule — the only thing that grows the cache
      * is writing to it.
+     *
+     * The ceiling depends on where [cache] is: internal storage is scarce and shared with
+     * the rest of the device, a card the user deliberately chose is neither.
      */
-    fun trimToSize(maxBytes: Long = MAX_THUMBNAIL_CACHE_BYTES) {
-        val files = thumbnailCache
+    fun trimToSize(
+        cache: File,
+        maxBytes: Long = maxThumbnailCacheBytes(context, cache),
+    ) {
+        val files = cache
             .listFiles { file -> !file.name.endsWith(SCRATCH_SUFFIX) }
             ?: return
         var total = files.sumOf { it.length() }
@@ -131,7 +159,7 @@ class ThumbnailManager(
         }
     }
 
-    private fun queueThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String): Boolean {
+    private suspend fun queueThumbnailGeneration(connectionId: Int, parentPath: String, fullPath: String): Boolean {
         val key = "$connectionId:$parentPath:$fullPath"
         // Skip if already queued or exists
         if (pendingThumbnails.putIfAbsent(key, true) != null ||
@@ -169,7 +197,7 @@ class ThumbnailManager(
     }
 
     // Queue multiple thumbnails at once (for background processing)
-    fun queueBatchThumbnailGeneration(connectionId: Int, files: ThumbnailsMap): ThumbnailsMap {
+    suspend fun queueBatchThumbnailGeneration(connectionId: Int, files: ThumbnailsMap): ThumbnailsMap {
         val successfulThumbnails = mutableMapOf<String, MutableList<String>>()
 
         files.forEach { (parentPath, thumbnails) ->
