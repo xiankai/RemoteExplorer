@@ -84,7 +84,7 @@ class PlatformVideoThumbnailSource(
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int =
             reader.readAt(position, buffer, offset, size)
 
-        override fun getSize(): Long = reader.length
+        override fun getSize(): Long = reader.size()
 
         // The retriever owns neither the handle nor its lifetime; render() closes the
         // reader in its finally block, so closing here as well would double-close.
