@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap
