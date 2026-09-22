@@ -84,17 +84,7 @@ class TagIndexReader(
             is TagIndexPlan.NothingToDo -> return plan
 
             is TagIndexPlan.FullPull -> {
-                val compressed = files.openCompressed(connectionId, TagIndex.COMPRESSED_LOG)
-                if (compressed != null) {
-                    compressed.use { GZIPInputStream(it).use { gzip -> readLines(gzip, onRecord) } }
-                } else {
-                    // The compressed copy is an optimisation, not a requirement. A generator
-                    // that has not written it yet, or a share where it was deleted, still
-                    // has the plain log — slower to pull, identical content.
-                    Log.i(TAG, "No ${TagIndex.COMPRESSED_LOG}; reading the plain log")
-                    files.openRange(connectionId, TagIndex.LOG, 0L, plan.meta.bytes)
-                        ?.use { readLines(it, onRecord) }
-                }
+                readFull(connectionId, plan.meta, onRecord)
                 return plan
             }
 
@@ -108,11 +98,33 @@ class TagIndexReader(
                 // it here rather than reporting it is what stops the guard being inert.
                 // A caller that forgot to react would otherwise see an empty, "successful"
                 // pass and leave the index wrong until the next generation bump.
+                //
+                // Calls readFull directly rather than read() again: a full pull cannot come
+                // back misaligned, so the recursion would terminate — but not recursing at
+                // all means nobody has to work that out.
                 Log.w(TAG, "Resume from ${plan.from} landed mid-record; re-pulling")
-                val full = TagIndexPlan.FullPull(plan.meta)
-                return read(connectionId, full, onRecord)
+                readFull(connectionId, plan.meta, onRecord)
+                return TagIndexPlan.FullPull(plan.meta)
             }
         }
+    }
+
+    private suspend fun readFull(
+        connectionId: Int,
+        meta: TagIndexMeta,
+        onRecord: (TagIndexRecord) -> Unit,
+    ) {
+        val compressed = files.openCompressed(connectionId, TagIndex.COMPRESSED_LOG)
+        if (compressed != null) {
+            compressed.use { GZIPInputStream(it).use { gzip -> readLines(gzip, onRecord) } }
+            return
+        }
+        // The compressed copy is an optimisation, not a requirement. A generator that has
+        // not written it yet, or a share where it was deleted, still has the plain log —
+        // slower to pull, identical content.
+        Log.i(TAG, "No ${TagIndex.COMPRESSED_LOG}; reading the plain log")
+        files.openRange(connectionId, TagIndex.LOG, 0L, meta.bytes)
+            ?.use { readLines(it, onRecord) }
     }
 
     private fun readLines(stream: InputStream, onRecord: (TagIndexRecord) -> Unit) {
