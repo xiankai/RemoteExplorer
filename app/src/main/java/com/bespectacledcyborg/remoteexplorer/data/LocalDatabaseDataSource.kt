@@ -92,6 +92,18 @@ class LocalDatabaseDataSource(
         localDatabaseDao.updateThumbnailStatus(connectionId, parentPath, filename, status)
     }
 
+    suspend fun getThumbnailStatus(
+        connectionId: Int,
+        parentPath: String,
+        filename: String,
+    ): ThumbnailStatus? = withContext(dispatcher) {
+        localDatabaseDao.getThumbnailStatus(connectionId, parentPath, filename)
+    }
+
+    fun clearFailedThumbnails(connectionId: Int, parentPath: String) {
+        localDatabaseDao.clearFailedThumbnails(connectionId, parentPath)
+    }
+
     suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean, limit: Int): List<LocalFile> {
         return withContext(dispatcher) {
             if (forceRemote) {

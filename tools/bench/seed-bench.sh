@@ -137,5 +137,15 @@ codec h264.mkv  -c:v libx264    -pix_fmt yuv420p
 codec mpeg4.avi -c:v mpeg4      -pix_fmt yuv420p
 codec theora.ogv -c:v libtheora -pix_fmt yuv420p -q:v 5
 
+# A file no decoder can do anything with: an mp4 extension over random bytes. Every other
+# fixture here exercises a decoder succeeding; this one exercises the app remembering a
+# failure, which is what stops an undecodable file being re-read and re-decoded on every
+# scroll. Without it the ERROR path has no coverage at all, because the fallback chain
+# rescues every real format in this folder.
+if [ ! -f "$codecs/broken.mp4" ]; then
+  echo "  writing broken.mp4"
+  head -c 262144 /dev/urandom > "$codecs/broken.mp4"
+fi
+
 echo "bench tree at $bench:"
 find "$bench" -type f -exec ls -lh {} + | awk '{print "  " $9 " (" $5 ")"}' | sed "s|$bench/||"

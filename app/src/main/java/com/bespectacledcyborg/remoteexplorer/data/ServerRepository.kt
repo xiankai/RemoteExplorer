@@ -1,7 +1,9 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
 import com.hierynomus.smbj.share.File
@@ -21,6 +23,8 @@ import io.ktor.server.routing.head
 import io.ktor.server.routing.options
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.URLConnection
 import java.net.URLDecoder
@@ -37,12 +41,28 @@ const val ENCODING = "UTF-8"
  */
 private const val RANGE_CHUNK_BYTES = 64 * 1024
 
+/** See ServerRepository.renderSlots. */
+private const val MAX_CONCURRENT_RENDERS = 3
+
 class ServerRepository(
     private val sambaFileDataSource: SambaFileDataSource,
     private val dispatcher: CoroutineDispatcher,
     private val thumbnailManager: ThumbnailManager,
     private val thumbnailSources: ThumbnailSources,
+    private val thumbnailStatuses: ThumbnailStatusStore,
 ) {
+    /**
+     * How many thumbnails may be produced at once.
+     *
+     * A grid of forty video cells means forty simultaneous requests, and each one is an SMB
+     * read plus a decode. Nothing bounded that, and the benchmark shows it buys almost
+     * nothing: four in flight improved wall clock 32s to 28s while roughly doubling every
+     * individual request, because the share and the decoder are the contended resources
+     * either way. Three keeps the pipeline busy without turning one slow file into forty
+     * slow ones.
+     */
+    private val renderSlots = Semaphore(MAX_CONCURRENT_RENDERS)
+
     private fun extractConnectionId(call: RoutingCall): Int {
         val connectionId: Int =
             call.queryParameters["connectionId"]?.toInt()
@@ -164,6 +184,24 @@ class ServerRepository(
                                 return@get
                             }
 
+                            // Already known to be unrenderable. Without this the full read
+                            // and decode runs again every time the cell scrolls back into
+                            // view, for a guaranteed failure — and since the fallback chain
+                            // landed that is two decoders, not one. A diagnostic request
+                            // ignores the record, because measuring a decoder means asking
+                            // it rather than being told what it said last time.
+                            if (variant == null) {
+                                val known = thumbnailStatuses.statusOf(connectionId, decodedPath)
+                                if (known == ThumbnailStatus.ERROR ||
+                                    known == ThumbnailStatus.UNSUPPORTED
+                                ) {
+                                    call.response.status(HttpStatusCode.NotFound)
+                                    call.respondText("No thumbnail available")
+                                    logOutcome("known-${known.name.lowercase()}")
+                                    return@get
+                                }
+                            }
+
                             // Which source handles this file is decided by its media type,
                             // so images and video can be served from different places.
                             val source = thumbnailSources.forType(
@@ -171,20 +209,43 @@ class ServerRepository(
                             )
                             if (source == null) {
                                 Log.d("ServerRepository", "No thumbnail source for $decodedPath")
+                                thumbnailStatuses.record(
+                                    connectionId, decodedPath, ThumbnailStatus.UNSUPPORTED
+                                )
                                 call.response.status(HttpStatusCode.NotFound)
                                 call.respondText("No thumbnail available")
                                 logOutcome("unsupported")
                                 return@get
                             }
 
-                            val rendered = if (variant != null) {
-                                thumbnailManager.renderUncached {
-                                    source.render(connectionId, decodedPath, it)
+                            // Bounded, so a folder of videos cannot put one decode per cell
+                            // in flight at once. Held across the render only — the cache hit
+                            // above and the response below are not the contended part.
+                            val rendered = renderSlots.withPermit {
+                                if (variant != null) {
+                                    thumbnailManager.renderUncached {
+                                        source.render(connectionId, decodedPath, it)
+                                    }
+                                } else {
+                                    thumbnailManager.renderInto(connectionId, decodedPath) {
+                                        source.render(connectionId, decodedPath, it)
+                                    }
                                 }
-                            } else {
-                                thumbnailManager.renderInto(connectionId, decodedPath) {
-                                    source.render(connectionId, decodedPath, it)
-                                }
+                            }
+
+                            // Record before responding. A client that hangs up mid-transfer
+                            // must not cost the decode again next time — the work already
+                            // happened and its answer is just as valid.
+                            if (variant == null) {
+                                thumbnailStatuses.record(
+                                    connectionId,
+                                    decodedPath,
+                                    if (rendered != null) {
+                                        ThumbnailStatus.SUCCESS
+                                    } else {
+                                        ThumbnailStatus.ERROR
+                                    },
+                                )
                             }
 
                             if (rendered != null) {
