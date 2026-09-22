@@ -1,8 +1,8 @@
+import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectoryTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.FileTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
-import com.bespectacledcyborg.remoteexplorer.data.db.TaggedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
@@ -82,7 +82,7 @@ class LocalDatabaseDataSource(
         }
     }
 
-    suspend fun getDirectoriesWithTag(tag: LocalTag): List<TaggedDirectory> {
+    suspend fun getDirectoriesWithTag(tag: LocalTag): List<DirTagRelation> {
         return withContext(dispatcher) {
             localDatabaseDao.getDirectoriesWithTag(tag.tag)
         }

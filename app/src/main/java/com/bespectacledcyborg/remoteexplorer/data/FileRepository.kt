@@ -184,28 +184,24 @@ class FileRepository(
     }
 
     /**
-     * What to show for a tag: the files carrying it, and the galleries carrying it.
+     * What to show for a tag: the galleries carrying it, then the files carrying it.
      *
      * Two shapes because the two sources have two shapes. A sidecar tags a file, so it comes
      * back as a file. The rolled-up index tags a whole gallery, and the gallery is what the
-     * user wants to open — its contents are listed from the share on the way in, like any
-     * other folder.
+     * user opens — its contents are listed from the share on the way in, like any other
+     * folder.
      *
-     * It also has to be this way round to be honest. A tagged gallery nobody has browsed
-     * into has no rows in the listing cache at all, so returning only files would show
-     * nothing for a tag the list had just said covered nineteen of them. The whole point of
-     * the index is reaching directories that have not been visited; dropping them here would
-     * put that back exactly as it was, one level up.
+     * It has to be this way round to be honest about coverage. A tagged gallery nobody has
+     * browsed into has no rows in the listing cache at all, so returning only files would
+     * show nothing for a tag that had just announced itself in the list.
+     *
+     * Nothing is de-duplicated between the two. A file whose sidecar repeats its gallery's
+     * tag is two facts, and each gets a row — which is also what keeps the number beside the
+     * tag equal to the number of rows behind it.
      */
     suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
-        val files = localDatabaseDataSource.getFilesWithTag(tag)
-        val directories = localDatabaseDataSource.getDirectoriesWithTag(tag)
-            .map { it.asFolder() }
-        // A gallery whose files are already cached would otherwise appear twice: once as
-        // itself, once as each of its contents. The files are the more useful of the two,
-        // so the folder gives way.
-        val shownPaths = files.map { it.parentPath }.toSet()
-        return directories.filterNot { it.fullPath() in shownPaths } + files
+        val directories = localDatabaseDataSource.getDirectoriesWithTag(tag).map { it.asFolder() }
+        return directories + localDatabaseDataSource.getFilesWithTag(tag)
     }
 
     fun openFileDirectly(connectionId: Int, fullPath: String): File {

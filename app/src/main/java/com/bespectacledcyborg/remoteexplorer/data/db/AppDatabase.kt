@@ -14,7 +14,6 @@ import java.util.Date
         LocalTag::class,
         FileTagRelation::class,
         DirTagRelation::class,
-        TaggedDirectory::class,
         TagIndexIngest::class,
         SettingsEntity::class,
         DirectorySync::class,
@@ -30,11 +29,11 @@ import java.util.Date
     // 11 adds SettingsEntity.thumbnailCacheVolume, nullable — and NULL is exactly the value
     // that means "internal storage", so every existing row migrates to the behaviour it
     // already had.
-    // 12 adds the three tables the rolled-up tag index needs: DirTagRelation and
-    // TaggedDirectory for tags that belong to a gallery rather than a file, and
-    // TagIndexIngest for how far each connection has read the log. All new, none touching an
-    // existing row, so it auto-migrates — and an existing install comes out with no
-    // ingest state, which reads as "never pulled" and starts from a full pull.
+    // 12 adds the two tables the rolled-up tag index needs: DirTagRelation for tags that
+    // belong to a gallery rather than a file, and TagIndexIngest for how far each connection
+    // has read the log. Both new, neither touching an existing row, so it auto-migrates —
+    // and an existing install comes out with no ingest state, which reads as "never pulled"
+    // and starts from a full pull.
     version = 12,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash

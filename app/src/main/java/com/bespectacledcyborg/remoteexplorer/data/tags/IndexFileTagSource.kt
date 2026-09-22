@@ -67,10 +67,12 @@ class IndexFileTagSource(
         // enough that holding a pass in memory costs nothing worth the alternative.
         val carried = reader.read(connectionId, plan) { record ->
             when (record.scope) {
+                // The record's `files` count is read and dropped. A tag counts the rows
+                // opening it will show, and a gallery is one row however many files it
+                // holds, so storing the number would give it no reader.
                 TagScope.DIRECTORY -> directories += DirectoryTagUpdate(
                     parentPath = record.path,
                     tags = record.tags,
-                    fileCount = record.files,
                     deleted = record.deleted,
                 )
 

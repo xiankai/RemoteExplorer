@@ -16,8 +16,9 @@ import java.util.Date
 /**
  * Tags that belong to a gallery rather than to a file, against a real database.
  *
- * The queries are the point: a union that double-counts, or a count that multiplies one
- * relation by the other, is invisible in a unit test of the code around it and obvious here.
+ * The queries are the point: a count that multiplies one relation by the other, or a listing
+ * that returns a different kind of thing depending on where the user has been, is invisible
+ * in a unit test of the code around it and obvious here.
  */
 @RunWith(RobolectricTestRunner::class)
 class TagIndexDaoTest {
@@ -58,39 +59,43 @@ class TagIndexDaoTest {
             dao.reconcileDirectory(1, parentPath, inDirectory, Date(0))
         }
 
+    /**
+     * A directory tag names the gallery, and only the gallery.
+     *
+     * Expanding it to the files inside would make the same tag list different kinds of thing
+     * depending on which galleries happened to be cached — contents where someone had
+     * browsed, folders where they had not.
+     */
     @Test
-    fun `a directory tag reaches the files inside it`() {
+    fun `a directory tag surfaces the gallery, not its contents`() {
         given(file("g/gallery", "001.jpg"), file("g/gallery", "002.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("artist:someone"), fileCount = 2, deleted = false)
+        dao.applyDirectoryTags(1, "g/gallery", listOf("artist:someone"), deleted = false)
 
-        val found = dao.getFilesWithTag("artist:someone")
-
-        assertEquals(listOf("001.jpg", "002.jpg"), found.map { it.filename }.sorted())
+        assertTrue(dao.getFilesWithTag("artist:someone").isEmpty())
+        assertEquals(
+            listOf("g/gallery"),
+            dao.getDirectoriesWithTag("artist:someone").map { it.parentPath },
+        )
     }
 
     /**
-     * "Directly inside" is exact. A gallery's tags must not leak into a subdirectory, or a
-     * tag on a top-level folder would claim every file on the share beneath it.
+     * The gallery is findable with nothing cached inside it, which is the whole point: the
+     * listing cache only knows directories somebody has opened, so on a fresh install it has
+     * nothing to say about the entire index.
      */
     @Test
-    fun `a directory tag does not reach deeper`() {
-        given(file("g/gallery", "001.jpg"), file("g/gallery/sub", "deep.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("t"), fileCount = 1, deleted = false)
+    fun `a tagged gallery is findable before anyone browses it`() {
+        dao.applyDirectoryTags(1, "g/unvisited", listOf("t"), deleted = false)
 
-        assertEquals(listOf("001.jpg"), dao.getFilesWithTag("t").map { it.filename })
+        assertEquals(listOf("g/unvisited"), dao.getDirectoriesWithTag("t").map { it.parentPath })
     }
 
-    /**
-     * A file reachable both ways appears once. Both relations are real and can name the same
-     * file — a gallery tagged `artist:foo` whose own sidecar says `artist:foo` too.
-     */
     @Test
-    fun `a file tagged both ways appears once`() {
-        given(file("g/gallery", "001.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("shared"), fileCount = 1, deleted = false)
-        dao.applyFileTags(1, "g/gallery", "001.jpg", listOf("shared"), deleted = false)
+    fun `a sidecar tag surfaces the file it named`() {
+        given(file("photos", "beach.jpg"), file("photos", "city.jpg"))
+        dao.applyFileTags(1, "photos", "beach.jpg", listOf("holiday"), deleted = false)
 
-        assertEquals(1, dao.getFilesWithTag("shared").size)
+        assertEquals(listOf("beach.jpg"), dao.getFilesWithTag("holiday").map { it.filename })
     }
 
     /**
@@ -100,45 +105,27 @@ class TagIndexDaoTest {
     @Test
     fun `counts add the two relations instead of multiplying them`() {
         given(file("g/gallery", "001.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("t"), fileCount = 20, deleted = false)
+        dao.applyDirectoryTags(1, "g/gallery", listOf("t"), deleted = false)
         dao.applyFileTags(1, "elsewhere", "loose.jpg", listOf("t"), deleted = false)
 
-        assertEquals(21, dao.getTags().single { it.tag == "t" }.count)
+        // One gallery plus one file: two rows to show, and two is what it says.
+        assertEquals(2, dao.getTags().single { it.tag == "t" }.count)
     }
 
     /**
-     * The stored file count is what a directory tag is counted by, not how many rows
-     * LocalFile happens to have — which is the whole point of covering directories nobody
-     * has browsed into.
+     * The count is what opening the tag will show, so a gallery counts once however many
+     * files it holds — and counts at all before anyone has browsed into it.
      */
     @Test
-    fun `a directory counts its files even when none have been listed`() {
-        dao.applyDirectoryTags(1, "g/unvisited", listOf("t"), fileCount = 19, deleted = false)
+    fun `a gallery counts once, browsed or not`() {
+        dao.applyDirectoryTags(1, "g/unvisited", listOf("t"), deleted = false)
 
-        assertEquals(19, dao.getTags().single { it.tag == "t" }.count)
-        // No rows in the listing cache for a gallery nobody has opened, which is why the
-        // directory itself has to be offered — see getDirectoriesWithTag.
-        assertTrue(dao.getFilesWithTag("t").isEmpty())
-    }
-
-    /**
-     * The gallery is findable even with nothing cached inside it. Without this a tag would
-     * announce nineteen files and then show an empty screen, which is the under-reporting
-     * the index exists to remove, moved up one level.
-     */
-    @Test
-    fun `a tagged directory is findable before anyone browses it`() {
-        dao.applyDirectoryTags(1, "g/unvisited", listOf("t"), fileCount = 19, deleted = false)
-
-        val found = dao.getDirectoriesWithTag("t")
-
-        assertEquals(listOf("g/unvisited"), found.map { it.parentPath })
-        assertEquals(19, found.single().fileCount)
+        assertEquals(1, dao.getTags().single { it.tag == "t" }.count)
     }
 
     @Test
-    fun `a tagged directory renders as a folder in its parent`() {
-        val folder = TaggedDirectory(1, "gallery-dl/pixiv/[137128361] 羽衣狐", 2).asFolder()
+    fun `a tagged gallery renders as a folder in its parent`() {
+        val folder = DirTagRelation(1, "gallery-dl/pixiv/[137128361] 羽衣狐", "t").asFolder()
 
         assertEquals("gallery-dl/pixiv", folder.parentPath)
         assertEquals("[137128361] 羽衣狐", folder.filename)
@@ -152,23 +139,21 @@ class TagIndexDaoTest {
      * tag removed upstream would never disappear.
      */
     @Test
-    fun `re-applying a directory replaces its tags`() {
-        given(file("g/gallery", "001.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("old", "kept"), fileCount = 1, deleted = false)
-        dao.applyDirectoryTags(1, "g/gallery", listOf("kept", "new"), fileCount = 1, deleted = false)
+    fun `re-applying a gallery replaces its tags`() {
+        dao.applyDirectoryTags(1, "g/gallery", listOf("old", "kept"), deleted = false)
+        dao.applyDirectoryTags(1, "g/gallery", listOf("kept", "new"), deleted = false)
 
-        assertTrue(dao.getFilesWithTag("old").isEmpty())
-        assertEquals(1, dao.getFilesWithTag("kept").size)
-        assertEquals(1, dao.getFilesWithTag("new").size)
+        assertTrue(dao.getDirectoriesWithTag("old").isEmpty())
+        assertEquals(1, dao.getDirectoriesWithTag("kept").size)
+        assertEquals(1, dao.getDirectoriesWithTag("new").size)
     }
 
     @Test
-    fun `a tombstone drops the directory and its tags`() {
-        given(file("g/gallery", "001.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("t"), fileCount = 1, deleted = false)
-        dao.applyDirectoryTags(1, "g/gallery", emptyList(), fileCount = 0, deleted = true)
+    fun `a tombstone drops the gallery's tags`() {
+        dao.applyDirectoryTags(1, "g/gallery", listOf("t"), deleted = false)
+        dao.applyDirectoryTags(1, "g/gallery", emptyList(), deleted = true)
 
-        assertTrue(dao.getFilesWithTag("t").isEmpty())
+        assertTrue(dao.getDirectoriesWithTag("t").isEmpty())
         assertEquals(0, dao.getTags().single { it.tag == "t" }.count)
     }
 
@@ -179,24 +164,24 @@ class TagIndexDaoTest {
      */
     @Test
     fun `clearing ingested tags leaves sidecar tags alone`() {
-        given(file("g/gallery", "001.jpg"), file("photos", "beach.jpg"))
-        dao.applyDirectoryTags(1, "g/gallery", listOf("from-index"), fileCount = 1, deleted = false)
+        given(file("photos", "beach.jpg"))
+        dao.applyDirectoryTags(1, "g/gallery", listOf("from-index"), deleted = false)
         dao.applyFileTags(1, "photos", "beach.jpg", listOf("from-sidecar"), deleted = false)
 
         dao.clearIngestedTags(1)
 
-        assertTrue(dao.getFilesWithTag("from-index").isEmpty())
+        assertTrue(dao.getDirectoriesWithTag("from-index").isEmpty())
         assertEquals(listOf("beach.jpg"), dao.getFilesWithTag("from-sidecar").map { it.filename })
     }
 
     @Test
     fun `clearing one connection leaves another alone`() {
-        dao.applyDirectoryTags(1, "g/one", listOf("t"), fileCount = 5, deleted = false)
-        dao.applyDirectoryTags(2, "g/two", listOf("t"), fileCount = 7, deleted = false)
+        dao.applyDirectoryTags(1, "g/one", listOf("t"), deleted = false)
+        dao.applyDirectoryTags(2, "g/two", listOf("t"), deleted = false)
 
         dao.clearIngestedTags(1)
 
-        assertEquals(7, dao.getTags().single { it.tag == "t" }.count)
+        assertEquals(listOf("g/two"), dao.getDirectoriesWithTag("t").map { it.parentPath })
     }
 
     @Test
@@ -215,18 +200,19 @@ class TagIndexDaoTest {
     /** A pass lands as one transaction: the rows and the offset that describes them. */
     @Test
     fun `applying a pass stores the rows and the offset together`() {
-        given(file("g/gallery", "001.jpg"))
+        given(file("photos", "beach.jpg"))
 
         dao.applyTagIndex(
             connectionId = 1,
             replace = true,
-            directories = listOf(DirectoryTagUpdate("g/gallery", listOf("t"), 1, deleted = false)),
+            directories = listOf(DirectoryTagUpdate("g/gallery", listOf("t"), deleted = false)),
             files = listOf(FileTagUpdate("photos", "beach.jpg", listOf("s"), deleted = false)),
             generation = "gen-2",
             bytesRead = 42L,
         )
 
-        assertEquals(1, dao.getFilesWithTag("t").size)
+        assertEquals(listOf("g/gallery"), dao.getDirectoriesWithTag("t").map { it.parentPath })
+        assertEquals(listOf("beach.jpg"), dao.getFilesWithTag("s").map { it.filename })
         assertEquals(42L, dao.getTagIndexIngest(1)?.bytesRead)
     }
 }

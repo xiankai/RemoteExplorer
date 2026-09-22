@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 12,
-    "identityHash": "8d24b3451525c6018dfb9aa8d9ee2b5b",
+    "identityHash": "9f4ddab534efa0f57f85aec28962573f",
     "entities": [
       {
         "tableName": "Connection",
@@ -234,37 +234,6 @@
         }
       },
       {
-        "tableName": "TaggedDirectory",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `fileCount` INTEGER NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`))",
-        "fields": [
-          {
-            "fieldPath": "connectionId",
-            "columnName": "connectionId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "parentPath",
-            "columnName": "parentPath",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "fileCount",
-            "columnName": "fileCount",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "connectionId",
-            "parentPath"
-          ]
-        }
-      },
-      {
         "tableName": "TagIndexIngest",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `generation` TEXT NOT NULL, `bytesRead` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
         "fields": [
@@ -363,7 +332,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8d24b3451525c6018dfb9aa8d9ee2b5b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9f4ddab534efa0f57f85aec28962573f')"
     ]
   }
 }
