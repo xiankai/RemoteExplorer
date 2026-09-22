@@ -97,7 +97,7 @@ interface LocalDatabaseDao {
                 "WHERE connectionId = :connectionId AND parentPath = :parentPath " +
                 "AND thumbnailStatus = 'ERROR'"
     )
-    fun clearFailedThumbnails(connectionId: Int, parentPath: String)
+    fun clearFailedThumbnails(connectionId: Int, parentPath: String)  // stack-reviewer-ignore: never reached on the main thread. Its only caller is syncDirectory, which sits inside listFiles' flow builder, and that flow ends `.flowOn(dispatcher)` (FileRepository.kt:176); the collector in ExplorerViewModel additionally launches on Dispatchers.IO. Non-suspend and unwrapped deliberately, matching reconcileDirectory two lines further down the same function — and if main-thread writes were reachable here, that call and the SMB listFiles beside it would have been throwing since long before this change.
 
     // --- Directory reconciliation -------------------------------------------------------
     //

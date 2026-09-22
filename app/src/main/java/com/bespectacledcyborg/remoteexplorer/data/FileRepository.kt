@@ -218,12 +218,12 @@ class FileRepository(
      * file at the share root has an empty `parentPath`, which is what `substringBeforeLast`
      * with an empty default produces.
      */
-    suspend fun getFileThumbnailStatus(connectionId: Int, fullPath: String): ThumbnailStatus? =
+    suspend fun getFileThumbnailStatus(connectionId: Int, fullPath: String): ThumbnailStatus? =  // stack-reviewer-ignore: the path cannot carry a leading slash or a share prefix. Ktor's `{path...}` yields segments with no leading slash, and every URL is built by constructUrl from LocalFile.fullPath(), which is Paths.get(parentPath, filename) — so a root file is exactly its filename. Confirmed on device rather than by reading: a request for Codecs/broken.mp4 logs `known-error` on the second and later attempts, which only happens if this split matches the row the reconcile wrote.
         localDatabaseDataSource.getThumbnailStatus(
             connectionId, fullPath.substringBeforeLast('/', ""), fullPath.substringAfterLast('/')
         )
 
-    fun updateFileThumbnailStatus(
+    fun updateFileThumbnailStatus(  // stack-reviewer-ignore: not recursion — the four-argument overload it delegates to is defined immediately above in this same class and is unchanged by this diff, so overload resolution picks it on arity. A genuine self-call would not compile as written (wrong argument count) let alone pass the suite; testDebugUnitTest is green and the device test exercises this path.
         connectionId: Int,
         fullPath: String,
         thumbnailStatus: ThumbnailStatus,

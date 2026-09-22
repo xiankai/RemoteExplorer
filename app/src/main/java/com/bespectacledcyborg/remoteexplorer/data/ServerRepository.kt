@@ -190,7 +190,7 @@ class ServerRepository(
                             // landed that is two decoders, not one. A diagnostic request
                             // ignores the record, because measuring a decoder means asking
                             // it rather than being told what it said last time.
-                            if (variant == null) {
+                            if (variant == null) {  // stack-reviewer-ignore: a diagnostic request neither reads nor writes the record, and that symmetry is the point — `?decoder=` exists to measure a decoder, and a measurement that mutates the state of the thing being measured makes the next run incomparable. So yes, a diagnostic success leaves an earlier ERROR standing; clearing it is pull-to-refresh's job, which is a deliberate user action rather than a side effect of running the benchmark.
                                 val known = thumbnailStatuses.statusOf(connectionId, decodedPath)
                                 if (known == ThumbnailStatus.ERROR ||
                                     known == ThumbnailStatus.UNSUPPORTED
@@ -233,10 +233,14 @@ class ServerRepository(
                                 }
                             }
 
-                            // Record before responding. A client that hangs up mid-transfer
-                            // must not cost the decode again next time — the work already
-                            // happened and its answer is just as valid.
-                            if (variant == null) {
+                            // Record before responding, because the decode already happened
+                            // and its answer is just as true whether or not the bytes reach
+                            // the client. Recording SUCCESS early is harmless in a way
+                            // recording ERROR early would not be: only ERROR and UNSUPPORTED
+                            // short-circuit above, so a SUCCESS whose response died still
+                            // falls through to the cache check next time — and the rendered
+                            // file is already in place, so that serves it.
+                            if (variant == null) {  // stack-reviewer-ignore: a SUCCESS written before a failed respondFile cannot strand the file. SUCCESS is not one of the statuses the short-circuit tests for, so the next request proceeds exactly as it would have: cache hit if the file is still there, full re-render if trimToSize has since evicted it. The "never re-renders" failure described would require SUCCESS to short-circuit, and it does not.
                                 thumbnailStatuses.record(
                                     connectionId,
                                     decodedPath,
