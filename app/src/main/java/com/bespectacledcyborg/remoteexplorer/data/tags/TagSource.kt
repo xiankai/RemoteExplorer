@@ -15,13 +15,34 @@ interface TagSource {
     val capabilities: TagSourceCapabilities
 
     /**
-     * Advances the tag index for [connectionId] by at most [limit] files, returning how many
-     * were processed. Zero means there is nothing left to index right now.
+     * Advances the tag index for [connectionId], doing at most [limit] files' worth of work
+     * where the work divides into files at all.
      *
-     * [reindexAll] re-reads files already indexed, for a user-requested refresh; otherwise
-     * only files not yet processed are considered.
+     * [reindexAll] re-reads what has already been indexed, for a user-requested refresh;
+     * otherwise only what has not been processed is considered.
      */
-    suspend fun index(connectionId: Int, reindexAll: Boolean, limit: Int): Int
+    suspend fun index(connectionId: Int, reindexAll: Boolean, limit: Int): TagIndexProgress
+}
+
+/**
+ * What one pass achieved.
+ *
+ * [mayHaveMore] is separate from [indexed] because the two are not the same question, and
+ * conflating them was a bug waiting to happen: the caller used to infer "there is more" from
+ * the count equalling the batch size, which works only for a source that processes files one
+ * at a time and can stop between any two. A source that fetches a whole index in one go
+ * returns a count that has nothing to do with the limit, and would have silently stopped a
+ * sidecar walk sharing the same pass.
+ */
+data class TagIndexProgress(
+    /** How many files or records this pass dealt with. Zero means it found nothing to do. */
+    val indexed: Int,
+    /** Whether another pass would find more. */
+    val mayHaveMore: Boolean,
+) {
+    companion object {
+        val NOTHING = TagIndexProgress(indexed = 0, mayHaveMore = false)
+    }
 }
 
 /**

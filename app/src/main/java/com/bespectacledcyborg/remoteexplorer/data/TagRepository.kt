@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import LocalDatabaseDataSource
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
+import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexProgress
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagSourceCapabilities
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagSources
 
@@ -18,7 +19,7 @@ class TagRepository(
     private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val tagSources: TagSources,
 ) {
-    suspend fun scanTags(connectionId: Int, forceRemote: Boolean, limit: Int): Int =
+    suspend fun scanTags(connectionId: Int, forceRemote: Boolean, limit: Int): TagIndexProgress =
         tagSources.forConnection(connectionId).index(connectionId, forceRemote, limit)
 
     suspend fun getTags(): List<LocalTagWithMetadata> = localDatabaseDataSource.getTags()

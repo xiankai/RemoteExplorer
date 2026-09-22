@@ -24,6 +24,10 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
+import com.bespectacledcyborg.remoteexplorer.data.tags.CombinedTagSource
+import com.bespectacledcyborg.remoteexplorer.data.tags.IndexFileTagSource
+import com.bespectacledcyborg.remoteexplorer.data.tags.SmbTagIndexFiles
+import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexReader
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.FallbackThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnailSource
@@ -90,11 +94,24 @@ class ExplorerViewModelFactory(
             localDatabaseDataSource,
             defaultDispatcher
         )
-        // Every connection resolves to sidecars, because that is the only source there is.
-        // A connection that names a remote tag database picks a different one here.
+        // Both sources for every connection, which is the union rather than a choice: the
+        // rolled-up index covers the galleries gallery-dl downloaded, sidecars cover
+        // whatever a photo tool wrote beside the files, and a share can have either, both
+        // or neither. A share with no index reports nothing and costs one small read to
+        // find that out.
         val tagRepository = TagRepository(
             localDatabaseDataSource,
-            { XmpSidecarTagSource(fileRepository, localDatabaseDataSource) },
+            {
+                CombinedTagSource(
+                    listOf(
+                        IndexFileTagSource(
+                            TagIndexReader(SmbTagIndexFiles(sambaFileDataSource)),
+                            localDatabaseDataSource,
+                        ),
+                        XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
+                    )
+                )
+            },
         )
         val connectionDataSource = ConnectionDataSource(
             db.connectionDao()
