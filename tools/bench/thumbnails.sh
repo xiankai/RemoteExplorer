@@ -38,6 +38,7 @@ variant=debug
 folder=Bench
 out=""
 concurrency=1
+decoder=""
 device="${REX_DEVICE:-}"
 
 while [ $# -gt 0 ]; do
@@ -46,6 +47,10 @@ while [ $# -gt 0 ]; do
     --folder)      folder="$2";      shift 2 ;;
     --out)         out="$2";         shift 2 ;;
     --concurrency) concurrency="$2"; shift 2 ;;
+    # Names a specific thumbnail implementation instead of the app's default, so two
+    # decoders can be compared on one build. Diagnostic requests bypass the app's cache,
+    # so every measurement is a cold render.
+    --decoder)     decoder="$2";     shift 2 ;;
     --device)      device="$2";      shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -103,6 +108,8 @@ files="$(in_share 'ls -1 "$REX_TARGET"' | tr -d '\r')"
 file_count="$(printf '%s\n' "$files" | grep -c . || true)"
 # shellcheck disable=SC2016  # as above
 bytes_on_share="$(in_share 'du -sk "$REX_TARGET"' | awk '{print $1 * 1024}')"
+dq=""
+[ -n "$decoder" ] && dq="&decoder=$decoder"
 echo "==> $folder: $file_count files, $((bytes_on_share / 1024 / 1024)) MiB on the share"
 
 cleanup() { "$adb" -s "$device" forward --remove "tcp:$local_port" >/dev/null 2>&1 || true; }  # stack-reviewer-ignore: local_port is assigned on the very next line, BEFORE the trap is installed, and cleanup only runs at exit — so it is always bound under set -u, including on the early exit when no port is found. The finding cited the later reassignment as the first assignment.
@@ -183,7 +190,7 @@ connection_id=""
 for _ in $(seq 1 15); do
   for candidate in 1 2 3 4 5; do
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 300 \
-      "http://127.0.0.1:$local_port/$folder/$probe?connectionId=$candidate&thumbnail=true" || true)"
+      "http://127.0.0.1:$local_port/$folder/$probe?connectionId=$candidate&thumbnail=true$dq" || true)"
     # 404 is "no thumbnail for this file", which still proves the connection resolved.
     if [ "$code" = "200" ] || [ "$code" = "404" ]; then connection_id="$candidate"; break 2; fi
   done
@@ -240,7 +247,7 @@ request() {
   curl -s -o /dev/null \
     -w "%{http_code} %{time_total} $name\n" \
     --max-time 600 \
-    "http://127.0.0.1:$local_port/$folder/$name?connectionId=$connection_id&thumbnail=true"
+    "http://127.0.0.1:$local_port/$folder/$name?connectionId=$connection_id&thumbnail=true$dq"
 }
 
 results="$(mktemp)"
@@ -258,14 +265,14 @@ if [ "$concurrency" -le 1 ]; then
   done <<< "$files"
 else
   # xargs -P is the portable way to bound concurrency here; bash 3.2 has no `wait -n`.
-  export local_port connection_id folder
+  export local_port connection_id folder dq
   # shellcheck disable=SC2016  # single quotes on purpose: the inner sh expands $local_port
   # and friends from the exported environment, while curl's %{http_code} must reach it
   # literally rather than being eaten by this shell.
   printf '%s\n' "$files" | grep . |
     xargs -P "$concurrency" -I{} sh -c \
       'curl -s -o /dev/null -w "%{http_code} %{time_total} {}\n" --max-time 600 \
-        "http://127.0.0.1:$local_port/$folder/{}?connectionId=$connection_id&thumbnail=true"' \
+        "http://127.0.0.1:$local_port/$folder/{}?connectionId=$connection_id&thumbnail=true$dq"' \
     >> "$results"
 fi
 printf '\n'
@@ -308,6 +315,7 @@ report() {
   echo "  variant        $variant"
   echo "  folder         $folder — $file_count files, $((bytes_on_share / 1024 / 1024)) MiB on the share"
   echo "  concurrency    $concurrency"
+  echo "  decoder        ${decoder:-app default}"
   echo
   echo "  served         $(awk '$1 == 200' "$results" | wc -l | tr -d ' ') ok, $(awk '$1 != 200' "$results" | wc -l | tr -d ' ') without a thumbnail"
   echo "  bytes off SMB  $bytes ($((bytes / 1024 / 1024)) MiB)"
