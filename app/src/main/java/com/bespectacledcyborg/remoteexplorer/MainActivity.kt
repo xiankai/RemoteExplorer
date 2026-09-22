@@ -52,7 +52,8 @@ import kotlinx.coroutines.launch
 
 class CustomWorkerFactory(
     private val tagRepository: TagRepository,
-    private val fileRepository: FileRepository
+    private val fileRepository: FileRepository,
+    private val settingsRepository: SettingsRepository,
 ) : WorkerFactory() {
     override fun createWorker(
         appContext: Context,
@@ -64,7 +65,9 @@ class CustomWorkerFactory(
                 ScanTagsWorker(appContext, workerParameters, tagRepository)
 
             ThumbnailGenerationWorker::class.java.name ->
-                ThumbnailGenerationWorker(appContext, workerParameters, fileRepository)
+                ThumbnailGenerationWorker(
+                    appContext, workerParameters, fileRepository, settingsRepository
+                )
 
             else -> null
         }
@@ -99,10 +102,12 @@ class ExplorerViewModelFactory(
         val connectionRepository = ConnectionRepository(
             connectionDataSource,
         )
+        val settingsRepository = SettingsRepository(db.settingsDao())
 
         if (!WorkManager.isInitialized()) {
             // Injecting the needed repositories
-            val workerFactory = CustomWorkerFactory(tagRepository, fileRepository)
+            val workerFactory =
+                CustomWorkerFactory(tagRepository, fileRepository, settingsRepository)
             val workManagerConfig = Configuration.Builder()
                 .setWorkerFactory(workerFactory)
                 .setMaxSchedulerLimit(50) // To avoid overloading the samba server
@@ -111,7 +116,9 @@ class ExplorerViewModelFactory(
         }
 
         // ThumbnailManager needs WorkManager up and running
-        val thumbnailManager = ThumbnailManager(application.applicationContext)
+        val thumbnailManager = ThumbnailManager(application.applicationContext) {
+            settingsRepository.getSettingsOnce()?.thumbnailCacheVolume
+        }
 
         // Resolved per media type, so video can be pointed elsewhere without moving images
         // with it. All of these are on-device today and none writes to the share.
@@ -167,7 +174,7 @@ class ExplorerViewModelFactory(
             serverRepository,
             connectionRepository,
             tagRepository,
-            SettingsRepository(db.settingsDao()),
+            settingsRepository,
             thumbnailManager,
         ) as T
     }

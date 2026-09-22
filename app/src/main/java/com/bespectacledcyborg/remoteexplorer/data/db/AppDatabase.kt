@@ -23,7 +23,11 @@ import java.util.Date
     //
     // 10 adds DirectorySync, which records when each directory was last reconciled against
     // the share. A new table with no bearing on existing rows, so it auto-migrates.
-    version = 10,
+    //
+    // 11 adds SettingsEntity.thumbnailCacheVolume, nullable — and NULL is exactly the value
+    // that means "internal storage", so every existing row migrates to the behaviour it
+    // already had.
+    version = 11,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -36,7 +40,8 @@ import java.util.Date
         // 9 -> 10 only creates the DirectorySync table. Existing LocalFile rows survive with
         // no sync record, which reads as "cached, never reconciled" — they show immediately
         // and are reconciled once on the next visit.
-        AutoMigration(from = 9, to = 10)
+        AutoMigration(from = 9, to = 10),
+        AutoMigration(from = 10, to = 11)
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)

@@ -74,6 +74,48 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Box {
+                var selectingVolume by remember { mutableStateOf(false) }
+                // Read when the menu opens rather than once at composition: a card can be
+                // inserted or removed while this screen is on top of it, and a picker
+                // offering a volume that is no longer there is worse than one that is a
+                // moment out of date.
+                val volumes = remember(selectingVolume) {
+                    settingsViewModel.thumbnailVolumes()
+                }
+                val chosen = volumes.firstOrNull { it.id == settings.thumbnailCacheVolume }
+
+                TextButton(
+                    onClick = { selectingVolume = !selectingVolume },
+                    content = {
+                        // A volume that has been removed still has a setting pointing at
+                        // it, and saying so is more use than silently showing "Internal" —
+                        // the cache really is falling back, and the user is the only one
+                        // who can put the card back.
+                        Text(
+                            "Thumbnail Cache: " +
+                                    (chosen?.label ?: "${settings.thumbnailCacheVolume} (not available)")
+                        )
+                    },
+                )
+                DropdownMenu(
+                    expanded = selectingVolume,
+                    onDismissRequest = { selectingVolume = false },
+                ) {
+                    volumes.forEach { volume ->
+                        DropdownMenuItem(
+                            text = { Text("${volume.label} — ${volume.freeBytes / (1024 * 1024 * 1024)} GB free") },
+                            onClick = {
+                                settingsViewModel.setThumbnailCacheVolume(volume.id)
+                                selectingVolume = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box {
                 var selectingColumnCount by remember { mutableStateOf(false) }
                 val columnCountOptions = List(12) { it + 1 }
 

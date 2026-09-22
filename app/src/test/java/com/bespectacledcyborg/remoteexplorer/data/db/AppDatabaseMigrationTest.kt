@@ -36,19 +36,19 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 10 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 11 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 10, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 11, true, EncryptSavedPasswords(cipher))
 
     /**
-     * The whole declared chain, validated against the exported v10 schema. This is the test
-     * that would have caught `fallbackToDestructiveMigration()` wiping the cache on a version
-     * bump before it reached a device, rather than after.
+     * The whole declared chain, validated against the exported latest schema. This is the
+     * test that would have caught `fallbackToDestructiveMigration()` wiping the cache on a
+     * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 10 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 11 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -118,6 +118,33 @@ class AppDatabaseMigrationTest {
                 assertEquals("media", row.getString(4))
                 assertEquals(DEFAULT_SMB_PORT, row.getInt(5))
             }
+        }
+    }
+
+    /**
+     * The settings row must come through 11 with its existing values and a NULL cache
+     * volume — which is the value that means internal storage, so the upgrade leaves the
+     * thumbnail cache exactly where it already was. A non-null default here would silently
+     * move every user's cache onto a card on first launch, and take the existing one with
+     * it.
+     */
+    @Test
+    fun `keeps settings across 11 and leaves the cache on internal storage`() {
+        // From 7 rather than 5, which is where the settings table first exists.
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount) VALUES (0, 7, 5)"
+            )
+        }
+
+        migrateToLatest().use { db ->
+            db.query("SELECT maxStorageCacheSize, defaultColumnCount, thumbnailCacheVolume FROM settings")
+                .use { row ->
+                    assertTrue("the settings row did not survive the migration", row.moveToFirst())
+                    assertEquals(7, row.getInt(0))
+                    assertEquals(5, row.getInt(1))
+                    assertTrue("the cache must stay on internal storage", row.isNull(2))
+                }
         }
     }
 

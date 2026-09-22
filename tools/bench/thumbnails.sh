@@ -40,6 +40,8 @@ out=""
 concurrency=1
 decoder=""
 device="${REX_DEVICE:-}"
+cache_dir="cache/thumbnails"
+warm=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,6 +54,14 @@ while [ $# -gt 0 ]; do
     # so every measurement is a cold render.
     --decoder)     decoder="$2";     shift 2 ;;
     --device)      device="$2";      shift 2 ;;
+    # Where the app is keeping its thumbnails, relative to its data directory — which is
+    # a setting now (#43), so the harness cannot assume it. Clearing the wrong directory
+    # would leave the real cache warm and report a folder of cache hits as if it were work.
+    --cache-dir)   cache_dir="$2";   shift 2 ;;
+    # Leaves the cache alone instead of clearing it, so the measured pass is every file
+    # served from disk. That is the number that decides whether a card is worth using: a
+    # cold render is dominated by SMB and decoding, and would barely notice the volume.
+    --warm)        warm=1;           shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -128,7 +138,12 @@ for other in com.bespectacledcyborg.remoteexplorer.debug \
              com.bespectacledcyborg.remoteexplorer; do
   "$adb" -s "$device" shell am force-stop "$other"
 done
-"$adb" -s "$device" exec-out run-as "$appid" sh -c 'rm -f cache/thumbnails/*' || true
+clear_cache() {
+  [ "$warm" = 1 ] && return 0
+  "$adb" -s "$device" exec-out run-as "$appid" sh -c "rm -f '$cache_dir'/*" || true
+}
+
+clear_cache
 "$adb" -s "$device" logcat -c
 "$adb" -s "$device" shell am start -W \
   -n "$appid/com.bespectacledcyborg.remoteexplorer.MainActivity" >/dev/null
@@ -230,9 +245,21 @@ done
 [ "$quiet" -ge 5 ] || echo "    (still busy after 90s — the numbers below may be contaminated)" >&2
 
 # Everything warmed above has to go, or the measured pass scores cache hits instead of work.
-"$adb" -s "$device" exec-out run-as "$appid" sh -c 'rm -f cache/thumbnails/*' || true
-[ "$("$adb" -s "$device" exec-out run-as "$appid" sh -c 'ls cache/thumbnails 2>/dev/null | wc -l' | tr -d ' \r')" = "0" ] || {
-  echo "thumbnail cache did not clear" >&2; exit 1; }
+# Unless that is the point: --warm measures exactly those hits.
+clear_cache
+cached_files="$("$adb" -s "$device" exec-out run-as "$appid" \
+  sh -c "ls '$cache_dir' 2>/dev/null | wc -l" | tr -d ' \r')"
+if [ "$warm" = 1 ]; then
+  # A "warm" run over an empty cache would silently be a cold one, and the report would
+  # not say so — the exact failure the contamination checks exist to prevent, inverted.
+  [ "$cached_files" != "0" ] || {
+    echo "--warm but $cache_dir is empty — run once without it first" >&2; exit 1; }
+else
+  # An unexpected survivor means the cache is not where --cache-dir says it is, so the
+  # clear went somewhere harmless and the measured pass is about to score cache hits.
+  [ "$cached_files" = "0" ] || {
+    echo "thumbnail cache did not clear — is it really at $cache_dir?" >&2; exit 1; }
+fi
 "$adb" -s "$device" logcat -c
 
 # ---- measured pass -----------------------------------------------------------------------
@@ -316,6 +343,7 @@ report() {
   echo "  folder         $folder — $file_count files, $((bytes_on_share / 1024 / 1024)) MiB on the share"
   echo "  concurrency    $concurrency"
   echo "  decoder        ${decoder:-app default}"
+  echo "  cache          $cache_dir$([ "$warm" = 1 ] && echo ' (warm — every request is a cache hit)')"
   echo
   echo "  served         $(awk '$1 == 200' "$results" | wc -l | tr -d ' ') ok, $(awk '$1 != 200' "$results" | wc -l | tr -d ' ') without a thumbnail"
   echo "  bytes off SMB  $bytes ($((bytes / 1024 / 1024)) MiB)"
@@ -324,12 +352,25 @@ report() {
   echo "  read fraction  $(awk -v b="$bytes" -v s="$bytes_on_share" 'BEGIN { printf "%.1f%% of the folder", (s ? 100 * b / s : 0) }')"
   echo "  per thumbnail  $(awk -v b="$bytes" -v n="$file_count" 'BEGIN { printf "%.1f MiB", (n ? b / n / 1048576 : 0) }') average"
   echo "  wall clock     ${elapsed}s total"
-  if [ "$cached_hits" -gt 0 ] || [ "$stray" -gt 0 ]; then
+  # A cache hit is contamination in a cold run and the measurement itself in a warm one, so
+  # --warm takes it out of the banner rather than crying wolf on every line of the report.
+  # A stray render is still contamination either way: it is work from another folder whose
+  # bytes land in this total.
+  if { [ "$cached_hits" -gt 0 ] && [ "$warm" != 1 ]; } || [ "$stray" -gt 0 ]; then
     echo
     echo "  !! CONTAMINATED — treat these numbers as a floor, not a measurement."
-    [ "$cached_hits" -gt 0 ] && echo "     $cached_hits request(s) hit a warm cache, so their work is not counted here."
+    [ "$cached_hits" -gt 0 ] && [ "$warm" != 1 ] &&
+      echo "     $cached_hits request(s) hit a warm cache, so their work is not counted here."
     [ "$stray" -gt 0 ] && echo "     $stray thumbnail(s) outside $folder were rendered, and their bytes are counted here."
     echo "     Something rendered behind the harness — usually the UI's folder galleries."
+  fi
+  # The inverse check, and the one that matters for --warm: anything that was not a cache
+  # hit was rendered, and a render is orders of magnitude slower than the read being timed.
+  # Even one drags the average somewhere the storage had nothing to do with.
+  if [ "$warm" = 1 ] && [ "$cached_hits" -lt "$file_count" ]; then
+    echo
+    echo "  !! $((file_count - cached_hits)) of $file_count request(s) rendered rather than"
+    echo "     hitting the cache, so this is not purely a measurement of reads."
   fi
   echo
   echo "  per file (http status, seconds):"

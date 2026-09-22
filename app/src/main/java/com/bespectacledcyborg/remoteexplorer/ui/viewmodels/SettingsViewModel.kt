@@ -4,7 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailVolume
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.availableThumbnailVolumes
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.discardThumbnailCache
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 typealias StorageSize = Number
 
@@ -27,6 +32,32 @@ class SettingsViewModel(
             settingsRepository.update(
                 settings.value.copy(defaultColumnCount = count)
             )
+        }
+    }
+
+    /** Volumes the thumbnail cache can be put on, for the picker to offer. */
+    fun thumbnailVolumes(): List<ThumbnailVolume> =
+        availableThumbnailVolumes(getApplication())
+
+    /**
+     * Repoints the thumbnail cache, discarding whatever is on the volume it leaves.
+     *
+     * The old cache goes rather than moving with it. Thumbnails being regenerable is the
+     * reason they are the safe thing to put on removable storage in the first place, so
+     * copying them across buys back only the re-render of whatever is on screen — while
+     * leaving them behind would turn a cache into litter on a volume nothing points at.
+     */
+    fun setThumbnailCacheVolume(volumeId: String?) {
+        viewModelScope.launch {
+            val previous = settings.value.thumbnailCacheVolume
+            if (previous == volumeId) return@launch
+
+            settingsRepository.update(
+                settings.value.copy(thumbnailCacheVolume = volumeId)
+            )
+            withContext(Dispatchers.IO) {
+                discardThumbnailCache(getApplication(), previous)
+            }
         }
     }
 }

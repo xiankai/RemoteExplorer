@@ -15,6 +15,26 @@ Then make the change and run it again into `/tmp/after.txt`. The reports diff cl
 Useful flags: `--variant releaseDebug`, `--folder Photos`, `--concurrency 4`,
 `--device <serial>`.
 
+## Measuring the cache rather than the render
+
+Where the thumbnails live is a setting (#43), so the harness has to be told when it is not
+the default:
+
+```bash
+CARD=/storage/C0AC-1F21/Android/data/com.bespectacledcyborg.remoteexplorer.debug/files/thumbnails
+tools/bench/thumbnails.sh --cache-dir "$CARD"            # cold: renders, writes to the card
+tools/bench/thumbnails.sh --cache-dir "$CARD" --warm     # warm: reads them back
+```
+
+`--cache-dir` is what the run clears and then checks is empty. Point it at the wrong place
+and the clear silently misses, the check passes on a directory nobody is using, and the
+measured pass scores cache hits — so the wrong value fails the run rather than flattering it.
+
+`--warm` leaves the cache alone, so every request is served from disk. That is the only way
+to see the storage at all: a cold render is dominated by SMB and decoding, and a slower
+volume barely registers. A warm run over an empty cache is refused, and one where anything
+rendered says so, because either would quietly be measuring something else.
+
 ## What it measures, and how
 
 **Bytes** come from the fixture container's `eth0` transmit counter, not from inside the
@@ -92,3 +112,21 @@ Per file, the three things worth noticing:
 At `--concurrency 4` the wall clock improves only 32s → 28s while every individual request
 roughly doubles (`no-faststart` 9.5s → 19.7s), which is the unbounded-concurrency problem
 in #28 showing up as a measurement.
+
+## Internal storage vs an SD card
+
+Measured for #43 on an SM-X730 with a 256 GB card, same build, same 13 files, switching the
+volume in Settings between runs:
+
+| | internal | SD card |
+|---|---|---|
+| cold — render 13 files | 18s | 16s |
+| warm — read 13 from cache | 0.04s median | 0.05s median |
+
+The card is not meaningfully slower. The worry that made this worth measuring — a cache read
+on every scroll landing on slow storage — comes to about a hundredth of a second either way,
+against the 1.5s it costs to make the thumbnail in the first place. Cold runs differ by less
+than the run-to-run spread, as they should: that time is SMB and decoding, not the volume.
+
+This is one card on one device and says nothing about a slow one, which is why internal
+stays the default. It does say the setting is safe to use.
