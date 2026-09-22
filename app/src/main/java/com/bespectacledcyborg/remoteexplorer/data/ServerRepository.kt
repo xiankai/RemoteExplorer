@@ -188,10 +188,19 @@ class ServerRepository(
                             }
 
                             if (rendered != null) {
-                                call.respondFile(rendered)
-                                logOutcome(if (variant != null) "rendered:$variant" else "rendered")
-                                // renderUncached hands over a file the caller owns.
-                                if (variant != null) rendered.delete()
+                                try {
+                                    call.respondFile(rendered)
+                                    logOutcome(
+                                        if (variant != null) "rendered:$variant" else "rendered"
+                                    )
+                                } finally {
+                                    // renderUncached hands over a file the caller owns, and
+                                    // trimToSize deliberately skips .tmp so an orphan is
+                                    // never evicted. respondFile throws if the client hangs
+                                    // up mid-transfer, which a timed benchmark request can
+                                    // do, so the delete cannot sit after it.
+                                    if (variant != null) rendered.delete()
+                                }
                             } else {
                                 Log.d("ServerRepository", "Nothing to render for $decodedPath")
                                 call.response.status(HttpStatusCode.NotFound)

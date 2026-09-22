@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import android.util.Log
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Tries each source in turn, taking the first that produces a thumbnail.
@@ -34,6 +35,16 @@ class FallbackThumbnailSource(
                     Log.d(TAG, "Fell back to ${source.javaClass.simpleName} for $path")
                 }
                 return true
+            }
+            // Every source shares one destination, so hand the next one an empty file
+            // rather than whatever the last one left behind. Nothing writes before
+            // returning false today — both encoders write once, at the end, through a
+            // truncating stream — but that is an invariant of the implementations rather
+            // than of the interface, and a source acquiring a write-then-give-up path
+            // later would corrupt the next one's output in a way that is very hard to
+            // read back from a broken thumbnail.
+            if (destination.length() > 0L) {
+                FileOutputStream(destination).close()
             }
         }
         return false
