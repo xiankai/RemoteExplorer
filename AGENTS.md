@@ -23,8 +23,18 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
   ├ ExplorerViewModel   path/nav stack, files, connections, tags, thumbnails, sort/filter
   └ SettingsViewModel
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
-       DataSources:  SambaFileDataSource (SMBJ)  +  LocalDatabaseDataSource (Room v13)
+       DataSources:  RoutingFileDataSource ─┬ SambaFileDataSource (SMBJ)
+                                            └ LocalFileDataSource (java.io.File)
+                     LocalDatabaseDataSource (Room v14)
 ```
+
+**Two kinds of connection.** A `Connection` is an SMB share or, with `type = LOCAL`, a folder
+on the device itself — a Syncthing'd copy of a share (#51). Both get a `connectionId`, so every
+table keyed by connection works for either, and everything that reads a file holds the one
+`RoutingFileDataSource` and never asks which kind it has. A local root is read with plain
+`java.io.File` under all-files access (`MANAGE_EXTERNAL_STORAGE`), confined to its folder, and
+never lists or opens Syncthing's own files (`.stfolder`, `.stversions`, temp files). It indexes
+no tags of its own.
 
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
 localhost that re-serves SMB files over HTTP with `Range` support. Everything downstream
@@ -61,7 +71,8 @@ first video frame. It is the *second* video decoder: `PlatformVideoThumbnailSour
 first and is cheaper, and FFmpeg covers what the device has no codec for — about 7.6% of the
 real library is DivX/Xvid `.avi`, which is why the native build cannot be deleted (#41).
 
-Both decoders read through one `RemoteRandomAccess`, a seekable ranged reader over SMB:
+Both decoders read through one `RemoteRandomAccess`, a seekable ranged reader over whichever
+source the connection has:
 Android's `MediaDataSource` and FFmpeg's AVIO callbacks are the same abstraction spelled
 differently. Nothing copies a prefix of the file any more.
 
@@ -189,7 +200,10 @@ Not yet fixed, roughly by user-visible impact:
 
 1. **The HTTP server treats `connectionId` as the only thing resembling auth.** It binds
    loopback now, so the exposure is other apps on the device rather than the whole LAN.
-   Passwords in Room are encrypted as of v9 — see below.
+   Passwords in Room are encrypted as of v9 — see below. A local root widens it: with
+   all-files access, another app can read anything under a configured root through this
+   server. `LocalFileDataSource` confining every path to its root is what keeps that to the
+   root rather than the whole of shared storage.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
    `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and
    their queries have DAO tests against a real Room database; the Ktor range server and the

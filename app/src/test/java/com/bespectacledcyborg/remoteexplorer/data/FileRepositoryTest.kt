@@ -385,7 +385,7 @@ private class FakeFileDataSource(
     var listCalls = 0
         private set
 
-    override fun connect(details: ConnectionDetails) = Unit
+    override fun connect(details: SourceDetails) = Unit
 
     override fun listFiles(
         connectionId: ConnectionId,

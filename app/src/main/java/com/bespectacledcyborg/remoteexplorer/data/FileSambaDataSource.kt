@@ -13,14 +13,14 @@ import java.io.InputStream
 typealias ConnectionId = Int
 
 data class ConnectionDetails(
-    var connectionId: ConnectionId,
+    override var connectionId: ConnectionId,
     var hostname: String,
     var port: Int,
     var username: String,
     var password: String,
     var domain: String,
     var shareName: String,
-)
+) : SourceDetails
 
 data class DiskShareEntry(
     val details: ConnectionDetails,
@@ -30,7 +30,8 @@ data class DiskShareEntry(
 class SambaFileDataSource : FileDataSource {
     private var diskShares: MutableMap<ConnectionId, DiskShareEntry> = mutableMapOf()
 
-    override fun connect(details: ConnectionDetails) {
+    override fun connect(details: SourceDetails) {
+        require(details is ConnectionDetails) { "Not an SMB share: ${details.connectionId}" }
         openShare(details)
     }
 

@@ -13,7 +13,11 @@ import java.io.InputStream
  * [SambaFileDataSource] is the only production implementation; tests supply their own.
  */
 interface FileDataSource {
-    fun connect(details: ConnectionDetails)
+    /**
+     * Makes [SourceDetails.connectionId] usable. Until it has been called, every other call
+     * for that id is refused.
+     */
+    fun connect(details: SourceDetails)
 
     fun listFiles(
         connectionId: ConnectionId,
@@ -26,6 +30,14 @@ interface FileDataSource {
      * is a server-side resource, and the share runs out of them.
      */
     fun openFile(connectionId: ConnectionId, path: String): SourceFile
+}
+
+/**
+ * What a source needs to open one connection: [ConnectionDetails] for a share, or
+ * [LocalRootDetails] for a folder on the device.
+ */
+sealed interface SourceDetails {
+    val connectionId: ConnectionId
 }
 
 /**

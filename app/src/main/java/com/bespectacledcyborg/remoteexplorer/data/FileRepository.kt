@@ -2,6 +2,8 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import LocalDatabaseDataSource
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -46,6 +48,30 @@ data class DirectoryListing(
 )
 
 /**
+ * What the source needs to open [connection].
+ *
+ * The SMB fields are nullable because a local root has none of them, not because a share
+ * may lack them — so an SMB row missing one is a broken row, and saying which field is
+ * missing beats handing smbj a null it reports as something else.
+ */
+internal fun sourceDetailsOf(connection: Connection): SourceDetails = when (connection.type) {
+    ConnectionType.SMB -> ConnectionDetails(
+        connectionId = connection.id,
+        hostname = requireNotNull(connection.hostname) { "${connection.name} has no hostname" },
+        port = connection.port,
+        username = connection.username.orEmpty(),
+        password = connection.password?.value.orEmpty(),
+        domain = connection.domain.orEmpty(),
+        shareName = requireNotNull(connection.share) { "${connection.name} has no share" },
+    )
+
+    ConnectionType.LOCAL -> LocalRootDetails(
+        connectionId = connection.id,
+        root = requireNotNull(connection.localRoot) { "${connection.name} has no folder" },
+    )
+}
+
+/**
  * How long a reconciled directory is trusted before the next visit re-reads it from the
  * share. Long enough that walking back up and down a tree costs nothing, short enough that
  * a file dropped on the NAS shows up without reaching for pull-to-refresh.
@@ -66,21 +92,9 @@ class FileRepository(
     private val clock: () -> Long = System::currentTimeMillis,
     private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
 ) {
-    suspend fun connect(
-        connectionId: Int,
-        hostname: String,
-        port: Int,
-        username: String,
-        password: String,
-        domain: String,
-        shareName: String
-    ) {
+    suspend fun connect(connection: Connection) {
         return withContext(dispatcher) {
-            fileDataSource.connect(
-                ConnectionDetails(
-                    connectionId, hostname, port, username, password, domain, shareName
-                )
-            )
+            fileDataSource.connect(sourceDetailsOf(connection))
         }
     }
 

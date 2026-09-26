@@ -15,7 +15,9 @@ import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
+import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -157,40 +159,44 @@ class ExplorerViewModel(
                     !tagRepository.capabilitiesFor(connection.id).indexesUnvisitedDirectories
                 }
 
-                fileRepository.connect(
-                    connection.id,
-                    connection.hostname,
-                    connection.port,
-                    connection.username,
-                    connection.password.value,
-                    connection.domain,
-                    connection.share,
-                )
+                fileRepository.connect(connection)
 
                 listFiles(connection.id)
+            } catch (e: AllFilesAccessMissing) {
+                _toast.emit("Allow all files access to open ${connection.name}")
             } catch (e: Exception) {
-                _toast.emit("Unable to connect to ${connection.hostname}")
+                _toast.emit(
+                    when (connection.type) {
+                        ConnectionType.SMB -> "Unable to connect to ${connection.hostname}"
+                        // No host to name, and the reason — a folder gone with its card, say —
+                        // is the useful part.
+                        ConnectionType.LOCAL ->
+                            "Unable to open ${connection.name}: ${e.message ?: "unknown error"}"
+                    }
+                )
             }
         }
 
         viewModelScope.launch {
-            _connectionName.update { connection.name + " » " + connection.share }
+            _connectionName.update {
+                when (connection.type) {
+                    ConnectionType.SMB -> connection.name + " » " + connection.share
+                    ConnectionType.LOCAL -> connection.name
+                }
+            }
         }
     }
 
     fun testConnection(connection: Connection) {
         viewModelScope.launch {
             try {
-                fileRepository.connect(
-                    connection.id,
-                    connection.hostname,
-                    connection.port,
-                    connection.username,
-                    connection.password.value,
-                    connection.domain,
-                    connection.share,
+                fileRepository.connect(connection)
+                _toast.emit(
+                    when (connection.type) {
+                        ConnectionType.SMB -> "Connected to ${connection.hostname}"
+                        ConnectionType.LOCAL -> "Opened ${connection.localRoot}"
+                    }
                 )
-                _toast.emit("Connected to ${connection.hostname}")
             } catch (e: Exception) {
                 _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
             }

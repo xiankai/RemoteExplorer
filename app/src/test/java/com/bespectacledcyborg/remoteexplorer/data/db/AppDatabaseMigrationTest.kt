@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 13 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 14 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 13, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 14, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 13 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 14 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -183,6 +183,58 @@ class AppDatabaseMigrationTest {
                 assertTrue(row.moveToFirst())
                 assertEquals(0, row.getInt(0))
             }
+        }
+    }
+
+    /**
+     * 14 rebuilds the Connection table, because SQLite cannot make a column nullable in
+     * place. A rebuild is a copy, and a copy is where rows go missing — so every existing
+     * connection has to come out as the share it was, its stored ciphertext untouched, and
+     * still unique by name.
+     */
+    @Test
+    fun `keeps a saved share through the Connection rebuild in 14`() {
+        helper.createDatabase(TEST_DB, 13).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO Connection (id, name, hostname, port, username, password, domain, share, lastModified)
+                VALUES (3, 'nas', 'nas.local', 1445, 'explorer', 'enc:v1:opaque', 'WORKGROUP', 'elements', 42)
+                """.trimIndent()
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 14, true).use { db ->
+            db.query(
+                "SELECT id, name, type, hostname, port, username, password, domain, share, localRoot, lastModified FROM Connection"
+            ).use { row ->
+                assertTrue("the saved share did not survive the rebuild", row.moveToFirst())
+                assertEquals(3, row.getInt(0))
+                assertEquals("nas", row.getString(1))
+                assertEquals("an existing row is a share", "SMB", row.getString(2))
+                assertEquals("nas.local", row.getString(3))
+                assertEquals(1445, row.getInt(4))
+                assertEquals("explorer", row.getString(5))
+                // Copied, not re-encrypted: the rebuild must not pass through the converter.
+                assertEquals("enc:v1:opaque", row.getString(6))
+                assertEquals("WORKGROUP", row.getString(7))
+                assertEquals("elements", row.getString(8))
+                assertTrue(row.isNull(9))
+                assertEquals(42L, row.getLong(10))
+            }
+
+            // The unique index on name came back with the table.
+            val duplicate = runCatching {
+                db.execSQL(
+                    "INSERT INTO Connection (name, lastModified) VALUES ('nas', 0)"
+                )
+            }
+            assertTrue("a second 'nas' must still be refused", duplicate.isFailure)
+
+            // And a local root, with none of the SMB fields, is now a row the table accepts.
+            db.execSQL(
+                "INSERT INTO Connection (name, type, localRoot, lastModified) " +
+                        "VALUES ('phone', 'LOCAL', '/storage/emulated/0/Sync', 0)"
+            )
         }
     }
 
