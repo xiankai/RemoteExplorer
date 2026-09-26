@@ -77,8 +77,22 @@ class AliasFileTagSource(
             return TagIndexProgress.NOTHING
         }
 
+        var lines = 0
         val groups = stream.use { raw ->
-            BufferedReader(raw.reader()).lineSequence().mapNotNull(::parseTagAliasLine).toList()
+            BufferedReader(raw.reader()).lineSequence()
+                .filter { it.isNotBlank() }
+                .onEach { lines++ }
+                .mapNotNull(::parseTagAliasLine)
+                .toList()
+        }
+        if (groups.isEmpty() && lines > 0) {
+            // A file with lines and not one usable group is a format this build cannot read,
+            // not a mapping that has been emptied. Replacing would drop every alias and burn
+            // the generation, so nothing would retry until the next build. Keep what there
+            // is, and leave the generation unrecorded so the next pass tries again. An empty
+            // file is different: that is a real build with no groups, and it replaces.
+            Log.w(TAG, "${TagIndex.ALIASES} has $lines lines and no usable group; keeping the old ones")
+            return TagIndexProgress.NOTHING
         }
         val aliases = groups.flatMap { group ->
             group.members.map { TagAlias(connectionId, tag = it, canonical = group.canonical) }

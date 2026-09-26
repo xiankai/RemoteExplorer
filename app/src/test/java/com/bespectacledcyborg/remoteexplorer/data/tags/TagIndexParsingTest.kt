@@ -133,6 +133,17 @@ class TagIndexParsingTest {
         assertEquals("fixture-1", meta.generation)
     }
 
+    /** Not the string "null" — that would compare equal to itself forever and never re-pull. */
+    @Test
+    fun `rejects a null generation`() {
+        val parsed = runCatching {
+            TagIndex.json.decodeFromString<TagIndexMeta>(
+                """{"schema":1,"generation":null,"records":1,"bytes":10}"""
+            )
+        }
+        assertTrue(parsed.isFailure)
+    }
+
     @Test
     fun `reads the alias meta the real generator writes`() {
         val meta = TagIndex.json.decodeFromString<TagAliasMeta>(

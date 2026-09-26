@@ -84,7 +84,9 @@ internal object GenerationSerializer : KSerializer<String> {
     override fun deserialize(decoder: Decoder): String {
         if (decoder !is JsonDecoder) return decoder.decodeString()
         val element = decoder.decodeJsonElement()
-        if (element !is JsonPrimitive || element is JsonNull) {
+        // JsonNull is itself a JsonPrimitive, so the second clause is what turns a null
+        // generation into an error rather than the string "null". Tested.
+        if (element !is JsonPrimitive || element is JsonNull) { // stack-reviewer-ignore: JsonNull extends JsonPrimitive, so this clause is reachable and is what rejects a null generation; see `rejects a null generation` in TagIndexParsingTest.
             throw SerializationException("generation is neither a number nor a string: $element")
         }
         return element.content

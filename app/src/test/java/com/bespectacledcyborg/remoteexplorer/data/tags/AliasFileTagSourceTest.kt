@@ -145,6 +145,24 @@ class AliasFileTagSourceTest {
         assertEquals(1, widened("眼鏡").size)
     }
 
+    /**
+     * Lines but no usable group is a format this build cannot read, not an emptied mapping.
+     * Keep the old groups and leave the generation unrecorded, so a later pass retries.
+     */
+    @Test
+    fun `a file with no readable group keeps the old ones`() = runTest {
+        files.meta = meta(7)
+        files.aliases = glassesGroup
+        source.index(1, reindexAll = false, limit = 50)
+
+        files.meta = meta(8)
+        files.aliases = "{\"groups_v2\":[]}\n{broken\n"
+        assertEquals(TagIndexProgress.NOTHING, source.index(1, reindexAll = false, limit = 50))
+
+        assertEquals(2, widened("眼鏡").size)
+        assertEquals("7", dao.getTagAliasGeneration(1))
+    }
+
     /** One bad line costs that group, not the file. */
     @Test
     fun `skips a bad line and keeps the rest`() = runTest {

@@ -65,6 +65,7 @@ interface LocalDatabaseDao {
      * of the matching tags the row carries is arbitrary, and nothing reads it.
      */
     @Query(
+        // stack-reviewer-ignore: the returned tag is deliberately arbitrary; the only caller (FileRepository.getFilesWithTag via DirTagRelation.asFolder) reads connectionId and parentPath and never the tag, as the KDoc above says.
         "SELECT connectionId, parentPath, MIN(tag) AS tag FROM DirTagRelation " +
                 "WHERE tag IN ($TAG_AND_ALIASES) " +
                 "GROUP BY connectionId, parentPath ORDER BY parentPath"
