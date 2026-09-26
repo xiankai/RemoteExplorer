@@ -85,16 +85,19 @@ fun PairingSection(
             }
 
             ConnectionType.SMB -> {
+                // Nothing at all for a share nobody has copied, rather than a heading over
+                // an empty list — most shares are never copied.
                 val copies = pairings.filter { it.remoteConnectionId == connection.id }
-                if (copies.isEmpty()) return@Column
-                Text("Copied to this device", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                copies.forEach { pairing ->
-                    Text(
-                        text = "${describe(connection, pairing.remoteSubPath)}  →  " +
-                                describe(byId[pairing.localConnectionId], pairing.localSubPath),
-                        modifier = Modifier.padding(vertical = 4.dp),
-                    )
+                if (copies.isNotEmpty()) {
+                    Text("Copied to this device", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    copies.forEach { pairing ->
+                        Text(
+                            text = "${describe(connection, pairing.remoteSubPath)}  →  " +
+                                    describe(byId[pairing.localConnectionId], pairing.localSubPath),
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                    }
                 }
             }
         }

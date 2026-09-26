@@ -409,12 +409,32 @@ class ExplorerViewModel(
 
     val pairingsState: StateFlow<List<Pairing>> = pairingRepository.pairings
 
+    /**
+     * The list on screen follows the table, so a write that fails shows as nothing having
+     * changed — but the failure itself would otherwise escape viewModelScope and take the
+     * process with it. A connection deleted a moment ago is the likely one: the pairing's
+     * foreign key refuses it.
+     */
     fun savePairing(pairing: Pairing) {
-        viewModelScope.launch { pairingRepository.save(pairing) }
+        viewModelScope.launch {
+            try {
+                pairingRepository.save(pairing)
+            } catch (e: Exception) {
+                Log.e("ExplorerViewModel", "Could not save $pairing", e)
+                _toast.emit("Could not save the pairing: ${e.message ?: "unknown error"}")
+            }
+        }
     }
 
     fun deletePairing(pairing: Pairing) {
-        viewModelScope.launch { pairingRepository.delete(pairing) }
+        viewModelScope.launch {
+            try {
+                pairingRepository.delete(pairing)
+            } catch (e: Exception) {
+                Log.e("ExplorerViewModel", "Could not remove $pairing", e)
+                _toast.emit("Could not remove the pairing: ${e.message ?: "unknown error"}")
+            }
+        }
     }
 
     fun editConnection(connection: Connection?) {
