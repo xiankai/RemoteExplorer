@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.util.Log
-import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
+import com.bespectacledcyborg.remoteexplorer.data.FileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap
 import java.io.File
@@ -25,7 +25,7 @@ private const val HEADER_BYTES = 128 * 1024
  * and the fallback streams the file without opening it for write.
  */
 class LocalImageThumbnailSource(
-    private val sambaFileDataSource: SambaFileDataSource,
+    private val fileDataSource: FileDataSource,
 ) : ThumbnailSource {
 
     override suspend fun render(connectionId: Int, path: String, destination: File): Boolean {
@@ -58,7 +58,7 @@ class LocalImageThumbnailSource(
      * and a short file simply returns fewer bytes.
      */
     private fun readHeader(connectionId: Int, path: String): ByteArray? =
-        sambaFileDataSource.openFile(connectionId, path).use { handle ->
+        fileDataSource.openFile(connectionId, path).use { handle ->
             val header = ByteArray(HEADER_BYTES)
             val read = handle.read(header, 0L, 0, HEADER_BYTES)
             when {
@@ -91,8 +91,8 @@ class LocalImageThumbnailSource(
             BitmapFactory.decodeByteArray(header, 0, header.size, bounds)
         }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            sambaFileDataSource.openFile(connectionId, path).use { handle ->
-                BitmapFactory.decodeStream(handle.inputStream, null, bounds)
+            fileDataSource.openFile(connectionId, path).use { handle ->
+                BitmapFactory.decodeStream(handle.inputStream(), null, bounds)
             }
         }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
@@ -106,8 +106,8 @@ class LocalImageThumbnailSource(
         // The whole file this time: there is no embedded thumbnail to lift, so the pixels
         // have to come off the wire. inSampleSize keeps the *decode* cheap, not the transfer
         // — that is the cost the embedded path above exists to avoid.
-        val bitmap = sambaFileDataSource.openFile(connectionId, path).use { handle ->
-            BitmapFactory.decodeStream(handle.inputStream, null, options)
+        val bitmap = fileDataSource.openFile(connectionId, path).use { handle ->
+            BitmapFactory.decodeStream(handle.inputStream(), null, options)
         } ?: return false
 
         resizeBitmap(bitmap.rotated(rotation), destination)

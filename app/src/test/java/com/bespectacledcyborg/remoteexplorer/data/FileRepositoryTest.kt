@@ -378,7 +378,7 @@ class FileRepositoryTest {
     }
 }
 
-/** Stands in for SMB. [openFile] is unfakeable and unused by anything under test. */
+/** Stands in for SMB. Nothing under test opens a file, so [openFile] refuses. */
 private class FakeFileDataSource(
     private val files: List<File> = emptyList(),
 ) : FileDataSource {
@@ -397,7 +397,7 @@ private class FakeFileDataSource(
     }
 
     override fun openFile(connectionId: ConnectionId, path: String) =
-        throw UnsupportedOperationException("no SMBJ handle in a unit test")
+        throw UnsupportedOperationException("nothing in FileRepository's listing opens a file")
 }
 
 /**

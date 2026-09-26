@@ -1,10 +1,9 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
-import com.hierynomus.smbj.share.File
 import java.io.Closeable
 
 /**
- * Random access to a file on the share, by byte offset.
+ * Random access to a file on a connection's source, by byte offset.
  *
  * Both video decoders want exactly this and nothing more. Android's
  * [android.media.MediaDataSource] is `readAt(position, buffer, offset, size)` plus a size;
@@ -21,7 +20,7 @@ import java.io.Closeable
  * that short.
  */
 class RemoteRandomAccess(
-    private val open: () -> File,
+    private val open: () -> SourceFile,
 ) : Closeable {
 
     /**
@@ -29,23 +28,21 @@ class RemoteRandomAccess(
      *
      * The lambda form exists for a caller that already has a handle-opening route of its
      * own — [com.bespectacledcyborg.remoteexplorer.data.FileRepository.openFileDirectly] —
-     * rather than a [SambaFileDataSource].
+     * rather than a [FileDataSource].
      */
     constructor(
-        sambaFileDataSource: SambaFileDataSource,
+        fileDataSource: FileDataSource,
         connectionId: Int,
         path: String,
-    ) : this({ sambaFileDataSource.openFile(connectionId, path) })
+    ) : this({ fileDataSource.openFile(connectionId, path) })
 
     private val lazyHandle = lazy { open() }
     private val handle by lazyHandle
 
-    private val length: Long by lazy {
-        handle.fileInformation.standardInformation.endOfFile
-    }
+    private val length: Long by lazy { handle.length() }
 
     /**
-     * The file's real length on the share, which is what makes seeking to the tail work.
+     * The file's real length, which is what makes seeking to the tail work.
      *
      * A function rather than a property because `ffmpeg_wrapper.c` looks it up as `size()J`,
      * by name — so renaming it breaks the native decoder at run time rather than at compile
@@ -71,12 +68,12 @@ class RemoteRandomAccess(
     /**
      * Reads up to [size] bytes at [position] into [buffer] at [offset]. Returns the number
      * read, or -1 at end of file — the contract `MediaDataSource.readAt` wants, which is
-     * also what smbj's offset read already returns.
+     * also what [SourceFile.read] already returns.
      */
     fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int =
         recordingFailure {
             if (position >= length) return -1
-            // Never ask for more than remains: a read straddling EOF is legal over SMB but
+            // Never ask for more than remains: a read straddling EOF is legal on the source but
             // the short count that comes back is easy to mistake for an error further up.
             val wanted = minOf(size.toLong(), length - position).toInt()
             if (wanted <= 0) return -1

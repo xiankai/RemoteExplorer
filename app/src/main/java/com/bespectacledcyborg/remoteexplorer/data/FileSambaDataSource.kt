@@ -8,6 +8,7 @@ import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
 import io.sentry.Sentry
 import io.sentry.SentryLevel
+import java.io.InputStream
 
 typealias ConnectionId = Int
 
@@ -80,7 +81,7 @@ class SambaFileDataSource : FileDataSource {
         return files
     }
 
-    override fun openFile(connectionId: ConnectionId, path: String): com.hierynomus.smbj.share.File {
+    override fun openFile(connectionId: ConnectionId, path: String): SourceFile {
         val accessMask = setOf(AccessMask.GENERIC_READ)
         val shareAccesses = setOf(SMB2ShareAccess.FILE_SHARE_READ)
         val createDisposition = SMB2CreateDisposition.FILE_OPEN
@@ -96,7 +97,7 @@ class SambaFileDataSource : FileDataSource {
                 null
             )
             Log.d("FileSambaDataSource", "samba has opened file: ${file.uncPath}")
-            return file
+            return SmbSourceFile(file)
         } catch (e: Exception) {
             Log.e("FileSambaDataSource", "samba failed to open file: $path", e)
             Sentry.captureMessage("Failed to open", SentryLevel.INFO, {
@@ -107,4 +108,22 @@ class SambaFileDataSource : FileDataSource {
             throw e
         }
     }
+}
+
+/** A [SourceFile] over an smbj handle. */
+private class SmbSourceFile(
+    private val file: com.hierynomus.smbj.share.File,
+) : SourceFile {
+    // endOfFile, not allocationSize: the allocation is rounded up to the share's cluster
+    // size, so it is the space the file takes rather than how long it is.
+    override fun length(): Long = file.fileInformation.standardInformation.endOfFile
+
+    // smbj's argument order is (buffer, fileOffset, bufferOffset, length), which is the
+    // order here too, and it already answers -1 at end of file.
+    override fun read(buffer: ByteArray, position: Long, offset: Int, length: Int): Int =
+        file.read(buffer, position, offset, length)
+
+    override fun inputStream(): InputStream = file.inputStream
+
+    override fun close() = file.close()
 }

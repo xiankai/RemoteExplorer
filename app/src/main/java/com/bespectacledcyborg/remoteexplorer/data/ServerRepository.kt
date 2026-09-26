@@ -6,7 +6,6 @@ import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
-import com.hierynomus.smbj.share.File
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -45,7 +44,7 @@ private const val RANGE_CHUNK_BYTES = 64 * 1024
 private const val MAX_CONCURRENT_RENDERS = 3
 
 class ServerRepository(
-    private val sambaFileDataSource: SambaFileDataSource,
+    private val fileDataSource: FileDataSource,
     private val dispatcher: CoroutineDispatcher,
     private val thumbnailManager: ThumbnailManager,
     private val thumbnailSources: ThumbnailSources,
@@ -116,9 +115,8 @@ class ServerRepository(
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
                         // `use`, because this handler leaked an SMB handle on every call —
                         // the GET below has always closed its own.
-                        sambaFileDataSource.openFile(connectionId, fullPath ?: "").use { file ->
-                            val totalLength =
-                                file.fileInformation.standardInformation.endOfFile
+                        fileDataSource.openFile(connectionId, fullPath ?: "").use { file ->
+                            val totalLength = file.length()
 
                             val rangeHeader = call.request.headers[HttpHeaders.Range]
                             val range = parseRangeHeaders(rangeHeader, totalLength)
@@ -128,7 +126,11 @@ class ServerRepository(
                             }
 
                             val standardHeaders = commonHeaders(
-                                file, range.first, range.last, totalLength, rangeHeader != null
+                                fullPath.orEmpty(),
+                                range.first,
+                                range.last,
+                                totalLength,
+                                rangeHeader != null,
                             )
                             for (name in standardHeaders.names()) {
                                 standardHeaders.getAll(name)?.forEach { value ->
@@ -277,13 +279,12 @@ class ServerRepository(
 
                         // Serve original image
                         val file =
-                            sambaFileDataSource.openFile(
+                            fileDataSource.openFile(
                                 connectionId,
                                 decodedPath ?: ""
                             )
                         file.use {
-                            val totalLength =
-                                file.fileInformation.standardInformation.endOfFile
+                            val totalLength = file.length()
 
                             val rangeHeader = call.request.headers[HttpHeaders.Range]
                             val range = parseRangeHeaders(rangeHeader, totalLength)
@@ -293,7 +294,11 @@ class ServerRepository(
                             }
 
                             val standardHeaders = commonHeaders(
-                                file, range.first, range.last, totalLength, rangeHeader != null
+                                decodedPath,
+                                range.first,
+                                range.last,
+                                totalLength,
+                                rangeHeader != null,
                             )
                             for (name in standardHeaders.names()) {
                                 standardHeaders.getAll(name)?.forEach { value ->
@@ -351,7 +356,7 @@ class ServerRepository(
                                 }
                             } else {
                                 call.respondOutputStream {
-                                    file.inputStream.transferTo(this)
+                                    file.inputStream().transferTo(this)
                                 }
                             }
                         }
@@ -368,14 +373,19 @@ class ServerRepository(
         call.respondText("Requested range not satisfiable")
     }
 
+    /**
+     * [path] is the request's own path. The type used to be guessed from the handle's UNC
+     * path, which names the same file with the host and share in front — only the extension
+     * is read, so the answer is the same — and exists on SMB alone.
+     */
     private fun commonHeaders(
-        file: File,
+        path: String,
         start: Long,
         end: Long,
         totalLength: Long,
         isPartial: Boolean,
     ): Headers {
-        val mimeType = URLConnection.guessContentTypeFromName(file.uncPath)
+        val mimeType = URLConnection.guessContentTypeFromName(path)
 
         val requestedLength = end - start + 1
         val headers = mutableListOf(

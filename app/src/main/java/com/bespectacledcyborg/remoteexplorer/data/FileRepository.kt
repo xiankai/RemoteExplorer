@@ -7,7 +7,6 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
-import com.hierynomus.smbj.share.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -54,7 +53,7 @@ data class DirectoryListing(
 const val DEFAULT_LISTING_TTL_MILLIS = 5 * 60 * 1000L
 
 class FileRepository(
-    private val sambaFileDataSource: FileDataSource,
+    private val fileDataSource: FileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val dispatcher: CoroutineDispatcher,
     // Injected purely so this class is reachable from a JVM unit test. The real
@@ -77,7 +76,7 @@ class FileRepository(
         shareName: String
     ) {
         return withContext(dispatcher) {
-            sambaFileDataSource.connect(
+            fileDataSource.connect(
                 ConnectionDetails(
                     connectionId, hostname, port, username, password, domain, shareName
                 )
@@ -100,7 +99,7 @@ class FileRepository(
         // app gaining a decoder that now could. This is the one lever the user has for that.
         if (forced) localDatabaseDataSource.clearFailedThumbnails(connectionId, parentPath)
 
-        val remoteList = sambaFileDataSource.listFiles(connectionId, parentPath)
+        val remoteList = fileDataSource.listFiles(connectionId, parentPath)
         val mappedRemoteList = remoteList.map {
             LocalFile(
                 connectionId = connectionId,
@@ -204,14 +203,16 @@ class FileRepository(
         return directories + localDatabaseDataSource.getFilesWithTag(tag)
     }
 
-    fun openFileDirectly(connectionId: Int, fullPath: String): File {
-        return sambaFileDataSource.openFile(connectionId, fullPath)
+    fun openFileDirectly(connectionId: Int, fullPath: String): SourceFile {
+        return fileDataSource.openFile(connectionId, fullPath)
     }
 
-    fun getFileSize(connectionId: Int, fullPath: String): Long {
-        val file = sambaFileDataSource.openFile(connectionId, fullPath)
-        return file.fileInformation.standardInformation.allocationSize
-    }
+    /**
+     * The file's real length. This used to answer SMB's allocation size, which is rounded
+     * up to a cluster and so is not the length — and left the handle it opened to leak.
+     */
+    fun getFileSize(connectionId: Int, fullPath: String): Long =
+        fileDataSource.openFile(connectionId, fullPath).use { it.length() }
 
     fun updateFileThumbnailStatus(
         connectionId: Int,

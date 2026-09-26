@@ -1,8 +1,8 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.FileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess
-import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap
 import java.io.File
@@ -20,11 +20,11 @@ import java.io.File
  * file whose `moov` atom sits at the end was unreachable however many rounds it ran.
  */
 class LocalVideoThumbnailSource(
-    private val sambaFileDataSource: SambaFileDataSource,
+    private val fileDataSource: FileDataSource,
 ) : ThumbnailSource {
 
     override suspend fun render(connectionId: Int, path: String, destination: File): Boolean {
-        val reader = RemoteRandomAccess(sambaFileDataSource, connectionId, path)
+        val reader = RemoteRandomAccess(fileDataSource, connectionId, path)
 
         return try {
             val frame = VideoDecoder().decodeVideoFrame(reader)
