@@ -4,6 +4,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -52,6 +53,33 @@ class SourceResolverTest {
 
         assertEquals(remote, served)
         assertEquals(listOf(FileIdentity(3, "beach.jpg")), logged)
+    }
+
+    @Test
+    fun `a local root that cannot be opened falls back to the share`() = runTest {
+        val served = SourceResolver(
+            Files { _, _ -> },
+            pairings = { pairings },
+            connect = { if (it == 3) throw IllegalStateException("access revoked") },
+            onUnreadable = { copy, _ -> logged += copy },
+        ).resolve(remote)
+
+        assertEquals(remote, served)
+        assertEquals(listOf(FileIdentity(3, "beach.jpg")), logged)
+    }
+
+    @Test
+    fun `cancellation is not mistaken for a missing copy`() = runTest {
+        val thrown = runCatching {
+            SourceResolver(
+                Files { _, _ -> },
+                pairings = { pairings },
+                connect = { if (it == 3) throw kotlinx.coroutines.CancellationException("gone") else opened += it },
+            ).resolve(remote)
+        }.exceptionOrNull()
+
+        assertTrue(thrown is kotlinx.coroutines.CancellationException)
+        assertEquals("the share must not be reached for a cancelled request", emptyList<ConnectionId>(), opened)
     }
 
     @Test

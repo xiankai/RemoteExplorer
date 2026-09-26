@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -33,9 +34,12 @@ class SourceResolver(
             // Opened and closed to ask whether it is there. For a local file that is a stat
             // and an open, which is noise next to the read that follows.
             val present = try {
-                connect(copy.connectionId)
+                connect(copy.connectionId)  // stack-reviewer-ignore: deliberately inside the try. A local root that cannot be opened — all-files access revoked (AllFilesAccessMissing), the card ejected, a pairing snapshot a moment older than a deleted connection — is exactly the case that must fall through to the share rather than fail a request the share can answer. It is not silent: anything but a missing file goes to onUnreadable, which logs it.
                 files.openFile(copy.connectionId, copy.path).close()
                 true
+            } catch (e: CancellationException) {
+                // The request went away. Carrying on to the share would do its work anyway.
+                throw e
             } catch (e: Exception) {
                 // Missing is the ordinary case and says nothing. Anything else — the card
                 // ejected, access revoked — is worth a line, and is still no reason to fail
