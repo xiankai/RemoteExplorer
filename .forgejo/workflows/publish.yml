@@ -44,6 +44,15 @@ concurrency:
   # costs a few minutes; the alternative costs a broken install.
   cancel-in-progress: false
 
+# GRADLE CACHE: same scheme as build.yml (see its CACHE note), with its own key, because a
+# release build with the native step resolves a different set of artifacts than lint and
+# unit tests. A push run writes the shared copy, so this job both reads and saves it; it
+# saves only when the Gradle files changed. The cache holds ~/.gradle only. The keystore
+# and keystore.properties live in /tmp/repo and are never in it.
+env:
+  # actions/cache runs inside the job container, which the gradle image ships without node.
+  NODE_VERSION: v22.23.3
+
 jobs:
   publish:
     runs-on: android
@@ -51,6 +60,14 @@ jobs:
       image: gradle:9.1.0-jdk21
     timeout-minutes: 45
     steps:
+      - name: Install node for the cache action
+        run: |
+          set -euo pipefail
+          # Bare `node` on the default PATH is what the runner calls. .tar.gz: no xz here.
+          curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz" | tar -xz -C /opt
+          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
+          node --version
+
       - name: Checkout
         run: |
           set -euo pipefail
@@ -61,6 +78,29 @@ jobs:
           git config --global --unset-all http.extraHeader
         env:
           RUN_TOKEN: ${{ github.token }}
+
+      - name: Gradle cache key
+        id: key
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          # Computed here rather than with hashFiles(), which only sees the workspace.
+          h=$(git ls-files -z 'gradle/libs.versions.toml' 'gradle/wrapper/gradle-wrapper.properties' \
+                '*.gradle' '*.gradle.kts' | xargs -0 sha256sum | sha256sum | cut -c1-16)
+          echo "key=gradle-publish-${h}" >> "$GITHUB_OUTPUT"
+          echo "gradle-publish-${h}"
+
+      - name: Restore the Gradle cache
+        uses: https://data.forgejo.org/actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.key.outputs.key }}
+          # Falls back to build.yml's shared copy, which covers most of the same dependencies.
+          restore-keys: |
+            gradle-publish-
+            gradle-build-
 
       - name: Restore the signing material
         run: |
@@ -115,6 +155,15 @@ jobs:
         env:
           ANDROID_HOME: /opt/android-sdk
           GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Tidy the Gradle cache before it is saved
+        run: |
+          set -uo pipefail
+          # Lock files and the gc marker would make a restored cache look busy. The save
+          # itself is the cache action's post step, after the publish steps below.
+          rm -f ~/.gradle/caches/modules-2/modules-2.lock ~/.gradle/caches/modules-2/gc.properties
+          find ~/.gradle/caches -name '*.lock' -type f -delete 2>/dev/null || true
+          du -sh ~/.gradle/caches ~/.gradle/wrapper 2>/dev/null || true
 
       - name: Verify the APK is actually signed
         run: |
