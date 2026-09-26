@@ -43,7 +43,8 @@ for a file everywhere that identifies one: the view model applies it before `con
 thumbnail cache key and the recorded thumbnail outcome. Where the bytes come from is a
 separate question — `SourceResolver` reads the local copy when it has the file and the share
 otherwise, whichever side the request came from, opening that connection on demand. Keep
-the two apart: a key computed from the *served* identity splits the cache again.
+the two apart: a key computed from the *served* identity splits the cache again. Pairings are
+edited from the local root's connection screen and shown, read-only, on the share's.
 
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
 localhost that re-serves SMB files over HTTP with `Range` support. Everything downstream

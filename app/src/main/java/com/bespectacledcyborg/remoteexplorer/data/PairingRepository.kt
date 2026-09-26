@@ -4,6 +4,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.PairingDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -19,11 +21,18 @@ class PairingRepository(
     private val pairingDao: PairingDao,
 ) {
     private val snapshot = MutableStateFlow<Pairings?>(null)
+    private val rows = MutableStateFlow<List<Pairing>>(emptyList())
+
+    /** The rows themselves, for the screen that edits them. */
+    val pairings: StateFlow<List<Pairing>> = rows.asStateFlow()
 
     /** Starts following the table. Once, from whatever owns the process's lifetime. */
     fun follow(scope: CoroutineScope) {
         scope.launch {
-            pairingDao.getPairings().collect { snapshot.value = Pairings(it) }
+            pairingDao.getPairings().collect {
+                rows.value = it
+                snapshot.value = Pairings(it)
+            }
         }
     }
 

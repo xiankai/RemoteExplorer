@@ -22,6 +22,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
+import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
@@ -403,6 +404,36 @@ class ExplorerViewModel(
             connectionRepository.addConnection(connection)
             _connections.update { it.plus(connection) }
             _connection.update { connection }
+        }
+    }
+
+    val pairingsState: StateFlow<List<Pairing>> = pairingRepository.pairings
+
+    /**
+     * The list on screen follows the table, so a write that fails shows as nothing having
+     * changed — but the failure itself would otherwise escape viewModelScope and take the
+     * process with it. A connection deleted a moment ago is the likely one: the pairing's
+     * foreign key refuses it.
+     */
+    fun savePairing(pairing: Pairing) {
+        viewModelScope.launch {
+            try {
+                pairingRepository.save(pairing)
+            } catch (e: Exception) {
+                Log.e("ExplorerViewModel", "Could not save $pairing", e)
+                _toast.emit("Could not save the pairing: ${e.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    fun deletePairing(pairing: Pairing) {
+        viewModelScope.launch {
+            try {
+                pairingRepository.delete(pairing)
+            } catch (e: Exception) {
+                Log.e("ExplorerViewModel", "Could not remove $pairing", e)
+                _toast.emit("Could not remove the pairing: ${e.message ?: "unknown error"}")
+            }
         }
     }
 

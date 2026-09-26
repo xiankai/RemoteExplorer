@@ -177,4 +177,13 @@ class PairingsTest {
             photos.canonicalize(framed.connectionId, framed.fullPath()),
         )
     }
+
+    @Test
+    fun `a folder typed with slashes is stored the way paths are spelled`() {
+        // The pairing dialog takes free text; every path in the app has no leading or
+        // trailing slash, and an empty one is the root.
+        assertEquals("Photos", Pairings.normalize("/Photos/"))
+        assertEquals("Photos/2024", Pairings.normalize("Photos/2024/"))
+        assertEquals("", Pairings.normalize("/"))
+    }
 }
