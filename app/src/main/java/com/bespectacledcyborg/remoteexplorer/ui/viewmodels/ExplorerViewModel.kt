@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
@@ -72,6 +73,7 @@ class ExplorerViewModel(
     // No default: one built here would resolve its cache directory from nothing and quietly
     // disagree with the one the server is writing to.
     private val thumbnailManager: ThumbnailManager,
+    private val pairingRepository: PairingRepository,
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -106,6 +108,9 @@ class ExplorerViewModel(
     // start following the tag scan.
     init {
         viewModelScope.launch { serverRepository.startup() }
+        // Next to the server on purpose: connect() waits for the first read of this, so a
+        // missing call here would leave every connection hanging on open.
+        pairingRepository.follow(viewModelScope)
         viewModelScope.launch {
             connectionRepository.getConnections().collect { connections ->
                 _connections.update { connections }
@@ -161,6 +166,10 @@ class ExplorerViewModel(
 
                 fileRepository.connect(connection)
 
+                // Before the first listing builds a URL: Sketch caches by URL, and one built
+                // from pairings not yet read would name a paired file as the local copy
+                // rather than the remote — a second cache entry for the same picture.
+                pairingRepository.awaitLoaded()
                 listFiles(connection.id)
             } catch (e: AllFilesAccessMissing) {
                 _toast.emit("Allow all files access to open ${connection.name}")
@@ -233,7 +242,11 @@ class ExplorerViewModel(
                 ?: throw IllegalStateException(
                     "Constructing a URL when connectionId is null"
                 )
-        return constructUrl(connectionId, path, thumbnail)
+        // Canonical before it becomes a URL, because the URL is Sketch's cache key: a local
+        // copy has to ask for its remote twin's URL to share its cache entry. The server
+        // reads the local copy anyway, when there is one.
+        val canonical = pairingRepository.current().canonicalize(connectionId, path)
+        return constructUrl(canonical.connectionId, canonical.path, thumbnail)
     }
 
     private val _search: MutableStateFlow<String> = MutableStateFlow("")

@@ -16,6 +16,12 @@ import java.security.MessageDigest
  * A digest over both fixes both. It is truncated because the full 256 bits buys nothing: at
  * 128 bits a collision is not a thing that happens to a photo library.
  */
+/*
+ * [connectionId] and [path] are a file's CANONICAL name (#51): a file under a paired local
+ * folder is keyed as its remote twin, so the two share one entry. That mapping is
+ * `Pairings.canonicalize`, applied once, by the server, before anything reaches the cache —
+ * this function only digests what it is given.
+ */
 internal fun thumbnailCacheKey(connectionId: Int, path: String): String {
     val digest = MessageDigest.getInstance("SHA-256")
         .digest("$connectionId\u0000$path".toByteArray(Charsets.UTF_8))

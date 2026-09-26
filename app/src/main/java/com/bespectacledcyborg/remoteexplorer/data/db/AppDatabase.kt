@@ -19,6 +19,7 @@ import java.util.Date
         TagAliasIngest::class,
         SettingsEntity::class,
         DirectorySync::class,
+        Pairing::class,
     ],
     exportSchema = true,
     // 9 carries no schema change: Connection.password is still one TEXT column. The bump
@@ -46,7 +47,10 @@ import java.util.Date
     // what it already was, and Connection.localRoot. The SMB columns become nullable, which
     // SQLite cannot ALTER — so the AutoMigration rebuilds the Connection table and copies
     // the rows across, stored password ciphertext included, byte for byte.
-    version = 14,
+    //
+    // 15 adds Pairing, which local folder is a copy of which remote one. A new table that
+    // touches no existing row, so it auto-migrates, and an existing install has no pairings.
+    version = 15,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -64,6 +68,7 @@ import java.util.Date
         AutoMigration(from = 11, to = 12),
         AutoMigration(from = 12, to = 13),
         AutoMigration(from = 13, to = 14),
+        AutoMigration(from = 14, to = 15),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -71,6 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun connectionDao(): ConnectionDao
     abstract fun localDatabaseDao(): LocalDatabaseDao
     abstract fun settingsDao(): SettingsDao
+    abstract fun pairingDao(): PairingDao
 }
 
 class Converters {

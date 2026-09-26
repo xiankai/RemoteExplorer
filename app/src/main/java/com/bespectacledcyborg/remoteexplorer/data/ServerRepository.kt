@@ -49,6 +49,14 @@ class ServerRepository(
     private val thumbnailManager: ThumbnailManager,
     private val thumbnailSources: ThumbnailSources,
     private val thumbnailStatuses: ThumbnailStatusStore,
+    /**
+     * The name a file is known by — see [Pairings.canonicalize]. Applied here even though
+     * the app's own URLs are built canonical already: a URL from before a pairing existed,
+     * or one handed to another app, still has to land on the shared cache entry.
+     */
+    private val canonicalize: (ConnectionId, String) -> FileIdentity,
+    /** Which copy to read a canonical file from. */
+    private val resolver: SourceResolver,
 ) {
     /**
      * How many thumbnails may be produced at once.
@@ -113,9 +121,11 @@ class ServerRepository(
                         val connectionId = extractConnectionId(call)
                         val fullPath = call.parameters.getAll("path")?.joinToString("/")
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
+                        val served =
+                            resolver.resolve(canonicalize(connectionId, fullPath.orEmpty()))
                         // `use`, because this handler leaked an SMB handle on every call —
                         // the GET below has always closed its own.
-                        fileDataSource.openFile(connectionId, fullPath ?: "").use { file ->
+                        fileDataSource.openFile(served.connectionId, served.path).use { file ->
                             val totalLength = file.length()
 
                             val rangeHeader = call.request.headers[HttpHeaders.Range]
@@ -153,6 +163,22 @@ class ServerRepository(
                             "Received GET request for $decodedPath (thumbnail: $isThumbnail)"
                         )
 
+                        // Three names for one file, kept apart on purpose. The request's is
+                        // whatever the URL said. The canonical one keys everything that
+                        // identifies the file — the cache entry and its recorded outcome —
+                        // so a local copy and its share share both. The served one is only
+                        // where the bytes come from, and says nothing about identity.
+                        val canonical = canonicalize(connectionId, decodedPath)
+                        suspend fun servedFrom(): FileIdentity =
+                            resolver.resolve(canonical).also {
+                                Log.d(
+                                    "ServerRepository",
+                                    "request=($connectionId,$decodedPath) " +
+                                            "canonical=(${canonical.connectionId},${canonical.path}) " +
+                                            "served-from=(${it.connectionId},${it.path})"
+                                )
+                            }
+
                         if (isThumbnail) {
                             // How long this request took, and which of the three ways it
                             // ended. A cache hit and a render differ by orders of magnitude,
@@ -178,7 +204,9 @@ class ServerRepository(
                             val variant = call.queryParameters["decoder"]
 
                             val thumbnailFile =
-                                thumbnailManager.getThumbnailPath(connectionId, decodedPath)
+                                thumbnailManager.getThumbnailPath(
+                                    canonical.connectionId, canonical.path
+                                )
 
                             if (variant == null && thumbnailFile.exists()) {
                                 call.respondFile(thumbnailFile)
@@ -193,7 +221,9 @@ class ServerRepository(
                             // ignores the record, because measuring a decoder means asking
                             // it rather than being told what it said last time.
                             if (variant == null) {  // stack-reviewer-ignore: a diagnostic request neither reads nor writes the record, and that symmetry is the point — `?decoder=` exists to measure a decoder, and a measurement that mutates the state of the thing being measured makes the next run incomparable. So yes, a diagnostic success leaves an earlier ERROR standing; clearing it is pull-to-refresh's job, which is a deliberate user action rather than a side effect of running the benchmark.
-                                val known = thumbnailStatuses.statusOf(connectionId, decodedPath)
+                                val known = thumbnailStatuses.statusOf(
+                                    canonical.connectionId, canonical.path
+                                )
                                 if (known == ThumbnailStatus.ERROR ||
                                     known == ThumbnailStatus.UNSUPPORTED
                                 ) {
@@ -212,7 +242,9 @@ class ServerRepository(
                             if (source == null) {
                                 Log.d("ServerRepository", "No thumbnail source for $decodedPath")
                                 thumbnailStatuses.record(
-                                    connectionId, decodedPath, ThumbnailStatus.UNSUPPORTED
+                                    canonical.connectionId,
+                                    canonical.path,
+                                    ThumbnailStatus.UNSUPPORTED,
                                 )
                                 call.response.status(HttpStatusCode.NotFound)
                                 call.respondText("No thumbnail available")
@@ -223,14 +255,17 @@ class ServerRepository(
                             // Bounded, so a folder of videos cannot put one decode per cell
                             // in flight at once. Held across the render only — the cache hit
                             // above and the response below are not the contended part.
+                            val served = servedFrom()
                             val rendered = renderSlots.withPermit {
                                 if (variant != null) {
                                     thumbnailManager.renderUncached {
-                                        source.render(connectionId, decodedPath, it)
+                                        source.render(served.connectionId, served.path, it)
                                     }
                                 } else {
-                                    thumbnailManager.renderInto(connectionId, decodedPath) {
-                                        source.render(connectionId, decodedPath, it)
+                                    thumbnailManager.renderInto(
+                                        canonical.connectionId, canonical.path
+                                    ) {
+                                        source.render(served.connectionId, served.path, it)
                                     }
                                 }
                             }
@@ -244,8 +279,8 @@ class ServerRepository(
                             // file is already in place, so that serves it.
                             if (variant == null) {  // stack-reviewer-ignore: a SUCCESS written before a failed respondFile cannot strand the file. SUCCESS is not one of the statuses the short-circuit tests for, so the next request proceeds exactly as it would have: cache hit if the file is still there, full re-render if trimToSize has since evicted it. The "never re-renders" failure described would require SUCCESS to short-circuit, and it does not.
                                 thumbnailStatuses.record(
-                                    connectionId,
-                                    decodedPath,
+                                    canonical.connectionId,
+                                    canonical.path,
                                     if (rendered != null) {
                                         ThumbnailStatus.SUCCESS
                                     } else {
@@ -278,11 +313,8 @@ class ServerRepository(
                         }
 
                         // Serve original image
-                        val file =
-                            fileDataSource.openFile(
-                                connectionId,
-                                decodedPath ?: ""
-                            )
+                        val served = servedFrom()
+                        val file = fileDataSource.openFile(served.connectionId, served.path)
                         file.use {
                             val totalLength = file.length()
 
