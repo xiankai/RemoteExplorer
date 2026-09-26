@@ -215,4 +215,101 @@ class TagIndexDaoTest {
         assertEquals(listOf("beach.jpg"), dao.getFilesWithTag("s").map { it.filename })
         assertEquals(42L, dao.getTagIndexIngest(1)?.bytesRead)
     }
+
+    // ---- the alias layer ----------------------------------------------------------------
+
+    private fun aliases(connectionId: Int, canonical: String, vararg members: String) =
+        members.map { TagAlias(connectionId, it, canonical) }
+
+    /**
+     * The case the layer exists for, with the real spellings: pixiv says `眼鏡`, examplebooru
+     * says `female:glasses`, and either one should find both galleries.
+     */
+    @Test
+    fun `a tag finds galleries carrying any member of its group`() {
+        dao.applyDirectoryTags(1, "gallery-dl/pixiv/1", listOf("眼鏡"), deleted = false)
+        dao.applyDirectoryTags(1, "gallery-dl/examplebooru/2", listOf("female:glasses"), deleted = false)
+        dao.applyDirectoryTags(1, "gallery-dl/examplebooru/3", listOf("female:ponytail"), deleted = false)
+        dao.replaceTagAliases(
+            1, aliases(1, "female/glasses", "glasses", "female:glasses", "眼鏡"), "7",
+        )
+
+        val expected = listOf("gallery-dl/examplebooru/2", "gallery-dl/pixiv/1")
+        assertEquals(expected, dao.getDirectoriesWithTag("眼鏡").map { it.parentPath })
+        assertEquals(expected, dao.getDirectoriesWithTag("female:glasses").map { it.parentPath })
+        // The bare leaf is a member too, and carried by nothing — it still widens.
+        assertEquals(expected, dao.getDirectoriesWithTag("glasses").map { it.parentPath })
+    }
+
+    @Test
+    fun `a tag in no group finds only itself`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("solo"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "x/other", "other", "another"), "1")
+
+        assertEquals(listOf("g/a"), dao.getDirectoriesWithTag("solo").map { it.parentPath })
+    }
+
+    /** Two members of one group on the same gallery are still one gallery. */
+    @Test
+    fun `a gallery carrying two members is listed once`() {
+        dao.applyDirectoryTags(1, "g/work", listOf("眼鏡", "丸眼鏡"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "female/glasses", "眼鏡", "丸眼鏡"), "1")
+
+        assertEquals(listOf("g/work"), dao.getDirectoriesWithTag("眼鏡").map { it.parentPath })
+    }
+
+    @Test
+    fun `sidecar-tagged files widen the same way, once each`() {
+        given(file("photos", "a.jpg"), file("photos", "b.jpg"))
+        dao.addFileTagRelation(FileTagRelation(1, "photos", "a.jpg", "TT"))
+        dao.addFileTagRelation(FileTagRelation(1, "photos", "a.jpg", "twintails"))
+        dao.addFileTagRelation(FileTagRelation(1, "photos", "b.jpg", "ツインテール"))
+        dao.replaceTagAliases(1, aliases(1, "female/twintails", "TT", "twintails", "ツインテール"), "1")
+
+        assertEquals(
+            listOf("a.jpg", "b.jpg"),
+            dao.getFilesWithTag("twintails").map { it.filename }.sorted(),
+        )
+    }
+
+    /**
+     * One hop only. `a` and `c` share nothing but a member of a member's group; walking
+     * further would be the transitive merge the generator refuses to make.
+     */
+    @Test
+    fun `does not chain through a member that sits in two groups`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("a"), deleted = false)
+        dao.applyDirectoryTags(1, "g/c", listOf("c"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "x/ab", "a", "b") + aliases(1, "x/bc", "b", "c"), "1")
+
+        assertEquals(listOf("g/a"), dao.getDirectoriesWithTag("a").map { it.parentPath })
+        // b sits in both, so it reaches both — which is what being in both groups means.
+        assertEquals(listOf("g/a", "g/c"), dao.getDirectoriesWithTag("b").map { it.parentPath })
+    }
+
+    /** A new generation replaces: a group corrected away upstream must stop widening. */
+    @Test
+    fun `a new alias generation replaces the old groups`() {
+        dao.applyDirectoryTags(1, "g/pantyhose", listOf("female:pantyhose"), deleted = false)
+        dao.applyDirectoryTags(1, "g/tights", listOf("タイツ"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "clothes/tights", "タイツ", "female:pantyhose"), "1")
+        assertEquals(2, dao.getDirectoriesWithTag("タイツ").size)
+
+        dao.replaceTagAliases(1, aliases(1, "clothes/tights", "タイツ", "tights"), "2")
+
+        assertEquals(listOf("g/tights"), dao.getDirectoriesWithTag("タイツ").map { it.parentPath })
+        assertEquals("2", dao.getTagAliasGeneration(1))
+    }
+
+    /** Replacing one connection's aliases leaves another's alone. */
+    @Test
+    fun `replacing aliases is per connection`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("a"), deleted = false)
+        dao.applyDirectoryTags(1, "g/b", listOf("b"), deleted = false)
+        dao.replaceTagAliases(2, aliases(2, "x/ab", "a", "b"), "5")
+        dao.replaceTagAliases(1, emptyList(), "1")
+
+        assertEquals(listOf("g/a", "g/b"), dao.getDirectoriesWithTag("a").map { it.parentPath })
+        assertEquals("5", dao.getTagAliasGeneration(2))
+    }
 }

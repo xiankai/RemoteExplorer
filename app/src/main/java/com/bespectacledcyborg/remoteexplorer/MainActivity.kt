@@ -24,6 +24,7 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
+import com.bespectacledcyborg.remoteexplorer.data.tags.AliasFileTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.CombinedTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.IndexFileTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.SmbTagIndexFiles
@@ -98,16 +99,16 @@ class ExplorerViewModelFactory(
         // rolled-up index covers the galleries gallery-dl downloaded, sidecars cover
         // whatever a photo tool wrote beside the files, and a share can have either, both
         // or neither. A share with no index reports nothing and costs one small read to
-        // find that out.
+        // find that out. The alias layer rides alongside: it adds no tags, only which ones
+        // mean the same thing, and has to run whether or not the index changed.
+        val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
         val tagRepository = TagRepository(
             localDatabaseDataSource,
             {
                 CombinedTagSource(
                     listOf(
-                        IndexFileTagSource(
-                            TagIndexReader(SmbTagIndexFiles(sambaFileDataSource)),
-                            localDatabaseDataSource,
-                        ),
+                        IndexFileTagSource(TagIndexReader(tagIndexFiles), localDatabaseDataSource),
+                        AliasFileTagSource(tagIndexFiles, localDatabaseDataSource),
                         XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
                     )
                 )

@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 12 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 13 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 12, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 13, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 12 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 13 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -163,6 +163,23 @@ class AppDatabaseMigrationTest {
                 assertEquals("an upgrade must not claim to have read a log", 0, row.getInt(0))
             }
             db.query("SELECT COUNT(*) FROM DirTagRelation").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(0, row.getInt(0))
+            }
+        }
+    }
+
+    /** Likewise 13: no alias generation, so the first pass takes the whole alias file. */
+    @Test
+    fun `arrives at 13 with no aliases ingested`() {
+        helper.createDatabase(TEST_DB, 5).close()
+
+        migrateToLatest().use { db ->
+            db.query("SELECT COUNT(*) FROM TagAliasIngest").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(0, row.getInt(0))
+            }
+            db.query("SELECT COUNT(*) FROM TagAlias").use { row ->
                 assertTrue(row.moveToFirst())
                 assertEquals(0, row.getInt(0))
             }

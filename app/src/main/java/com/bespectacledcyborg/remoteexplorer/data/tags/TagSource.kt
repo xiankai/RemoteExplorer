@@ -65,9 +65,10 @@ data class TagSourceCapabilities(
 /**
  * Chooses the source for a connection.
  *
- * Only sidecars are implemented, so every connection resolves to the same source today. The
- * seam exists because the choice becomes per-connection once a remote tag database can be
- * configured, and that wants somewhere to live that is not a call site.
+ * Every connection resolves to the same [CombinedTagSource] today — index, aliases and
+ * sidecars, each finding nothing on a share that lacks it. The seam exists because the
+ * choice becomes per-connection once a remote tag database can be configured, and that
+ * wants somewhere to live that is not a call site.
  */
 fun interface TagSources {
     fun forConnection(connectionId: Int): TagSource

@@ -27,8 +27,8 @@ class TagIndexReaderTest {
     )
     private val log = records.joinToString("\n", postfix = "\n").toByteArray()
 
-    private fun meta(generation: String = "g1", bytes: Long = log.size.toLong()) =
-        """{"schema":1,"generation":"$generation","records":3,"bytes":$bytes}""".toByteArray()
+    private fun meta(generation: Int = 1, bytes: Long = log.size.toLong()) =
+        """{"schema":1,"generation":$generation,"records":3,"bytes":$bytes}""".toByteArray()
 
     @Test
     fun `a share with no index has nothing to do`() = runTest {
@@ -57,7 +57,7 @@ class TagIndexReaderTest {
     fun `nothing appended since last time is nothing to do`() = runTest {
         val reader = TagIndexReader(FakeFiles(meta = meta(), log = log))
 
-        val plan = reader.plan(1, TagIngestState("g1", log.size.toLong()))
+        val plan = reader.plan(1, TagIngestState("1", log.size.toLong()))
 
         assertEquals(TagIndexPlan.NothingToDo, plan)
     }
@@ -66,9 +66,9 @@ class TagIndexReaderTest {
     fun `more log than was read resumes from the offset`() = runTest {
         val reader = TagIndexReader(FakeFiles(meta = meta(), log = log))
 
-        val plan = reader.plan(1, TagIngestState("g1", 10L))
+        val plan = reader.plan(1, TagIngestState("1", 10L))
 
-        assertEquals(TagIndexPlan.Resume(TagIndexMeta(1, "g1", 3, log.size.toLong()), 10L), plan)
+        assertEquals(TagIndexPlan.Resume(TagIndexMeta(1, "1", 3, log.size.toLong()), 10L), plan)
     }
 
     /**
@@ -78,9 +78,9 @@ class TagIndexReaderTest {
      */
     @Test
     fun `a new generation re-pulls from scratch`() = runTest {
-        val reader = TagIndexReader(FakeFiles(meta = meta(generation = "g2"), log = log))
+        val reader = TagIndexReader(FakeFiles(meta = meta(generation = 2), log = log))
 
-        val plan = reader.plan(1, TagIngestState("g1", 10L))
+        val plan = reader.plan(1, TagIngestState("1", 10L))
 
         assertTrue(plan is TagIndexPlan.FullPull)
     }
@@ -94,7 +94,7 @@ class TagIndexReaderTest {
     fun `an offset past the end re-pulls rather than sticking`() = runTest {
         val reader = TagIndexReader(FakeFiles(meta = meta(), log = log))
 
-        val plan = reader.plan(1, TagIngestState("g1", log.size + 500L))
+        val plan = reader.plan(1, TagIngestState("1", log.size + 500L))
 
         assertTrue(plan is TagIndexPlan.FullPull)
     }
@@ -132,7 +132,7 @@ class TagIndexReaderTest {
         val reader = TagIndexReader(files)
 
         val seen = mutableListOf<TagIndexRecord>()
-        reader.read(1, reader.plan(1, TagIngestState("g1", head.size.toLong())), seen::add)
+        reader.read(1, reader.plan(1, TagIngestState("1", head.size.toLong())), seen::add)
 
         // The first record was already ingested last time, so it must not arrive again —
         // the whole point of storing a byte offset rather than re-reading and de-duping.
@@ -157,7 +157,7 @@ class TagIndexReaderTest {
         // Deliberately not a line boundary: partway through the first record.
         val carried = reader.read(
             1,
-            TagIndexPlan.Resume(TagIndexMeta(1, "g1", 3, log.size.toLong()), 12L),
+            TagIndexPlan.Resume(TagIndexMeta(1, "1", 3, log.size.toLong()), 12L),
             seen::add,
         )
 
@@ -179,7 +179,7 @@ class TagIndexReaderTest {
         val reader = TagIndexReader(files)
 
         val seen = mutableListOf<TagIndexRecord>()
-        val plan = TagIndexPlan.Resume(TagIndexMeta(1, "g1", 2, spliced.size.toLong()), 0L)
+        val plan = TagIndexPlan.Resume(TagIndexMeta(1, "1", 2, spliced.size.toLong()), 0L)
         val carried = reader.read(1, plan, seen::add)
 
         // Still the resume it was asked for — one bad line is not evidence of a replaced log.
@@ -217,7 +217,7 @@ class TagIndexReaderTest {
             return ByteArrayInputStream(bytes, from.toInt(), (to - from).toInt())
         }
 
-        override suspend fun openCompressed(connectionId: Int, path: String): InputStream? =
+        override suspend fun openWhole(connectionId: Int, path: String): InputStream? =
             compressed?.let { ByteArrayInputStream(it) }
     }
 }

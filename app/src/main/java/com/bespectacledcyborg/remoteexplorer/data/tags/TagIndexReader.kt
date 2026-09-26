@@ -114,7 +114,7 @@ class TagIndexReader(
         meta: TagIndexMeta,
         onRecord: (TagIndexRecord) -> Unit,
     ) {
-        val compressed = files.openCompressed(connectionId, TagIndex.COMPRESSED_LOG)
+        val compressed = files.openWhole(connectionId, TagIndex.COMPRESSED_LOG)
         if (compressed != null) {
             compressed.use { GZIPInputStream(it).use { gzip -> readLines(gzip, onRecord) } }
             return
@@ -222,6 +222,11 @@ interface TagIndexFiles {
     /** Bytes `[from, to)` of a file, which is the point of the whole design. */
     suspend fun openRange(connectionId: Int, path: String, from: Long, to: Long): InputStream?
 
-    /** A file read start to end, for the gzipped copy. */
-    suspend fun openCompressed(connectionId: Int, path: String): InputStream?
+    /**
+     * A file read start to end: the gzipped copy, and the alias file.
+     *
+     * Not [readWhole], which is capped to the size a meta file can plausibly be — the alias
+     * file is already past that, and is a stream consumer's business anyway.
+     */
+    suspend fun openWhole(connectionId: Int, path: String): InputStream?
 }
