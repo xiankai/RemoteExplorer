@@ -18,6 +18,8 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
+import com.bespectacledcyborg.remoteexplorer.data.RoutingFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
@@ -27,6 +29,7 @@ import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCiphe
 import com.bespectacledcyborg.remoteexplorer.data.tags.AliasFileTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.CombinedTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.IndexFileTagSource
+import com.bespectacledcyborg.remoteexplorer.data.tags.SharesOnlyTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.SmbTagIndexFiles
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexReader
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
@@ -38,6 +41,7 @@ import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
+import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
 import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
@@ -86,12 +90,18 @@ class ExplorerViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val sambaFileDataSource = SambaFileDataSource()
+        // The one instance everything that reads a file holds. Each connection is routed
+        // to SMB or to the device's own storage by its type, when it connects.
+        val fileDataSource = RoutingFileDataSource(
+            smb = sambaFileDataSource,
+            local = LocalFileDataSource(),
+        )
         val localDatabaseDataSource = LocalDatabaseDataSource(
             db.localDatabaseDao(),
             defaultDispatcher
         )
         val fileRepository = FileRepository(
-            sambaFileDataSource,
+            fileDataSource,
             localDatabaseDataSource,
             defaultDispatcher
         )
@@ -101,21 +111,31 @@ class ExplorerViewModelFactory(
         // or neither. A share with no index reports nothing and costs one small read to
         // find that out. The alias layer rides alongside: it adds no tags, only which ones
         // mean the same thing, and has to run whether or not the index changed.
+        //
+        // Shares only: a local root takes its tags from the share it is paired with.
         val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
+        val connectionDao = db.connectionDao()
         val tagRepository = TagRepository(
             localDatabaseDataSource,
             {
-                CombinedTagSource(
-                    listOf(
-                        IndexFileTagSource(TagIndexReader(tagIndexFiles), localDatabaseDataSource),
-                        AliasFileTagSource(tagIndexFiles, localDatabaseDataSource),
-                        XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
-                    )
+                SharesOnlyTagSource(
+                    CombinedTagSource(
+                        listOf(
+                            IndexFileTagSource(
+                                TagIndexReader(tagIndexFiles), localDatabaseDataSource
+                            ),
+                            AliasFileTagSource(tagIndexFiles, localDatabaseDataSource),
+                            XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
+                        )
+                    ),
+                    isLocal = { id ->
+                        connectionDao.getConnectionType(id) == ConnectionType.LOCAL
+                    },
                 )
             },
         )
         val connectionDataSource = ConnectionDataSource(
-            db.connectionDao()
+            connectionDao
         )
         val connectionRepository = ConnectionRepository(
             connectionDataSource,
@@ -144,12 +164,12 @@ class ExplorerViewModelFactory(
         // The two video decoders cover different formats, so the default is both in order
         // rather than a choice between them — see FallbackThumbnailSource. `?decoder=` still
         // selects one on its own, which is how they get measured separately (#41).
-        val ffmpegVideoThumbnails = LocalVideoThumbnailSource(sambaFileDataSource)
-        val platformVideoThumbnails = PlatformVideoThumbnailSource(sambaFileDataSource)
+        val ffmpegVideoThumbnails = LocalVideoThumbnailSource(fileDataSource)
+        val platformVideoThumbnails = PlatformVideoThumbnailSource(fileDataSource)
         val videoThumbnails = FallbackThumbnailSource(
             listOf(platformVideoThumbnails, ffmpegVideoThumbnails)
         )
-        val imageThumbnails = LocalImageThumbnailSource(sambaFileDataSource)
+        val imageThumbnails = LocalImageThumbnailSource(fileDataSource)
         val thumbnailSources = ThumbnailSources { type, variant ->
             when (type) {
                 IconType.VIDEO -> when (variant) {
@@ -178,7 +198,7 @@ class ExplorerViewModelFactory(
         }
 
         val serverRepository = ServerRepository(
-            sambaFileDataSource,
+            fileDataSource,
             defaultDispatcher,
             thumbnailManager,
             thumbnailSources,

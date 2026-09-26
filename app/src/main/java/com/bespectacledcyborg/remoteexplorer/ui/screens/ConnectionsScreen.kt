@@ -55,19 +55,10 @@ fun ConnectionsScreen(
                 explorerViewModel.editConnection(null)
                 navHostController.navigate(Route.ConnectionDetailsRoute)
             } else {
-                explorerViewModel.connect(
-                    Connection(
-                        id = item.item.id,
-                        name = item.item.name,
-                        hostname = item.item.hostname,
-                        port = item.item.port,
-                        username = item.item.username,
-                        password = item.item.password,
-                        domain = item.item.domain,
-                        share = item.item.share,
-                        lastModified = item.item.lastModified,
-                    )
-                )
+                // The row itself. This used to rebuild it field by field, which silently
+                // dropped any field added since — a local root would have arrived without
+                // its type or its folder.
+                explorerViewModel.connect(item.item)
                 navHostController.navigate(Route.ExplorerRoute)
             }
         }

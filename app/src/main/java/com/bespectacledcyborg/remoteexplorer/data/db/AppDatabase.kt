@@ -41,7 +41,12 @@ import java.util.Date
     // TagAliasIngest for which generation of it each connection holds. New tables again, so
     // it auto-migrates, and no ingest state reads as "never pulled". It also indexes both tag
     // relations by tag, which only adds indices.
-    version = 13,
+    //
+    // 14 adds local roots (#51): Connection.type, defaulted to SMB so every existing row is
+    // what it already was, and Connection.localRoot. The SMB columns become nullable, which
+    // SQLite cannot ALTER — so the AutoMigration rebuilds the Connection table and copies
+    // the rows across, stored password ciphertext included, byte for byte.
+    version = 14,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -58,6 +63,7 @@ import java.util.Date
         AutoMigration(from = 10, to = 11),
         AutoMigration(from = 11, to = 12),
         AutoMigration(from = 12, to = 13),
+        AutoMigration(from = 13, to = 14),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
