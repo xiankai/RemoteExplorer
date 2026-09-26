@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
+import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 
 /** One file as the app names it: which connection, and where under it. */
@@ -54,6 +55,49 @@ class Pairings(pairings: List<Pairing>) {
             if (pairing.remoteConnectionId != canonical.connectionId) return@mapNotNull null
             val rest = relativeTo(canonical.path, pairing.remoteSubPath) ?: return@mapNotNull null
             FileIdentity(pairing.localConnectionId, join(pairing.localSubPath, rest))
+        }
+
+    /**
+     * [canonical] as the connection being browsed would name it — the reverse of
+     * [canonicalize], for rows that come back in the remote's identity.
+     *
+     * Tags are the case: a local root indexes none of its own, so what a tag lists are the
+     * share's rows, under the share's paths. Browsing a paired local root, those have to be
+     * re-expressed as the local copy's paths before anything builds a URL or opens a folder
+     * from them, or a pairing of the root with the share's `Photos` would ask for
+     * `Photos/Photos/beach.jpg`.
+     *
+     * Unchanged when [canonical] already belongs to [connectionId] — so always, while a share
+     * is being browsed, since no pairing has a share as its local side — and when the current
+     * connection holds no copy of it.
+     */
+    fun inFrameOf(connectionId: ConnectionId, canonical: FileIdentity): FileIdentity {
+        if (canonical.connectionId == connectionId) return canonical
+        return localCopiesOf(canonical).firstOrNull { it.connectionId == connectionId }
+            ?: canonical
+    }
+
+    /**
+     * [files] re-expressed for [connectionId], by [inFrameOf].
+     *
+     * A row whose copy would be the local root itself — a tagged folder that *is* the paired
+     * folder — keeps its own identity: a row with no name is not a thing the grid can show
+     * or open.
+     */
+    fun inFrameOf(connectionId: ConnectionId, files: List<LocalFile>): List<LocalFile> =
+        files.map { file ->
+            val framed = inFrameOf(connectionId, FileIdentity(file.connectionId, file.fullPath()))
+            if (framed.connectionId == file.connectionId || framed.path.isEmpty()) {
+                file
+            } else {
+                // Split the way FileRepository.getFileThumbnailStatus does, which is the
+                // inverse of LocalFile.fullPath: a file at the root has an empty parentPath.
+                file.copy(
+                    connectionId = framed.connectionId,
+                    parentPath = framed.path.substringBeforeLast('/', ""),
+                    filename = framed.path.substringAfterLast('/'),
+                )
+            }
         }
 
     companion object {
