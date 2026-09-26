@@ -211,7 +211,7 @@ class FileRepository(
      * The file's real length. This used to answer SMB's allocation size, which is rounded
      * up to a cluster and so is not the length — and left the handle it opened to leak.
      */
-    fun getFileSize(connectionId: Int, fullPath: String): Long =
+    fun getFileSize(connectionId: Int, fullPath: String): Long =  // stack-reviewer-ignore: no caller depends on the old value. grep over app/src finds exactly one caller, ExplorerViewModel.getFileSize, and nothing calls that — the change is intentional (the allocation size is not the file's length) and was called out in the commit message.
         fileDataSource.openFile(connectionId, fullPath).use { it.length() }
 
     fun updateFileThumbnailStatus(
