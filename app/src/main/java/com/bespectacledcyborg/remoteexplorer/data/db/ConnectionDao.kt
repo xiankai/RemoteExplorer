@@ -21,6 +21,10 @@ interface ConnectionDao {
     fun getConnections(): Flow<List<Connection>>
 
     /** Null for a connection that no longer exists. */
+    @Query("SELECT * FROM Connection WHERE id = :id")
+    suspend fun getConnection(id: Int): Connection?
+
+    /** Null for a connection that no longer exists. */
     @Query("SELECT type FROM Connection WHERE id = :id")
     suspend fun getConnectionType(id: Int): ConnectionType?
 

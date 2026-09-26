@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 14 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 15 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 14, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 15, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 14 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 15 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -235,6 +235,30 @@ class AppDatabaseMigrationTest {
                 "INSERT INTO Connection (name, type, localRoot, lastModified) " +
                         "VALUES ('phone', 'LOCAL', '/storage/emulated/0/Sync', 0)"
             )
+        }
+    }
+
+    /** 15: an existing install comes out with its connections and no pairings. */
+    @Test
+    fun `arrives at 15 with connections intact and nothing paired`() {
+        helper.createDatabase(TEST_DB, 14).use { db ->
+            db.execSQL(
+                "INSERT INTO Connection (id, name, type, localRoot, lastModified) " +
+                        "VALUES (3, 'phone', 'LOCAL', '/storage/emulated/0/Sync', 0)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 15, true).use { db ->
+            db.query("SELECT name, type, localRoot FROM Connection").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals("phone", row.getString(0))
+                assertEquals("LOCAL", row.getString(1))
+                assertEquals("/storage/emulated/0/Sync", row.getString(2))
+            }
+            db.query("SELECT COUNT(*) FROM Pairing").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(0, row.getInt(0))
+            }
         }
     }
 

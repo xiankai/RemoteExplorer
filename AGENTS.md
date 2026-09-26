@@ -36,6 +36,15 @@ table keyed by connection works for either, and everything that reads a file hol
 never lists or opens Syncthing's own files (`.stfolder`, `.stversions`, temp files). It indexes
 no tags of its own.
 
+**Pairing** says a local folder is a copy of a remote one, matched by relative path.
+`Pairings.canonicalize` names a paired local file as its remote twin, and it is the one name
+for a file everywhere that identifies one: the view model applies it before `constructUrl`
+(Sketch keys its cache by URL) and the server applies it again on receipt, before the
+thumbnail cache key and the recorded thumbnail outcome. Where the bytes come from is a
+separate question — `SourceResolver` reads the local copy when it has the file and the share
+otherwise, whichever side the request came from, opening that connection on demand. Keep
+the two apart: a key computed from the *served* identity splits the cache again.
+
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
 localhost that re-serves SMB files over HTTP with `Range` support. Everything downstream
 then consumes plain URLs — Sketch loads thumbnails, `ACTION_VIEW` hands video to external

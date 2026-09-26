@@ -18,7 +18,10 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
 import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
+import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
+import com.bespectacledcyborg.remoteexplorer.data.SourceResolver
 import com.bespectacledcyborg.remoteexplorer.data.RoutingFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
@@ -35,6 +38,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexReader
 import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.FallbackThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnailSource
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.PairedThumbnailStatuses
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.PlatformVideoThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
@@ -186,7 +190,7 @@ class ExplorerViewModelFactory(
         // Backed by the listing cache, which already carries a thumbnailStatus per file and
         // already resets it when a file changes on the share — so a recorded failure
         // expires on exactly the right event without a second store to keep in step.
-        val thumbnailStatuses = object : ThumbnailStatusStore {
+        val listingStatuses = object : ThumbnailStatusStore {
             override suspend fun statusOf(connectionId: Int, path: String) =
                 fileRepository.getFileThumbnailStatus(connectionId, path)
 
@@ -197,12 +201,29 @@ class ExplorerViewModelFactory(
             ) = fileRepository.updateFileThumbnailStatus(connectionId, path, status)
         }
 
+        // Which local folders are copies of which remote ones (#51). One snapshot, read by
+        // the server to name and find a file and by the view model to build its URLs, so
+        // both caches — ours and Sketch's — agree on what a file is called.
+        val pairingRepository = PairingRepository(db.pairingDao())
+        val thumbnailStatuses = PairedThumbnailStatuses(listingStatuses, pairingRepository::current)
+        val connectionOpener = ConnectionOpener(
+            files = fileDataSource,
+            lookUp = connectionDao::getConnection,
+            open = fileRepository::connect,
+        )
+
         val serverRepository = ServerRepository(
             fileDataSource,
             defaultDispatcher,
             thumbnailManager,
             thumbnailSources,
             thumbnailStatuses,
+            canonicalize = { id, path -> pairingRepository.current().canonicalize(id, path) },
+            resolver = SourceResolver(
+                fileDataSource,
+                pairingRepository::current,
+                connectionOpener::ensureOpen,
+            ),
         )
 
         @Suppress("UNCHECKED_CAST")
@@ -214,6 +235,7 @@ class ExplorerViewModelFactory(
             tagRepository,
             settingsRepository,
             thumbnailManager,
+            pairingRepository,
         ) as T
     }
 }

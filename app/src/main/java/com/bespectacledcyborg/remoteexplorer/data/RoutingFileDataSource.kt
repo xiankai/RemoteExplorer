@@ -35,6 +35,9 @@ class RoutingFileDataSource(
     override fun openFile(connectionId: ConnectionId, path: String) =
         route(connectionId).openFile(connectionId, path)
 
+    /** Whether [connect] has succeeded for [connectionId] in this process. */
+    fun isConnected(connectionId: ConnectionId): Boolean = routes.containsKey(connectionId)
+
     private fun route(connectionId: ConnectionId): FileDataSource =
         routes[connectionId]
             ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
