@@ -188,11 +188,10 @@ class FileRepository(
         )
     }.flowOn(dispatcher)
 
-    suspend fun getTagThumbnails(tag: LocalTag, limit: Int): List<String> {
+    /** Rows rather than paths, so the caller can put them in the frame it is browsing. */
+    suspend fun getTagThumbnails(tag: LocalTag, limit: Int): List<LocalFile> {
         return localDatabaseDataSource.getFilesWithTag(tag).filter {
             Utils.canHaveThumbnail(it.filename)
-        }.map {
-            it.fullPath()
         }.take(limit)
     }
 

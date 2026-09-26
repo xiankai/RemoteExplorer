@@ -171,6 +171,10 @@ class ExplorerViewModel(
                 // rather than the remote — a second cache entry for the same picture.
                 pairingRepository.awaitLoaded()
                 listFiles(connection.id)
+                // After listFiles, which records what is being browsed. The tag thumbnails
+                // are paths, and paths belong to a connection: the set built while browsing
+                // the last one names files the way it did.
+                _tagThumbnails.update { fetchTagThumbnails(_tags.value) }
             } catch (e: AllFilesAccessMissing) {
                 _toast.emit("Allow all files access to open ${connection.name}")
             } catch (e: Exception) {
@@ -289,7 +293,18 @@ class ExplorerViewModel(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshingState: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    /**
+     * The connection the listing collector is browsing — what tagged rows are framed for.
+     *
+     * Not [connectionState]: editing a connection points that at the one being edited
+     * without browsing it, and a tag scan finishing meanwhile would frame the tag
+     * thumbnails for a connection nothing is listing.
+     */
+    @Volatile
+    private var browsingConnectionId: Int? = null
+
     private fun listFiles(connectionId: Int) {
+        browsingConnectionId = connectionId
         listFilesCollector?.cancel()
         listFilesCollector = viewModelScope.launch(Dispatchers.IO) {
             combine(pathState, searchState, _refreshRequest) { path, search, request ->
@@ -306,7 +321,13 @@ class ExplorerViewModel(
                 try {
                     if (path.startsWith(tagPrefix)) {
                         val tag = path.substringAfter(tagPrefix)
-                        val files = fileRepository.getFilesWithTag(LocalTag(tag))
+                        // Tagged rows are the share's (a local root indexes nothing), so
+                        // they are put in the frame of what is being browsed before the
+                        // grid builds URLs or opens folders from their paths.
+                        val files = pairingRepository.current().inFrameOf(
+                            connectionId,
+                            fileRepository.getFilesWithTag(LocalTag(tag)),
+                        )
                         _list.update { it.plus(path to files.withThumbnailEligibility()) }
                         fetchThumbnails(connectionId, files)
                         // A tag listing is assembled from rows already in the database, so
@@ -528,7 +549,11 @@ class ExplorerViewModel(
             tags.associate {
                 val tagIdentifier = "${tagPrefix}${it.tag}"
                 if (it.count > 0) {
-                    tagIdentifier to fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
+                    val rows = fileRepository.getTagThumbnails(LocalTag(it.tag), 4)
+                    val framed = browsingConnectionId
+                        ?.let { id -> pairingRepository.current().inFrameOf(id, rows) }
+                        ?: rows
+                    tagIdentifier to framed.map { file -> file.fullPath() }
                 } else {
                     tagIdentifier to emptyList()
                 }
