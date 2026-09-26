@@ -6,8 +6,22 @@
 #   stealing. The only secret is the ephemeral per-run `github.token`, unset from the git
 #   config before any PR code runs. Do NOT add org Actions secrets here; review.yml is the
 #   workflow that legitimately needs them, which is why it is author-gated.
-# - No third-party Actions, matching review.yml: this Forgejo is Gitea-1.22-era and its
-#   action resolution is unproven, whereas a git clone needs no unproven feature.
+# - One Action only: data.forgejo.org/actions/cache (Forgejo's own mirror), for the Gradle
+#   cache. Action resolution on this instance was once unproven; clockwork-princess/
+#   m5-stopwatch has used this exact action here since 2026-09-26. Nothing else is pulled in.
+# - `push` to master runs this workflow too, but only to warm the shared cache (see CACHE).
+#   Those runs build merged code, and a pull_request run can only ever write a cache private
+#   to its own PR, so PR-authored build logic cannot replace what master (or publish.yml,
+#   which holds the signing key) restores.
+#
+# CACHE: ~/.gradle/caches (dependencies, their transforms, the local build cache) and
+# ~/.gradle/wrapper (the Gradle distribution), keyed on the files that decide what Gradle
+# downloads. Without it every run re-resolved everything from scratch (~9 min median).
+# A PR's cache is private to that PR; reads fall back to the shared copy that only a push
+# run can write. So a push to master looks the key up first and stops in seconds when the
+# shared copy exists, doing a full run only when the Gradle files change. PR runs then hit
+# the shared copy on the exact key and never save. The runner keeps only the newest entry
+# per key and drops anything unused for 7 days.
 #
 # WHAT IS DELIBERATELY NOT CHECKED HERE: the native build and the APK.
 # externalNativeBuild needs NDK 27.2.12479018 plus cmake, which is several GB to install on
@@ -32,10 +46,18 @@ name: build
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
 
 concurrency:
-  group: build-${{ github.event.pull_request.number }}
+  group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  # actions/cache runs inside the job container, which the gradle image ships without node.
+  NODE_VERSION: v22.23.3
+  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
+  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
 
 jobs:
   checks:
@@ -52,9 +74,23 @@ jobs:
     runs-on: android
     container:
       image: gradle:9.1.0-jdk21   # JDK 21 + git, matching the wrapper's Gradle version
-    timeout-minutes: 25
+    # 40, not 25: a cold run was already ~20 min at worst, and one that misses the cache also
+    # pays for compressing and saving it afterwards.
+    timeout-minutes: 40
     steps:
-      - name: Checkout PR head
+      - name: Install node for the cache action
+        run: |
+          set -euo pipefail
+          # The runner starts a JavaScript action with a bare `node` inside this container, so
+          # a symlink on the default PATH is all it needs. .tar.gz because the image has no xz.
+          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
+          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
+          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
+          tar -xzf /tmp/node.tgz -C /opt
+          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
+          node --version
+
+      - name: Checkout
         run: |
           set -euo pipefail
           test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available to clone a private repo"; exit 1; }
@@ -62,21 +98,71 @@ jobs:
           git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
           git clone --quiet --no-tags --filter=blob:none \
             "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
-          git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
-          git -C /tmp/repo -c advice.detachedHead=false checkout --quiet pr-head
+          if [ -n "${PR_NUMBER}" ]; then
+            git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
+            git -C /tmp/repo -c advice.detachedHead=false checkout --quiet pr-head
+          else
+            # Push to master: the pushed commit.
+            git -C /tmp/repo -c advice.detachedHead=false checkout --quiet "${GITHUB_SHA}"
+          fi
           # Drop the credential before any PR-authored code executes below.
           git config --global --unset-all http.extraHeader
         env:
           RUN_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
 
+      - name: Gradle cache key
+        id: key
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          # hashFiles() only sees the workspace, and this job clones into /tmp/repo, so the key
+          # is computed here: a hash over the files that decide what Gradle downloads.
+          files=$(git ls-files 'gradle/libs.versions.toml' 'gradle/wrapper/gradle-wrapper.properties' \
+                    '*.gradle' '*.gradle.kts')
+          # A layout change that matched nothing would otherwise hash empty input into a
+          # constant key that never changes again.
+          [ -n "$files" ] || { echo "::error::no Gradle files matched for the cache key"; exit 1; }
+          h=$(printf '%s\n' "$files" | xargs -d '\n' sha256sum | sha256sum | cut -c1-16)
+          echo "key=gradle-build-${h}" >> "$GITHUB_OUTPUT"
+          echo "gradle-build-${h}"
+
+      # Push runs only. lookup-only downloads nothing and the restore-only action has no post
+      # step, so this never saves. On a pull_request run it is skipped, its output is empty,
+      # and every `if:` below is true.
+      - name: Look up the shared Gradle cache
+        id: shared
+        if: github.event_name == 'push'
+        uses: https://data.forgejo.org/actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+
+      - name: Restore the Gradle cache
+        if: steps.shared.outputs.cache-hit != 'true'
+        # stack-reviewer-ignore: PR write scoping is enforced by the runner's cache proxy, which sets Forgejo-Cache-WriteIsolationKey itself for every PR run (act/cacheproxy/handler.go), and the server 403s any write outside it (act/artifactcache/handler.go); reading the shared copy is intended
+        uses: https://data.forgejo.org/actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.key.outputs.key }}
+          # A dependency bump still starts from the previous set rather than from nothing.
+          restore-keys: |
+            gradle-build-
+
       - name: Install shellcheck
+        if: steps.shared.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           apt-get update -qq
           apt-get install -y -qq --no-install-recommends shellcheck unzip curl
 
       - name: Install the Android SDK
+        if: steps.shared.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           # Only what a non-native Gradle run needs. No NDK, no cmake — see the header.
@@ -106,6 +192,7 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
 
       - name: Checks
+        if: steps.shared.outputs.cache-hit != 'true'
         run: |
           set -uo pipefail
           cd /tmp/repo
@@ -132,6 +219,18 @@ jobs:
           # fresh container has no entry to reuse, so it only ever pays the cost of storing
           # one that is then thrown away — and it is a known source of CI-only failures.
           GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Tidy the Gradle cache before it is saved
+        # Runs before the cache action's post step, which is what saves. That post step only
+        # saves on success and on a miss, so this matters only then, but it is cheap.
+        if: steps.shared.outputs.cache-hit != 'true'
+        run: |
+          set -uo pipefail
+          # Lock files and the gc marker would make a restored cache look busy or kick off a
+          # cleanup on the next run.
+          rm -f ~/.gradle/caches/modules-2/modules-2.lock ~/.gradle/caches/modules-2/gc.properties
+          find ~/.gradle/caches -name '*.lock' -type f -delete 2>/dev/null || true
+          du -sh ~/.gradle/caches ~/.gradle/wrapper 2>/dev/null || true
 
       - name: Lint report on failure
         if: failure()

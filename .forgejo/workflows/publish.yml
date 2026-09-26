@@ -44,6 +44,18 @@ concurrency:
   # costs a few minutes; the alternative costs a broken install.
   cancel-in-progress: false
 
+# GRADLE CACHE: RESTORE ONLY, never saved from here. This job holds the signing key, and
+# AGP writes signing-config data (store and key passwords) into its intermediates, which the
+# local build cache (org.gradle.caching=true, under ~/.gradle/caches) can keep. Anything this
+# job saved would be readable by any PR run, since a PR can edit build.yml to restore any
+# shared key. So it only reads build.yml's shared copy (same key, same files), which covers
+# most dependencies; the release- and native-only extras are still downloaded each time.
+env:
+  # actions/cache runs inside the job container, which the gradle image ships without node.
+  NODE_VERSION: v22.23.3
+  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
+  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
+
 jobs:
   publish:
     runs-on: android
@@ -51,6 +63,17 @@ jobs:
       image: gradle:9.1.0-jdk21
     timeout-minutes: 45
     steps:
+      - name: Install node for the cache action
+        run: |
+          set -euo pipefail
+          # Bare `node` on the default PATH is what the runner calls. .tar.gz: no xz here.
+          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
+          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
+          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
+          tar -xzf /tmp/node.tgz -C /opt
+          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
+          node --version
+
       - name: Checkout
         run: |
           set -euo pipefail
@@ -61,6 +84,32 @@ jobs:
           git config --global --unset-all http.extraHeader
         env:
           RUN_TOKEN: ${{ github.token }}
+
+      - name: Gradle cache key
+        id: key
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          # Computed here rather than with hashFiles(), which only sees the workspace.
+          files=$(git ls-files 'gradle/libs.versions.toml' 'gradle/wrapper/gradle-wrapper.properties' \
+                    '*.gradle' '*.gradle.kts')
+          # A layout change that matched nothing would otherwise hash empty input into a
+          # constant key that never changes again.
+          [ -n "$files" ] || { echo "::error::no Gradle files matched for the cache key"; exit 1; }
+          h=$(printf '%s\n' "$files" | xargs -d '\n' sha256sum | sha256sum | cut -c1-16)
+          echo "key=gradle-build-${h}" >> "$GITHUB_OUTPUT"
+          echo "gradle-build-${h}"
+
+      - name: Restore the Gradle cache
+        # restore/ has no post step, so nothing from this job is ever saved (see header).
+        uses: https://data.forgejo.org/actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.key.outputs.key }}
+          restore-keys: |
+            gradle-build-
 
       - name: Restore the signing material
         run: |
@@ -115,6 +164,7 @@ jobs:
         env:
           ANDROID_HOME: /opt/android-sdk
           GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
 
       - name: Verify the APK is actually signed
         run: |
