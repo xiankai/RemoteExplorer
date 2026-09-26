@@ -56,6 +56,8 @@ concurrency:
 env:
   # actions/cache runs inside the job container, which the gradle image ships without node.
   NODE_VERSION: v22.23.3
+  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
+  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
 
 jobs:
   checks:
@@ -81,7 +83,10 @@ jobs:
           set -euo pipefail
           # The runner starts a JavaScript action with a bare `node` inside this container, so
           # a symlink on the default PATH is all it needs. .tar.gz because the image has no xz.
-          curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz" | tar -xz -C /opt
+          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
+          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
+          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
+          tar -xzf /tmp/node.tgz -C /opt
           ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
           node --version
 
@@ -113,8 +118,12 @@ jobs:
           cd /tmp/repo
           # hashFiles() only sees the workspace, and this job clones into /tmp/repo, so the key
           # is computed here: a hash over the files that decide what Gradle downloads.
-          h=$(git ls-files -z 'gradle/libs.versions.toml' 'gradle/wrapper/gradle-wrapper.properties' \
-                '*.gradle' '*.gradle.kts' | xargs -0 sha256sum | sha256sum | cut -c1-16)
+          files=$(git ls-files 'gradle/libs.versions.toml' 'gradle/wrapper/gradle-wrapper.properties' \
+                    '*.gradle' '*.gradle.kts')
+          # A layout change that matched nothing would otherwise hash empty input into a
+          # constant key that never changes again.
+          [ -n "$files" ] || { echo "::error::no Gradle files matched for the cache key"; exit 1; }
+          h=$(printf '%s\n' "$files" | xargs -d '\n' sha256sum | sha256sum | cut -c1-16)
           echo "key=gradle-build-${h}" >> "$GITHUB_OUTPUT"
           echo "gradle-build-${h}"
 
@@ -134,6 +143,7 @@ jobs:
 
       - name: Restore the Gradle cache
         if: steps.shared.outputs.cache-hit != 'true'
+        # stack-reviewer-ignore: PR write scoping is enforced by the runner's cache proxy, which sets Forgejo-Cache-WriteIsolationKey itself for every PR run (act/cacheproxy/handler.go), and the server 403s any write outside it (act/artifactcache/handler.go); reading the shared copy is intended
         uses: https://data.forgejo.org/actions/cache@v4
         with:
           path: |
