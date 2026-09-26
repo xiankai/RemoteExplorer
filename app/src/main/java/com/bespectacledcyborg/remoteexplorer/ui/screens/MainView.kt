@@ -78,6 +78,10 @@ fun Routes(
         composable<Route.ConnectionDetailsRoute> {
             ConnectionDetailsScreen(
                 connection = explorerViewModel.connectionState.collectAsState().value,
+                connections = explorerViewModel.connectionsState.collectAsState().value,
+                pairings = explorerViewModel.pairingsState.collectAsState().value,
+                onSavePairing = explorerViewModel::savePairing,
+                onDeletePairing = explorerViewModel::deletePairing,
                 onSave = {
                     explorerViewModel.addConnection(it)
                     navHostController.navigate(Route.ConnectionsRoute)

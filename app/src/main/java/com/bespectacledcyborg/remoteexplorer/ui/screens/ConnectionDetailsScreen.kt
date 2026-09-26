@@ -51,8 +51,10 @@ import androidx.core.net.toUri
 import com.bespectacledcyborg.remoteexplorer.data.crypto.SecretText
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
 import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
+import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.DEFAULT_SMB_PORT
 import com.bespectacledcyborg.remoteexplorer.ui.components.LocalRootPickerDialog
+import com.bespectacledcyborg.remoteexplorer.ui.components.PairingSection
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ConnectionDetailsButtons
 import java.util.Date
 
@@ -64,6 +66,10 @@ fun ConnectionDetailsScreen(
     onCancel: () -> Unit,
     onTest: (Connection) -> Unit,
     onDelete: (Connection) -> Unit,
+    connections: List<Connection> = emptyList(),
+    pairings: List<Pairing> = emptyList(),
+    onSavePairing: (Pairing) -> Unit = {},
+    onDeletePairing: (Pairing) -> Unit = {},
 ) {
     val id by remember { mutableIntStateOf(connection?.id ?: 0) }
     var name by remember { mutableStateOf(connection?.name ?: "") }
@@ -210,7 +216,9 @@ fun ConnectionDetailsScreen(
                 val localFocusManager = LocalFocusManager.current
                 val keyboardController = LocalSoftwareKeyboardController.current
 
-                LazyColumn {
+                // Allowed to shrink, and scroll, so what sits below it — the buttons and the
+                // pairings — is not pushed off a short screen by the seven SMB fields.
+                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                     itemsIndexed(fields) { index, field ->
                         val imeAction =
                             if (index == fields.lastIndex) {
@@ -299,6 +307,26 @@ fun ConnectionDetailsScreen(
                     Button(onClick = { onSave(getCurrentConnection()) }, enabled = canSave) {
                         Text("Save")
                     }
+                }
+
+                // Only for a saved connection: a pairing names both sides by id, and a
+                // connection being added has none yet.
+                if (connection != null) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    PairingSection(
+                        connection = connection,
+                        connections = connections,
+                        pairings = pairings,
+                        onSave = onSavePairing,
+                        onDelete = onDeletePairing,
+                    )
+                } else if (type == ConnectionType.LOCAL) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Once saved, edit it again to pair it with a share.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 if (pickingRoot) {

@@ -22,6 +22,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
+import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
@@ -404,6 +405,16 @@ class ExplorerViewModel(
             _connections.update { it.plus(connection) }
             _connection.update { connection }
         }
+    }
+
+    val pairingsState: StateFlow<List<Pairing>> = pairingRepository.pairings
+
+    fun savePairing(pairing: Pairing) {
+        viewModelScope.launch { pairingRepository.save(pairing) }
+    }
+
+    fun deletePairing(pairing: Pairing) {
+        viewModelScope.launch { pairingRepository.delete(pairing) }
     }
 
     fun editConnection(connection: Connection?) {
