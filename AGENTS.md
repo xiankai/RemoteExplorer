@@ -191,8 +191,9 @@ Not yet fixed, roughly by user-visible impact:
    loopback now, so the exposure is other apps on the device rather than the whole LAN.
    Passwords in Room are encrypted as of v9 — see below.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
-   `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and their queries have DAO tests against a real Room database; the Ktor range server and the JNI
-   decoder are still untested, and there is no `androidTest/` source set at all.
+   `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and
+   their queries have DAO tests against a real Room database; the Ktor range server and the
+   JNI decoder are still untested, and there is no `androidTest/` source set at all.
 
    The migration tests run under **Robolectric as JVM unit tests**, not on a device, because
    `MigrationTestHelper` needs an `Instrumentation` but CI has no emulator — so they sit
