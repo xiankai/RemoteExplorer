@@ -4,8 +4,8 @@ import android.graphics.Bitmap
 import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import android.util.Log
+import com.bespectacledcyborg.remoteexplorer.data.FileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.RemoteRandomAccess
-import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import com.bespectacledcyborg.remoteexplorer.data.tasks.resizeBitmap
 import java.io.File
@@ -22,11 +22,11 @@ import java.io.File
  * video thumbnail, with seeks observed at multi-gigabyte offsets (#41).
  */
 class PlatformVideoThumbnailSource(
-    private val sambaFileDataSource: SambaFileDataSource,
+    private val fileDataSource: FileDataSource,
 ) : ThumbnailSource {
 
     override suspend fun render(connectionId: Int, path: String, destination: File): Boolean {
-        val reader = RemoteRandomAccess(sambaFileDataSource, connectionId, path)
+        val reader = RemoteRandomAccess(fileDataSource, connectionId, path)
         val retriever = MediaMetadataRetriever()
 
         return try {

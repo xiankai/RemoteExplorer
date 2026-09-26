@@ -97,7 +97,7 @@ class XmpSidecarTagSource(
     /** Closes the handle: one leaked SMB handle per sidecar exhausts the share's supply. */
     private fun readTags(connectionId: Int, tagFile: LocalFile): List<String> =
         fileRepository.openFileDirectly(connectionId, tagFile.fullPath()).use { handle ->
-            val xmpMeta = XMPMetaFactory.parse(handle.inputStream)
+            val xmpMeta = XMPMetaFactory.parse(handle.inputStream())
 
             // XMP arrays are 1-indexed.
             (1..xmpMeta.countArrayItems(DUBLIN_CORE_NAMESPACE, SUBJECT_PROPERTY)).map {

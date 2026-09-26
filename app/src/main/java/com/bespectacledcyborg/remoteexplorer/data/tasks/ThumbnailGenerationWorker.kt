@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.SourceFile
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.VideoDecoder
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
@@ -138,7 +139,7 @@ class ThumbnailGenerationWorker(
         return inSampleSize
     }
 
-    private fun generateImageThumbnail(thumbnailFile: File, file: com.hierynomus.smbj.share.File) {
+    private fun generateImageThumbnail(thumbnailFile: File, file: SourceFile) {
         // Read the file into a bitmap
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
 
@@ -150,7 +151,7 @@ class ThumbnailGenerationWorker(
             BitmapFactory.Options().apply { inSampleSize = sampleSize }
 
         val bitmap =
-            BitmapFactory.decodeStream(file.inputStream, null, decodingOptions)
+            BitmapFactory.decodeStream(file.inputStream(), null, decodingOptions)
                 ?: throw IllegalStateException("Bitmap is null")
 
         // Scale to exact size if needed
