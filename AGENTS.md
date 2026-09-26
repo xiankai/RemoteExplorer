@@ -2,11 +2,14 @@
 
 An Android SMB/CIFS browser aimed at media: save Samba connections, browse folders as a
 gallery, get thumbnails for images and video, swipe through images, hand other file types to
-external apps, and browse by tags harvested from XMP sidecars.
+external apps, and browse by tags — from gallery-dl's rolled-up index on the share and from
+XMP sidecars.
 
-Tags come from a `TagSource`, chosen per connection. Sidecars are the only implementation and
-the portable default; a remote tag database is the intended second one (issue #29). Whichever
-fills the index, reads always come back out of Room, so browsing by tag stays offline.
+Tags come from a `TagSource`. Every connection runs the same `CombinedTagSource`: the index
+(`IndexFileTagSource`), the alias layer (`AliasFileTagSource`) and sidecars
+(`XmpSidecarTagSource`). It is a union, not a fallback chain — they describe different parts of
+a share, and a share can have any of them or none. Whichever fills the tables, reads always
+come back out of Room, so browsing by tag stays offline.
 
 Written pre-agentically between Nov 2024 and Apr 2025, dormant until Mar 2026. Treat older
 code as deliberate but undocumented — several oddities below turned out to be load-bearing.
@@ -20,7 +23,7 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
   ├ ExplorerViewModel   path/nav stack, files, connections, tags, thumbnails, sort/filter
   └ SettingsViewModel
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
-       DataSources:  SambaFileDataSource (SMBJ)  +  LocalDatabaseDataSource (Room v11)
+       DataSources:  SambaFileDataSource (SMBJ)  +  LocalDatabaseDataSource (Room v13)
 ```
 
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
@@ -32,6 +35,26 @@ players — without downloading files first. URLs look like
 **Room is a mirror, not just preferences.** `LocalFile` caches the remote listing with
 per-file `tagStatus` / `thumbnailStatus` state machines. `listFiles` serves from the DB and
 only hits SMB when the DB is empty or you pull-to-refresh.
+
+**The tag index protocol** (generator side: infra#199). Files live under
+`gallery-dl/_index/` relative to the share root — on the real library, share `library`,
+which is `/srv/library`. Two independent halves, with two different contracts:
+
+- `index.ndjson` (+ `.gz`) and `index.meta.json` — an append-only log of directory-scoped
+  records, last record per path wins. Same `generation` → range-read from the stored byte
+  offset (`TagIndexIngest`); a different one → full pull that *replaces* the connection's
+  rows. A resume whose first line will not parse means the log was replaced underneath,
+  and re-pulls. Rebuilt daily at 6am.
+- `aliases.ndjson` and `aliases.meta.json` — groups of raw tags that mean the same thing
+  (`眼鏡` ↔ `female:glasses`). Rewritten whole on every build and the generation bumps
+  every time, so there is no offset: a new generation replaces the connection's `TagAlias`
+  rows. Resolved at **query time**: opening a tag lists everything carrying any member of
+  its group, one hop, never chained. `canonical` is an opaque key, not a display name.
+
+Both metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
+spelled them differently, the parser matched the fixture, and the real index silently read as
+absent — an unreadable meta is deliberately treated as no meta. Tag counts in the list are
+per raw tag and are not widened by aliases.
 
 **Native.** Prebuilt FFmpeg (`app/src/main/cpp/ffmpeg/`) plus a JNI wrapper that decodes the
 first video frame. It is the *second* video decoder: `PlatformVideoThumbnailSource` goes
@@ -168,8 +191,9 @@ Not yet fixed, roughly by user-visible impact:
    loopback now, so the exposure is other apps on the device rather than the whole LAN.
    Passwords in Room are encrypted as of v9 — see below.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
-   `AppDatabaseMigrationTest` covers the v5→v8 chain; the Ktor range server and the JNI
-   decoder are still untested, and there is no `androidTest/` source set at all.
+   `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and
+   their queries have DAO tests against a real Room database; the Ktor range server and the
+   JNI decoder are still untested, and there is no `androidTest/` source set at all.
 
    The migration tests run under **Robolectric as JVM unit tests**, not on a device, because
    `MigrationTestHelper` needs an `Instrumentation` but CI has no emulator — so they sit

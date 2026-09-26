@@ -2,6 +2,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectoryTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.FileTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
+import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
 import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -68,6 +69,18 @@ class LocalDatabaseDataSource(
         localDatabaseDao.applyTagIndex(
             connectionId, replace, directories, files, generation, bytesRead
         )
+    }
+
+    suspend fun getTagAliasGeneration(connectionId: Int): String? =
+        withContext(dispatcher) { localDatabaseDao.getTagAliasGeneration(connectionId) }
+
+    /** One connection's alias groups, swapped for a new generation. See the DAO. */
+    suspend fun replaceTagAliases(
+        connectionId: Int,
+        aliases: List<TagAlias>,
+        generation: String,
+    ) = withContext(dispatcher) {
+        localDatabaseDao.replaceTagAliases(connectionId, aliases, generation)
     }
 
     suspend fun getTags(): List<LocalTagWithMetadata> {

@@ -5,6 +5,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectorySync
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
+import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
+import com.bespectacledcyborg.remoteexplorer.data.db.TagAliasIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFileStamp
@@ -562,6 +564,14 @@ private class FakeLocalDatabaseDao(
     override fun deleteDirTagRelations(connectionId: Int, parentPath: String) = notUsed()
 
     override fun clearIngestedTags(connectionId: Int) = notUsed()
+
+    override fun getTagAliasGeneration(connectionId: Int): String? = notUsed()
+
+    override fun upsertTagAliasIngest(ingest: TagAliasIngest) = notUsed()
+
+    override fun addTagAliases(aliases: List<TagAlias>) = notUsed()
+
+    override fun clearTagAliases(connectionId: Int) = notUsed()
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

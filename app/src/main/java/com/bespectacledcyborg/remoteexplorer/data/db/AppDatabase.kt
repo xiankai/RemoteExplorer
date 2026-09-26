@@ -15,6 +15,8 @@ import java.util.Date
         FileTagRelation::class,
         DirTagRelation::class,
         TagIndexIngest::class,
+        TagAlias::class,
+        TagAliasIngest::class,
         SettingsEntity::class,
         DirectorySync::class,
     ],
@@ -34,7 +36,12 @@ import java.util.Date
     // has read the log. Both new, neither touching an existing row, so it auto-migrates —
     // and an existing install comes out with no ingest state, which reads as "never pulled"
     // and starts from a full pull.
-    version = 12,
+    //
+    // 13 adds the alias layer: TagAlias for which raw tags name the same thing, and
+    // TagAliasIngest for which generation of it each connection holds. New tables again, so
+    // it auto-migrates, and no ingest state reads as "never pulled". It also indexes both tag
+    // relations by tag, which only adds indices.
+    version = 13,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -49,7 +56,8 @@ import java.util.Date
         // and are reconciled once on the next visit.
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11),
-        AutoMigration(from = 11, to = 12)
+        AutoMigration(from = 11, to = 12),
+        AutoMigration(from = 12, to = 13),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)

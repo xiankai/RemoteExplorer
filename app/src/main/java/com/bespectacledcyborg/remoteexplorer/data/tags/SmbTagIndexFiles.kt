@@ -63,7 +63,7 @@ class SmbTagIndexFiles(
             }
     }
 
-    override suspend fun openCompressed(connectionId: Int, path: String): InputStream? {
+    override suspend fun openWhole(connectionId: Int, path: String): InputStream? {
         val reader = openOrNull(connectionId, path) ?: return null
         return runCatching { rangeStream(reader, 0L, reader.size()) }
             .getOrElse {

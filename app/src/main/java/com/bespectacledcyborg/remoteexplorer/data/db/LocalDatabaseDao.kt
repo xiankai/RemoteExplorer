@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data.db
 
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
@@ -12,35 +13,63 @@ import com.bespectacledcyborg.remoteexplorer.utils.Utils.BROWSEABLE_TYPES
 import java.nio.file.Paths
 import java.util.Date
 
+/**
+ * [tag] and every tag an alias group puts beside it, as a subquery binding `:tag`.
+ *
+ * One hop and no further: members of any group [tag] is in, never members of groups those
+ * members are in. The generator refuses to chain merges because one generic translation
+ * would drag unrelated concepts together, and walking the graph here would undo that.
+ *
+ * Across connections, like the tags themselves — a tag is a string, not a share's property.
+ */
+private const val TAG_AND_ALIASES =
+    "SELECT :tag UNION " +
+            "SELECT member.tag FROM TagAlias AS member " +
+            "INNER JOIN TagAlias AS self ON member.canonical = self.canonical " +
+            "WHERE self.tag = :tag"
+
 @Dao
 interface LocalDatabaseDao {
     /**
-     * Files carrying [tag] directly, which means the ones a sidecar named.
+     * Files carrying [tag] or one of its aliases directly, which means the ones a sidecar
+     * named.
      *
      * Deliberately not extended to the contents of a tagged gallery. A directory-scoped tag
      * belongs to the gallery, and [getDirectoriesWithTag] is what surfaces it: expanding it
      * to files here would show a gallery's contents when they happen to be cached and the
      * gallery itself when they are not, so the same tag would list different kinds of thing
      * depending on where the user had been.
+     *
+     * DISTINCT because a file can carry two members of one group, and is still one file.
      */
     @Query(
-        "SELECT LocalFile.* FROM LocalFile " +
+        "SELECT DISTINCT LocalFile.* FROM LocalFile " +
                 "INNER JOIN FileTagRelation " +
                 "ON LocalFile.connectionId = FileTagRelation.connectionId " +
                 "AND LocalFile.parentPath = FileTagRelation.parentPath " +
                 "AND LocalFile.filename = FileTagRelation.filename " +
-                "WHERE FileTagRelation.tag = :tag"
+                "WHERE FileTagRelation.tag IN ($TAG_AND_ALIASES)"
     )
     fun getFilesWithTag(tag: String): List<LocalFile>
 
     /**
-     * Directories carrying [tag], whether or not anyone has browsed into them.
+     * Directories carrying [tag] or one of its aliases, whether or not anyone has browsed
+     * into them.
      *
      * The reason a tag listing shows anything at all for a gallery nobody has opened: the
      * listing cache only knows directories that have been visited, so on a fresh install it
      * has nothing to say about the entire index.
+     *
+     * One row per gallery. A pixiv work tagged both `眼鏡` and `丸眼鏡` matches twice through
+     * the same group, and listing it twice would be the alias layer showing through. Which
+     * of the matching tags the row carries is arbitrary, and nothing reads it.
      */
-    @Query("SELECT * FROM DirTagRelation WHERE tag = :tag ORDER BY parentPath")
+    @Query(
+        // stack-reviewer-ignore: the returned tag is deliberately arbitrary; the only caller (FileRepository.getFilesWithTag via DirTagRelation.asFolder) reads connectionId and parentPath and never the tag, as the KDoc above says.
+        "SELECT connectionId, parentPath, MIN(tag) AS tag FROM DirTagRelation " +
+                "WHERE tag IN ($TAG_AND_ALIASES) " +
+                "GROUP BY connectionId, parentPath ORDER BY parentPath"
+    )
     fun getDirectoriesWithTag(tag: String): List<DirTagRelation>
 
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
@@ -84,6 +113,12 @@ interface LocalDatabaseDao {
      *
      * Neither side touches [LocalFile], which is what lets a tag count a gallery nobody has
      * browsed into — the under-reporting this index exists to remove.
+     *
+     * The count is the tag's own and is not widened by aliases, so opening a tag in a group
+     * can show more than the number beside it. Widening it here would mean resolving a group
+     * for each of several thousand tags on every read of the list, and the list itself is
+     * due to change shape (one entry per group rather than per spelling) before that is
+     * worth paying for.
      */
     @Query(
         "SELECT LocalTag.tag AS tag, " +
@@ -394,6 +429,35 @@ interface LocalDatabaseDao {
 
         upsertTagIndexIngest(TagIndexIngest(connectionId, generation, bytesRead))
     }
+
+    // ---- the alias layer ----------------------------------------------------------------
+
+    @Query("SELECT generation FROM TagAliasIngest WHERE connectionId = :connectionId")
+    fun getTagAliasGeneration(connectionId: Int): String?
+
+    @Upsert
+    fun upsertTagAliasIngest(ingest: TagAliasIngest)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun addTagAliases(aliases: List<TagAlias>)
+
+    @Query("DELETE FROM TagAlias WHERE connectionId = :connectionId")
+    fun clearTagAliases(connectionId: Int)
+
+    /**
+     * Swaps one connection's aliases for a new generation, all at once.
+     *
+     * Replace rather than merge: the file is rewritten whole on every build, so a group
+     * missing from the new one is a mapping someone corrected, and keeping it would leave the
+     * wrong answer in place forever. One transaction, so a lookup never sees a connection
+     * with half its groups, and the generation lands with the rows it describes.
+     */
+    @Transaction
+    fun replaceTagAliases(connectionId: Int, aliases: List<TagAlias>, generation: String) {
+        clearTagAliases(connectionId)
+        addTagAliases(aliases)
+        upsertTagAliasIngest(TagAliasIngest(connectionId, generation))
+    }
 }
 
 /**
@@ -455,13 +519,21 @@ data class LocalTagWithMetadata(
     val count: Int,
 )
 
+/**
+ * A tag on one file, from a sidecar.
+ *
+ * Indexed by tag because every read of it is by tag, and the primary key leads with the
+ * path. Without the index the tag list scanned both relations once per tag — four seconds
+ * for the real library's 3,470 tags, measured on the JVM, before a phone is involved.
+ */
 @Entity(
     primaryKeys = [
         "connectionId",
         "parentPath",
         "filename",
         "tag",
-    ]
+    ],
+    indices = [Index("tag")],
 )
 data class FileTagRelation(
     val connectionId: Int,
@@ -482,13 +554,16 @@ data class FileTagRelation(
  * one level, which the generator now enforces rather than leaving to the current layout, so
  * this joins to [LocalFile] on `parentPath` equality. If that ever has to bend, the join
  * becomes a prefix range rather than a different table.
+ *
+ * Indexed by tag for the same reason as [FileTagRelation].
  */
 @Entity(
     primaryKeys = [
         "connectionId",
         "parentPath",
         "tag",
-    ]
+    ],
+    indices = [Index("tag")],
 )
 data class DirTagRelation(
     val connectionId: Int,
@@ -529,6 +604,38 @@ data class TagIndexIngest(
     val connectionId: Int,
     val generation: String,
     val bytesRead: Long,
+)
+
+/**
+ * One raw tag's membership of an alias group, from the share's `aliases.ndjson`.
+ *
+ * Keyed by all three columns rather than by tag: the generator puts each tag in at most one
+ * group today, but that is its invariant rather than this table's, and a tag that ever did
+ * land in two should widen to both rather than lose one to a primary-key collision.
+ *
+ * Indexed by both columns, since a lookup goes tag → group → members.
+ */
+@Entity(
+    primaryKeys = ["connectionId", "tag", "canonical"],
+    indices = [Index("tag"), Index("canonical")],
+)
+data class TagAlias(
+    val connectionId: Int,
+    val tag: String,
+    val canonical: String,
+)
+
+/**
+ * Which alias generation a connection holds.
+ *
+ * Separate from [TagIndexIngest] because the two move independently: the index rebuilds
+ * daily and is read by offset, the aliases change with every editor decision and are only
+ * ever taken whole.
+ */
+@Entity(primaryKeys = ["connectionId"])
+data class TagAliasIngest(
+    val connectionId: Int,
+    val generation: String,
 )
 
 /**

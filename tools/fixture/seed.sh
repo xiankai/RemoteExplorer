@@ -136,7 +136,7 @@ log="$index/index.ndjson"
 : > "$log"
 {
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐"],"files":2,"mtime":1790047563}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","female:blush","parody:touhou project"],"files":2,"mtime":1790047600}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:blush","parody:touhou project"],"files":2,"mtime":1790047600}'
   printf '%s\n' '{"scope":"file","path":"gallery-dl/patreon/loose files/single.jpg","site":"patreon","tags":["creator:somebody"],"mtime":1790047700}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[999] deleted gallery","site":"pixiv","tags":["gone"],"files":0,"deleted":true,"mtime":1790047800}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910}'
@@ -145,14 +145,35 @@ log="$index/index.ndjson"
 
 # bytes is the log's length, which is both where a reader stops and the offset it resumes
 # from — so it has to be measured after the file is written, never guessed.
+#
+# Spelled exactly as the real generator writes it: pretty-printed, an INTEGER generation and
+# an ISO built_at. This used to write "generation":"fixture-1" and an epoch built_at, the app
+# was typed to match, and the index on the real share then failed to parse on every pass —
+# invisibly, since an unreadable meta reads as no index at all.
 log_bytes=$(wc -c < "$log" | tr -d ' ')
 records=$(wc -l < "$log" | tr -d ' ')
-printf '{"schema":1,"generation":"fixture-1","records":%s,"bytes":%s,"built_at":1790047900}\n' \
+printf '{\n  "schema": 1,\n  "generation": 1,\n  "records": %s,\n  "bytes": %s,\n  "built_at": "2026-09-26T06:00:28+0900"\n}\n' \
   "$records" "$log_bytes" > "$index/index.meta.json"
 
 # The compressed copy the first pull prefers. gzip -n keeps the name and timestamp out, so
 # regenerating the fixture produces an identical file rather than a spurious diff.
 gzip -nkf "$log"
+
+# The alias layer: groups of raw tags that name the same thing, rewritten whole on every
+# build under a generation of its own. Line shape, key order and spacing are the real
+# generator's (json.dumps with sort_keys). Two groups, both reaching across providers:
+#
+#   - 羽衣狐 (pixiv) and character:hagoromo gitsune (examplebooru), so opening either tag shows
+#     both galleries — the thing the layer exists for, visible on screen
+#   - touhou project with its bare leaf, a member no gallery carries, which must still widen
+aliases="$index/aliases.ndjson"
+{
+  printf '%s\n' '{"canonical": "characters/hagoromo gitsune", "confidence": "medium", "members": ["character:hagoromo gitsune", "hagoromo gitsune", "羽衣狐"], "needs_root": false, "sources": ["danbooru"]}'
+  printf '%s\n' '{"canonical": "franchise/touhou project", "confidence": "high", "members": ["parody:touhou project", "touhou project", "東方Project"], "needs_root": false, "sources": ["translated_name"]}'
+} > "$aliases"
+groups=$(wc -l < "$aliases" | tr -d ' ')
+printf '{\n  "schema": 1,\n  "generation": 1,\n  "groups": %s,\n  "queued": 0,\n  "overrides": 0,\n  "built_at": "2026-09-26T12:42:49+0900"\n}\n' \
+  "$groups" > "$index/aliases.meta.json"
 
 echo "seeded $media:"
 find "$media" -type f | sort | sed "s|$media|  media|"
