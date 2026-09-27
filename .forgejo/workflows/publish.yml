@@ -11,8 +11,8 @@
 #
 # OBTAINIUM CAN ONLY READ THE RELEASES IF THIS REPO IS PUBLIC. Its Forgejo source (still
 # named "Codeberg" in the app) has no token field, so a private repo's releases are invisible
-# to it. That is a repo-visibility decision, not a CI one — see issue #15 before flipping it,
-# since the Firebase key in git history was accepted on the premise that this repo is private.
+# to it. That is a repo-visibility decision, not a CI one. The Firebase key in git history no
+# longer argues against it: its project was shut down (#15).
 #
 # WHY THIS RUNS HERE AND NOT ON GITHUB. fileserver is published at
 # files.example.invalid, a TAILNET host, so a GitHub-hosted runner cannot
@@ -29,10 +29,14 @@
 # then dies inside System.loadLibrary at the first video thumbnail. That makes this job
 # several GB heavier than the PR check; it is why this triggers on merge rather than on every
 # push to a branch.
+#
+# A merge that touches only Markdown publishes nothing. versionCode is the build time, so an
+# identical APK would still read as an update to Obtainium. workflow_dispatch is unfiltered.
 name: publish
 on:
   push:
     branches: [master]
+    paths-ignore: ['**.md']
   workflow_dispatch:
 
 concurrency:

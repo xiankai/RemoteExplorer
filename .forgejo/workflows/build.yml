@@ -42,12 +42,18 @@
 # in parallel anyway — they would just mean a clone each and a queue behind one another. Each
 # group runs even if an earlier one fails, so one push surfaces every finding instead of
 # peeling them off one at a time.
+#
+# A change that touches only Markdown runs nothing: shellcheck, unit tests and lint read no
+# .md file. master has no required status checks, so a skipped run cannot leave a PR stuck
+# waiting on one — add a required check and this filter has to go.
 name: build
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore: ['**.md']
   push:
     branches: [master]
+    paths-ignore: ['**.md']
 
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
