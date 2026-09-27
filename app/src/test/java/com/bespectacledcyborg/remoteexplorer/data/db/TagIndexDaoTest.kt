@@ -329,4 +329,66 @@ class TagIndexDaoTest {
             dao.getTagAliasPairs().map { it.tag to it.alias }.sortedWith(compareBy({ it.first }, { it.second })),
         )
     }
+
+    // ---- the list, one entry per group --------------------------------------------------
+
+    /**
+     * A group is one entry, labelled by its canonical, counting what opening it lists: the
+     * gallery carrying two members once, plus the other gallery and the tagged file.
+     */
+    @Test
+    fun `a group is one entry counting each gallery and file once`() {
+        dao.applyDirectoryTags(1, "g/both", listOf("眼鏡", "female:glasses"), deleted = false)
+        dao.applyDirectoryTags(1, "g/pixiv", listOf("眼鏡"), deleted = false)
+        dao.applyFileTags(1, "photos", "a.jpg", listOf("female:glasses"), deleted = false)
+        dao.applyDirectoryTags(1, "g/other", listOf("female:ponytail"), deleted = false)
+        dao.replaceTagAliases(
+            1, aliases(1, "female/glasses", "glasses", "female:glasses", "眼鏡"), "1",
+        )
+
+        val tags = dao.getTags()
+        assertEquals(2, tags.size)
+        val group = tags.single { it.canonical == "female/glasses" }
+        assertEquals(3, group.count)
+        assertEquals("female/glasses", group.label)
+        // Opening goes through a member that is actually present, and widens from there.
+        assertEquals(2, dao.getDirectoriesWithTag(group.tag).size)
+
+        val loose = tags.single { it.tag == "female:ponytail" }
+        assertNull(loose.canonical)
+        assertEquals("female:ponytail", loose.label)
+        assertEquals(1, loose.count)
+    }
+
+    @Test
+    fun `a canonical still waiting for a root is labelled without the marker`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("破れタイツ"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "?/torn pantyhose", "torn pantyhose", "破れタイツ"), "1")
+
+        assertEquals("torn pantyhose", dao.getTags().single().label)
+    }
+
+    /** Two connections holding the same alias file are still one group. */
+    @Test
+    fun `the same group on two connections is one entry`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("a"), deleted = false)
+        dao.applyDirectoryTags(1, "g/b", listOf("b"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "x/ab", "a", "b"), "1")
+        dao.replaceTagAliases(2, aliases(2, "x/ab", "a", "b"), "1")
+
+        assertEquals(listOf("x/ab" to 2), dao.getTags().map { it.label to it.count })
+    }
+
+    /** A raw tag that spells some group's canonical is its own tag, not a member. */
+    @Test
+    fun `a raw tag spelling a canonical is not folded into that group`() {
+        dao.applyDirectoryTags(1, "g/a", listOf("a"), deleted = false)
+        dao.applyDirectoryTags(1, "g/raw", listOf("x/ab"), deleted = false)
+        dao.replaceTagAliases(1, aliases(1, "x/ab", "a", "b"), "1")
+
+        assertEquals(
+            listOf(Triple("a", "x/ab", 1), Triple("x/ab", null, 1)),
+            dao.getTags().map { Triple(it.tag, it.canonical, it.count) }.sortedBy { it.first },
+        )
+    }
 }
