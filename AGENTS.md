@@ -136,9 +136,10 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
 - **There is no Firebase.** The `google-services` plugin is applied nowhere, so a
   `google-services.json` would be inert — one was committed for a long time and never read.
   Adding the file alone does nothing; adding the plugin is the actual decision. Its API key
-  is still in git history; accepted for now (private repo, internal-testing app) and tracked
-  in issue #15. Note the general rule it illustrates: deleting a secret from `HEAD` does not
-  remove it from history, so a real credential is rotated at the source, never just deleted.
+  is still in git history, but the Firebase project behind it was shut down on 2026-09-27
+  (#15), so the string is inert. Note the general rule it illustrates: deleting a secret from
+  `HEAD` does not remove it from history, so a real credential is rotated at the source,
+  never just deleted.
 - **Credentials are encrypted by a Room type converter, not by callers.** `Connection.password`
   is a `SecretText`, and `CredentialConverters` is the single place it changes form — so no
   call site can forget. Two traps live here. `SecretText` must NOT become a `@JvmInline value
@@ -225,9 +226,9 @@ Not yet fixed, roughly by user-visible impact:
    merged assets, which is why the exported schemas are attached to the `debug` source set in
    `build.gradle.kts`: a `test` source set entry is invisible to it, and `main` would ship the
    schemas inside the release APK.
-3. **The Firebase API key is still in git history** — accepted for now, tracked in issue #15.
 
 The entries that used to live here — search doing nothing, stacked collectors, tags not
 refreshing in-session, the two inert settings, `fallbackToDestructiveMigration()`, the dead
 code and the stale `com.example.remoteexplorer.*` schema directory — were cleared by PRs #6,
-#7, #9, #11 and #12. The reasoning is in those commits; this file tracks what is still true.
+#7, #9, #11 and #12, and the Firebase key in history by shutting its project down (#15). The
+reasoning is in those commits; this file tracks what is still true.
