@@ -449,8 +449,10 @@ interface LocalDatabaseDao {
      *
      * The same one hop as [TAG_AND_ALIASES], so a search finds exactly the tags whose
      * listing would contain what was typed — never a tag two groups away.
+     * Across connections for the same reason: the tag list is, and so is the widening.
      */
     @Query(
+        // stack-reviewer-ignore: across connections on purpose, like the tag list and TAG_AND_ALIASES; scoping search alone would make it disagree with what opening a tag lists
         "SELECT DISTINCT self.tag AS tag, member.tag AS alias FROM TagAlias AS self " +
                 "INNER JOIN TagAlias AS member ON member.canonical = self.canonical " +
                 "WHERE member.tag != self.tag"
