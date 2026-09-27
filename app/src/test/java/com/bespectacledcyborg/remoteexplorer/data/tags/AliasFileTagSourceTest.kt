@@ -73,6 +73,23 @@ class AliasFileTagSourceTest {
         assertEquals("7", dao.getTagAliasGeneration(1))
     }
 
+    /** Hidden tags ride on the meta and are replaced with the groups, both ways. */
+    @Test
+    fun `hidden tags in the meta leave the tag list, and come back when unhidden`() = runTest {
+        dao.applyDirectoryTags(1, "gallery-dl/pixiv/3", listOf("1girl"), deleted = false)
+        files.meta = meta(7).dropLast(1) + ""","hidden":["1girl"]}"""
+        files.aliases = glassesGroup
+        source.index(1, reindexAll = false, limit = 50)
+        assertEquals(listOf("female/glasses"), dao.getTags().map { it.label })
+
+        files.meta = meta(8)
+        source.index(1, reindexAll = false, limit = 50)
+        assertEquals(
+            listOf("1girl", "female/glasses"),
+            dao.getTags().map { it.label }.sorted(),
+        )
+    }
+
     @Test
     fun `does nothing while the generation is unchanged`() = runTest {
         files.meta = meta(7)

@@ -98,7 +98,9 @@ class AliasFileTagSource(
             group.members.map { TagAlias(connectionId, tag = it, canonical = group.canonical) }
         }
 
-        localDatabaseDataSource.replaceTagAliases(connectionId, aliases, meta.generation)
+        localDatabaseDataSource.replaceTagAliases(
+            connectionId, aliases, meta.generation, meta.hidden,
+        )
         Log.i(TAG, "Aliases generation ${meta.generation}: ${groups.size} groups for $connectionId")
         return TagIndexProgress(groups.size, mayHaveMore = false)
     }
@@ -120,13 +122,15 @@ class AliasFileTagSource(
 }
 
 /**
- * The alias file's description of itself. Only the generation is used; the counts beside it
- * (`groups`, `queued`, `overrides`) are the editor's and are ignored.
+ * The alias file's description of itself: the generation, and the tags hidden in the editor.
+ * The counts beside them (`groups`, `queued`, `overrides`) are the editor's and are ignored.
  */
 @Serializable
 data class TagAliasMeta(
     val schema: Int,
     @Serializable(with = GenerationSerializer::class) val generation: String,
+    /** Tags hidden in the editor, groups expanded. Absent from metas older than hiding. */
+    val hidden: List<String> = emptyList(),
 )
 
 /** One line of `aliases.ndjson`: raw tags that name the same thing, under an opaque key. */
