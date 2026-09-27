@@ -15,6 +15,7 @@ import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
+import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
@@ -37,6 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,6 +46,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -149,6 +152,8 @@ class ExplorerViewModel(
 
     private suspend fun refreshTags() {
         val tags = tagRepository.getTags()
+        // Aliases arrive through the same scan, so they are re-read with the tags.
+        _tagSearch.update { tagRepository.getTagSearch() }
         _tags.update { tags }
         _tagThumbnails.update { fetchTagThumbnails(tags) }
     }
@@ -462,6 +467,23 @@ class ExplorerViewModel(
 
     private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
     val tagsState = _tags.asStateFlow()
+
+    private val _tagSearch = MutableStateFlow(TagSearch.NONE)
+    private val _tagQuery = MutableStateFlow("")
+    val tagQueryState: StateFlow<String> = _tagQuery.asStateFlow()
+
+    /**
+     * The tag list narrowed to [tagQueryState]. Its own query, not [searchState]: that one
+     * drives the file listing, so typing here would re-list whatever directory was last open.
+     */
+    val visibleTagsState: StateFlow<List<LocalTagWithMetadata>> =
+        combine(_tags, _tagSearch, _tagQuery) { tags, search, query ->
+            if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query) }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun searchTags(query: String) {
+        _tagQuery.update { query }
+    }
 
     /**
      * Whether the tag list covers only what has been browsed.

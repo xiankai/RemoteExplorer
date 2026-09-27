@@ -445,6 +445,19 @@ interface LocalDatabaseDao {
     fun clearTagAliases(connectionId: Int)
 
     /**
+     * Every tag beside every other member of its group, for searching the tag list.
+     *
+     * The same one hop as [TAG_AND_ALIASES], so a search finds exactly the tags whose
+     * listing would contain what was typed — never a tag two groups away.
+     */
+    @Query(
+        "SELECT DISTINCT self.tag AS tag, member.tag AS alias FROM TagAlias AS self " +
+                "INNER JOIN TagAlias AS member ON member.canonical = self.canonical " +
+                "WHERE member.tag != self.tag"
+    )
+    fun getTagAliasPairs(): List<TagAliasPair>
+
+    /**
      * Swaps one connection's aliases for a new generation, all at once.
      *
      * Replace rather than merge: the file is rewritten whole on every build, so a group
@@ -517,6 +530,12 @@ data class LocalTag(
 data class LocalTagWithMetadata(
     val tag: String,
     val count: Int,
+)
+
+/** [tag] and one other tag in its alias group. */
+data class TagAliasPair(
+    val tag: String,
+    val alias: String,
 )
 
 /**

@@ -1,9 +1,9 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens.header
 
+import ExpandableSearchBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
@@ -18,15 +18,14 @@ fun TagButtons(
     explorerViewModel: ExplorerViewModel
 ) {
     val sortState = explorerViewModel.sortState.collectAsState()
+    val tagQuery = explorerViewModel.tagQueryState.collectAsState()
 
-    IconButton(
-        onClick = { explorerViewModel.search("") },
-        content = {
-            Icon(
-                Icons.Filled.Search,
-                contentDescription = "Search",
-            )
-        }
+    // This button used to call search(""), the file listing's query, so it did nothing here.
+    ExpandableSearchBar(
+        currentContext = "tags",
+        onSearch = { explorerViewModel.searchTags(it) },
+        searchAsYouType = true,
+        initialValue = tagQuery.value,
     )
     IconButton(
         onClick = { explorerViewModel.setTagScreenViewType(ViewType.LIST) },

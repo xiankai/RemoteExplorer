@@ -3,6 +3,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.DirectoryTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.FileTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
+import com.bespectacledcyborg.remoteexplorer.data.db.TagAliasPair
 import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -88,6 +89,9 @@ class LocalDatabaseDataSource(
             localDatabaseDao.getTags()
         }
     }
+
+    suspend fun getTagAliasPairs(): List<TagAliasPair> =
+        withContext(dispatcher) { localDatabaseDao.getTagAliasPairs() }
 
     suspend fun getFilesWithTag(tag: LocalTag): List<LocalFile> {
         return withContext(dispatcher) {
