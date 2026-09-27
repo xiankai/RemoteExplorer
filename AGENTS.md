@@ -171,6 +171,9 @@ Two systems, deliberately:
 | Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | push to `master` | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
 
+A change that touches only Markdown skips the checks, the sideload publish and the release.
+The reviewer still runs.
+
 The sideload job is the one that pays for the NDK, holds a signing key of its own
 (`SIDELOAD_KEYSTORE_*`, generated 2026-09-19, alias `sideload`) and cannot be moved to GitHub,
 because fileserver is only reachable from the self-hosted. Obtainium installs from the fileserver URL; it

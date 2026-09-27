@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+    # A Markdown-only merge would upload an identical bundle under a new versionCode.
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 jobs:
