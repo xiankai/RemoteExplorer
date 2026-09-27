@@ -127,6 +127,10 @@ interface LocalDatabaseDao {
      *
      * Neither side touches [LocalFile], which is what lets a tag count a gallery nobody has
      * browsed into — the under-reporting this index exists to remove.
+     *
+     * A tag someone hid in the tag editor ([TagHidden]) is left out of both halves. Only the
+     * list: opening a gallery still shows it, since hiding says the tag is useless to browse
+     * by, not that it is wrong.
      */
     @Query(
         "SELECT LocalTag.tag AS tag, NULL AS canonical, " +
@@ -138,6 +142,7 @@ interface LocalDatabaseDao {
                 "  WHERE DirTagRelation.tag = LocalTag.tag " +
                 ") AS count " +
                 "FROM LocalTag WHERE LocalTag.tag NOT IN (SELECT tag FROM TagAlias) " +
+                "AND LocalTag.tag NOT IN (SELECT tag FROM TagHidden) " +
                 "UNION ALL " +
                 "SELECT MIN(LocalTag.tag) AS tag, g.canonical AS canonical, " +
                 "( " +
@@ -153,6 +158,7 @@ interface LocalDatabaseDao {
                 ") AS count " +
                 "FROM (SELECT tag, MIN(canonical) AS canonical FROM TagAlias GROUP BY tag) AS g " +
                 "INNER JOIN LocalTag ON LocalTag.tag = g.tag " +
+                "WHERE LocalTag.tag NOT IN (SELECT tag FROM TagHidden) " +
                 "GROUP BY g.canonical"
     )
     fun getTags(): List<LocalTagWithMetadata>
@@ -492,11 +498,24 @@ interface LocalDatabaseDao {
      * with half its groups, and the generation lands with the rows it describes.
      */
     @Transaction
-    fun replaceTagAliases(connectionId: Int, aliases: List<TagAlias>, generation: String) {
+    fun replaceTagAliases(
+        connectionId: Int,
+        aliases: List<TagAlias>,
+        generation: String,
+        hidden: List<String> = emptyList(),
+    ) {
         clearTagAliases(connectionId)
         addTagAliases(aliases)
+        clearTagHidden(connectionId)
+        addTagHidden(hidden.map { TagHidden(connectionId, it) })
         upsertTagAliasIngest(TagAliasIngest(connectionId, generation))
     }
+
+    @Query("DELETE FROM TagHidden WHERE connectionId = :connectionId")
+    fun clearTagHidden(connectionId: Int)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun addTagHidden(hidden: List<TagHidden>)
 }
 
 /**
@@ -677,6 +696,20 @@ data class TagAlias(
     val connectionId: Int,
     val tag: String,
     val canonical: String,
+)
+
+/**
+ * A tag hidden in the tag editor, kept out of the tag list. Arrives with the aliases
+ * (`hidden` in `aliases.meta.json`, groups already expanded to their members) and is
+ * replaced with them, so a tag unhidden upstream comes back on the next alias pass.
+ */
+@Entity(
+    primaryKeys = ["connectionId", "tag"],
+    indices = [Index("tag")],
+)
+data class TagHidden(
+    val connectionId: Int,
+    val tag: String,
 )
 
 /**

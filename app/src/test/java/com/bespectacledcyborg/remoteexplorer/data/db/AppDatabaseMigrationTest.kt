@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 15 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 16 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 15, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 16, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 15 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 16 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.

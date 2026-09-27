@@ -80,8 +80,9 @@ class LocalDatabaseDataSource(
         connectionId: Int,
         aliases: List<TagAlias>,
         generation: String,
+        hidden: List<String> = emptyList(),
     ) = withContext(dispatcher) {
-        localDatabaseDao.replaceTagAliases(connectionId, aliases, generation)
+        localDatabaseDao.replaceTagAliases(connectionId, aliases, generation, hidden)
     }
 
     suspend fun getTags(): List<LocalTagWithMetadata> {

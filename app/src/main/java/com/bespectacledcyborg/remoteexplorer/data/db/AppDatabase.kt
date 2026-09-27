@@ -17,6 +17,7 @@ import java.util.Date
         TagIndexIngest::class,
         TagAlias::class,
         TagAliasIngest::class,
+        TagHidden::class,
         SettingsEntity::class,
         DirectorySync::class,
         Pairing::class,
@@ -50,7 +51,10 @@ import java.util.Date
     //
     // 15 adds Pairing, which local folder is a copy of which remote one. A new table that
     // touches no existing row, so it auto-migrates, and an existing install has no pairings.
-    version = 15,
+    //
+    // 16 adds TagHidden, the tags hidden in the tag editor. A new table, so it auto-migrates,
+    // and an existing install hides nothing until its next alias pass fills it.
+    version = 16,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -69,6 +73,7 @@ import java.util.Date
         AutoMigration(from = 12, to = 13),
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 14, to = 15),
+        AutoMigration(from = 15, to = 16),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)

@@ -25,7 +25,7 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
        DataSources:  RoutingFileDataSource ─┬ SambaFileDataSource (SMBJ)
                                             └ LocalFileDataSource (java.io.File)
-                     LocalDatabaseDataSource (Room v14)
+                     LocalDatabaseDataSource (Room v16)
 ```
 
 **Two kinds of connection.** A `Connection` is an SMB share or, with `type = LOCAL`, a folder
@@ -72,6 +72,9 @@ which is `/srv/library`. Two independent halves, with two different contracts:
   its group, one hop, never chained. `canonical` is the group's key and nothing parses it,
   but since the curated digiKam tags became the canonicals (infra#232) it reads as a
   name, so the list shows it — minus the `?/` the editor puts on one still waiting for a root.
+  The meta also carries `hidden`: tags hidden in the editor, groups already expanded. They
+  arrive with the groups into `TagHidden` and are left out of the tag list, not out of a
+  gallery's own tags.
 
 Both metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
 spelled them differently, the parser matched the fixture, and the real index silently read as

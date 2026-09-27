@@ -573,6 +573,8 @@ private class FakeLocalDatabaseDao(
     override fun addTagAliases(aliases: List<TagAlias>) = notUsed()
 
     override fun clearTagAliases(connectionId: Int) = notUsed()
+    override fun clearTagHidden(connectionId: Int) = notUsed()
+    override fun addTagHidden(hidden: List<com.bespectacledcyborg.remoteexplorer.data.db.TagHidden>) = notUsed()
     override fun getTagAliasPairs(): List<TagAliasPair> = notUsed()
 
     private fun notUsed(): Nothing =
