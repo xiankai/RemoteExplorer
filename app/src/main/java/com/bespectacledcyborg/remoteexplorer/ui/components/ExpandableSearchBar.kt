@@ -24,9 +24,15 @@ import androidx.compose.ui.text.input.ImeAction
 fun ExpandableSearchBar(
     currentContext: String,
     onSearch: (search: String) -> Unit,
+    // Narrow on every keystroke rather than on Done. For lists already in memory, where
+    // filtering costs nothing and seeing it narrow is the point.
+    searchAsYouType: Boolean = false,
+    // A query held by the caller, for a screen that is left and returned to. Without it the
+    // bar would come back empty over a list still filtered by the old text.
+    initialValue: String = "",
 ) {
-    var isSearching by remember { mutableStateOf(false) }
-    var value by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(initialValue.isNotEmpty()) }
+    var value by remember { mutableStateOf(initialValue) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Crossfade(
@@ -48,8 +54,14 @@ fun ExpandableSearchBar(
             TextField(
                 value = value,
                 modifier = Modifier.fillMaxWidth(),
+                // Otherwise a hardware Enter inserts a newline into the query instead of acting
+                // as Done.
+                singleLine = true,
                 placeholder = { Text("Search within $currentContext") },
-                onValueChange = { value = it },
+                onValueChange = {
+                    value = it
+                    if (searchAsYouType) onSearch(it)
+                },
                 keyboardOptions = KeyboardOptions.Default.copy(
                     imeAction = ImeAction.Done // Shows Done button on soft keyboard
                 ),
@@ -83,6 +95,7 @@ fun ExpandableSearchBar(
                             },
                             onClick = {
                                 value = ""
+                                if (searchAsYouType) onSearch("")
                             },
                         )
                     }

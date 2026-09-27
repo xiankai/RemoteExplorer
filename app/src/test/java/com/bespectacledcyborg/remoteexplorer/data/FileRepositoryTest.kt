@@ -7,6 +7,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAliasIngest
+import com.bespectacledcyborg.remoteexplorer.data.db.TagAliasPair
 import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFileStamp
@@ -572,6 +573,7 @@ private class FakeLocalDatabaseDao(
     override fun addTagAliases(aliases: List<TagAlias>) = notUsed()
 
     override fun clearTagAliases(connectionId: Int) = notUsed()
+    override fun getTagAliasPairs(): List<TagAliasPair> = notUsed()
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

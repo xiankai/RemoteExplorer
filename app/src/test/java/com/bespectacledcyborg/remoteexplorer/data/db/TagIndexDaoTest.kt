@@ -312,4 +312,21 @@ class TagIndexDaoTest {
         assertEquals(listOf("g/a", "g/b"), dao.getDirectoriesWithTag("a").map { it.parentPath })
         assertEquals("5", dao.getTagAliasGeneration(2))
     }
+
+    /**
+     * The pairs the tag search reads: each member beside every other member of its group,
+     * never itself, and the same one hop as the listing. Two connections holding the same
+     * file must not double them.
+     */
+    @Test
+    fun `alias pairs are one hop, exclude the tag itself, and are distinct`() {
+        val groups = aliases(1, "x/ab", "a", "b") + aliases(1, "x/bc", "b", "c")
+        dao.replaceTagAliases(1, groups, "1")
+        dao.replaceTagAliases(2, groups.map { it.copy(connectionId = 2) }, "1")
+
+        assertEquals(
+            listOf("a" to "b", "b" to "a", "b" to "c", "c" to "b"),
+            dao.getTagAliasPairs().map { it.tag to it.alias }.sortedWith(compareBy({ it.first }, { it.second })),
+        )
+    }
 }

@@ -24,6 +24,9 @@ class TagRepository(
 
     suspend fun getTags(): List<LocalTagWithMetadata> = localDatabaseDataSource.getTags()
 
+    /** Each tag's alias-group siblings, for [TagSearch]. */
+    suspend fun getTagSearch(): TagSearch = TagSearch(localDatabaseDataSource.getTagAliasPairs())
+
     /** What the connection's source can reach, so the UI can be honest about coverage. */
     fun capabilitiesFor(connectionId: Int): TagSourceCapabilities =
         tagSources.forConnection(connectionId).capabilities

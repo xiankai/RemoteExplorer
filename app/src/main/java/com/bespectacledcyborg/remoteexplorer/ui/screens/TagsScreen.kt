@@ -37,7 +37,8 @@ fun TagsScreen(
     explorerViewModel: ExplorerViewModel,
     navHostController: NavHostController,
 ) {
-    val tags = explorerViewModel.tagsState.collectAsState()
+    val tags = explorerViewModel.visibleTagsState.collectAsState()
+    val tagQuery by explorerViewModel.tagQueryState.collectAsState()
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
@@ -89,6 +90,17 @@ fun TagsScreen(
                     Text(
                         text = "From folders you have opened",
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
+                if (tagQuery.isNotBlank() && tags.value.isEmpty()) {
+                    Text(
+                        text = "No tags match \"${tagQuery.trim()}\"",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .align(Alignment.Start)
