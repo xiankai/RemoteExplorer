@@ -69,12 +69,15 @@ which is `/srv/library`. Two independent halves, with two different contracts:
   (`眼鏡` ↔ `female:glasses`). Rewritten whole on every build and the generation bumps
   every time, so there is no offset: a new generation replaces the connection's `TagAlias`
   rows. Resolved at **query time**: opening a tag lists everything carrying any member of
-  its group, one hop, never chained. `canonical` is an opaque key, not a display name.
+  its group, one hop, never chained. `canonical` is the group's key and nothing parses it,
+  but since the curated digiKam tags became the canonicals (infra#232) it reads as a
+  name, so the list shows it — minus the `?/` the editor puts on one still waiting for a root.
 
 Both metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
 spelled them differently, the parser matched the fixture, and the real index silently read as
-absent — an unreadable meta is deliberately treated as no meta. Tag counts in the list are
-per raw tag and are not widened by aliases.
+absent — an unreadable meta is deliberately treated as no meta. The tag list shows one entry
+per alias group, labelled by its canonical, and counts what opening it lists across the whole
+group.
 
 **Native.** Prebuilt FFmpeg (`app/src/main/cpp/ffmpeg/`) plus a JNI wrapper that decodes the
 first video frame. It is the *second* video decoder: `PlatformVideoThumbnailSource` goes

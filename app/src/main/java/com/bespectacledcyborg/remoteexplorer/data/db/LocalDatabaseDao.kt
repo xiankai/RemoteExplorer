@@ -100,28 +100,36 @@ interface LocalDatabaseDao {
     ): List<String>
 
     /**
-     * Every tag with how many entries opening it will show.
+     * One entry per alias group, and one per tag in no group, with how many entries opening
+     * it will show.
      *
      * The number next to something you can open should describe what is inside it, so this
      * counts listing rows — tagged files plus tagged galleries — rather than the files those
      * galleries contain. Counting files would put 5,000 next to a tag that opens onto 186
      * folders, and no amount of explaining makes that read as anything but wrong.
      *
-     * The two relations are counted separately and added rather than joined: one query
-     * joining both yields the product of the two matches per tag, so a tag on three files
-     * inside a gallery already carrying it would report nine.
+     * A group is counted the way opening it lists: every gallery and every file carrying any
+     * of its members, each once. So distinct across the whole group rather than a sum of
+     * per-member counts — a gallery tagged both `眼鏡` and `丸眼鏡` is one gallery. The two
+     * relations are counted separately and added rather than joined, since one query joining
+     * both yields the product of the two matches.
+     *
+     * `tag` is one member actually present, which is what opening, thumbnails and search go
+     * through: any member widens to the whole group ([TAG_AND_ALIASES]). `canonical` is the
+     * group's key, null for a tag in no group. A raw tag that happens to spell some group's
+     * canonical is a tag in no group, not a member.
+     *
+     * Two halves because only a group needs the distinct count. A tag in no group is counted
+     * per tag as it always was, which is most of the list and cheap on the tag indices; the
+     * DISTINCT work is spent on the groups alone. One pass keying every tag to its group and
+     * counting distinct over all ~22k gallery rows cost 55 ms on the live library against
+     * 15 ms for this, same result.
      *
      * Neither side touches [LocalFile], which is what lets a tag count a gallery nobody has
      * browsed into — the under-reporting this index exists to remove.
-     *
-     * The count is the tag's own and is not widened by aliases, so opening a tag in a group
-     * can show more than the number beside it. Widening it here would mean resolving a group
-     * for each of several thousand tags on every read of the list, and the list itself is
-     * due to change shape (one entry per group rather than per spelling) before that is
-     * worth paying for.
      */
     @Query(
-        "SELECT LocalTag.tag AS tag, " +
+        "SELECT LocalTag.tag AS tag, NULL AS canonical, " +
                 "( " +
                 "  SELECT COUNT(*) FROM FileTagRelation " +
                 "  WHERE FileTagRelation.tag = LocalTag.tag " +
@@ -129,7 +137,23 @@ interface LocalDatabaseDao {
                 "  SELECT COUNT(*) FROM DirTagRelation " +
                 "  WHERE DirTagRelation.tag = LocalTag.tag " +
                 ") AS count " +
-                "FROM LocalTag"
+                "FROM LocalTag WHERE LocalTag.tag NOT IN (SELECT tag FROM TagAlias) " +
+                "UNION ALL " +
+                "SELECT MIN(LocalTag.tag) AS tag, g.canonical AS canonical, " +
+                "( " +
+                "  SELECT COUNT(*) FROM ( " +
+                "    SELECT DISTINCT d.connectionId, d.parentPath FROM DirTagRelation AS d " +
+                "    WHERE d.tag IN (SELECT m.tag FROM TagAlias AS m WHERE m.canonical = g.canonical) " +
+                "  ) " +
+                ") + ( " +
+                "  SELECT COUNT(*) FROM ( " +
+                "    SELECT DISTINCT f.connectionId, f.parentPath, f.filename FROM FileTagRelation AS f " +
+                "    WHERE f.tag IN (SELECT m.tag FROM TagAlias AS m WHERE m.canonical = g.canonical) " +
+                "  ) " +
+                ") AS count " +
+                "FROM (SELECT tag, MIN(canonical) AS canonical FROM TagAlias GROUP BY tag) AS g " +
+                "INNER JOIN LocalTag ON LocalTag.tag = g.tag " +
+                "GROUP BY g.canonical"
     )
     fun getTags(): List<LocalTagWithMetadata>
 
@@ -532,7 +556,16 @@ data class LocalTag(
 data class LocalTagWithMetadata(
     val tag: String,
     val count: Int,
-)
+    /** The alias group [tag] stands for, or null when it is in none. */
+    val canonical: String? = null,
+) {
+    /**
+     * What the list shows. A group's canonical names the concept (`clothes/pantyhose`), where
+     * [tag] is only whichever member sorted first. A canonical still waiting for a root is
+     * spelled `?/value`; the `?/` is the editor's marker, not part of the name.
+     */
+    val label: String get() = canonical?.removePrefix("?/") ?: tag
+}
 
 /** [tag] and one other tag in its alias group. */
 data class TagAliasPair(

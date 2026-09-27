@@ -478,7 +478,7 @@ class ExplorerViewModel(
      */
     val visibleTagsState: StateFlow<List<LocalTagWithMetadata>> =
         combine(_tags, _tagSearch, _tagQuery) { tags, search, query ->
-            if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query) }
+            if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query, it.label) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun searchTags(query: String) {

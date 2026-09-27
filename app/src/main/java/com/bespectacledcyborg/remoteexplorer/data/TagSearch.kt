@@ -14,10 +14,15 @@ class TagSearch(pairs: List<TagAliasPair>) {
     private val aliases: Map<String, List<String>> =
         pairs.groupBy({ it.tag }, { it.alias })
 
-    fun matches(tag: String, query: String): Boolean {
+    /**
+     * [label] is what the list shows for [tag]: a group's canonical, which need not be one
+     * of its members (`female/glasses`), so it is searched as well.
+     */
+    fun matches(tag: String, query: String, label: String = tag): Boolean {
         val q = query.trim()
         if (q.isEmpty()) return true
         return tag.contains(q, ignoreCase = true) ||
+                label.contains(q, ignoreCase = true) ||
                 aliases[tag].orEmpty().any { it.contains(q, ignoreCase = true) }
     }
 

@@ -112,7 +112,7 @@ fun TagsScreen(
                     getImageUrl = { fullPath, thumbnail -> explorerViewModel.getUrl(fullPath, thumbnail) },
                     items = tags.value.map {
                         Item(
-                            name = "${it.tag} (${it.count})",
+                            name = "${it.label} (${it.count})",
                             type = FileType.FOLDER, // TODO: Support nested tags
                             thumbnails = tagThumbnails.getOrDefault(
                                 "${tagPrefix}${it.tag}",
