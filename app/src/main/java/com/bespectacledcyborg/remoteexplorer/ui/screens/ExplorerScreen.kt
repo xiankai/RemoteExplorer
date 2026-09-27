@@ -124,6 +124,7 @@ fun ExplorerScreen(
     }
 
     val search by explorerViewModel.searchState.collectAsState()
+    val openTagLabel by explorerViewModel.openTagLabelState.collectAsState()
     Scaffold(
         topBar = {
             MediumTopAppBar(
@@ -144,7 +145,8 @@ fun ExplorerScreen(
                                 explorerViewModel.changePath(path)
                             }
                         },
-                        search = search
+                        search = search,
+                        tagLabel = openTagLabel,
                     )
                 },
 

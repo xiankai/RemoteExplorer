@@ -17,7 +17,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
 fun TagButtons(
     explorerViewModel: ExplorerViewModel
 ) {
-    val sortState = explorerViewModel.sortState.collectAsState()
+    val sortState = explorerViewModel.tagSortState.collectAsState()
     val tagQuery = explorerViewModel.tagQueryState.collectAsState()
 
     // This button used to call search(""), the file listing's query, so it did nothing here.
@@ -46,7 +46,7 @@ fun TagButtons(
         }
     )
     IconButton(
-        onClick = { explorerViewModel.sort(
+        onClick = { explorerViewModel.sortTags(
             if (sortState.value == SortType.NAME_ASC) SortType.NAME_DESC else SortType.NAME_ASC
         ) },
         content = {

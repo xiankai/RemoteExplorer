@@ -57,6 +57,19 @@ enum class SortType {
     LAST_MODIFIED_DESC
 }
 
+/**
+ * The tag list's order: by what the list shows, ignoring case, so `female/glasses` and
+ * `Smile` sit where a reader looks for them rather than after every capital. Tags have no
+ * modified time, so the two time orders fall back to the name.
+ */
+internal fun tagComparator(sortType: SortType): Comparator<LocalTagWithMetadata> {
+    val byName = compareBy<LocalTagWithMetadata, String>(String.CASE_INSENSITIVE_ORDER) { it.label }
+    return when (sortType) {
+        SortType.NAME_DESC -> byName.reversed()
+        else -> byName
+    }
+}
+
 enum class ViewType {
     GRID,
     LIST
@@ -476,14 +489,40 @@ class ExplorerViewModel(
      * The tag list narrowed to [tagQueryState]. Its own query, not [searchState]: that one
      * drives the file listing, so typing here would re-list whatever directory was last open.
      */
+    /**
+     * The tag list's own order. Not [sortState]: that one orders the file listing, so the
+     * Tags screen's sort button used to flip the next directory's order and leave this list
+     * exactly as the query returned it.
+     */
+    private val _tagSort = MutableStateFlow(SortType.NAME_ASC)
+    val tagSortState: StateFlow<SortType> = _tagSort.asStateFlow()
+
+    fun sortTags(sortType: SortType) {
+        _tagSort.update { sortType }
+    }
+
     val visibleTagsState: StateFlow<List<LocalTagWithMetadata>> =
-        combine(_tags, _tagSearch, _tagQuery) { tags, search, query ->
-            if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query, it.label) }
+        combine(_tags, _tagSearch, _tagQuery, _tagSort) { tags, search, query, sort ->
+            val matching =
+                if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query, it.label) }
+            matching.sortedWith(tagComparator(sort))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun searchTags(query: String) {
         _tagQuery.update { query }
     }
+
+    /**
+     * What the header names an open tag: its group's label rather than the member the path
+     * goes through (`characters/hagoromo gitsune`, not `character:hagoromo gitsune`). Null
+     * when the path is not a tag.
+     */
+    val openTagLabelState: StateFlow<String?> =
+        combine(_path, _tags) { path, tags ->
+            if (!path.startsWith(tagPrefix)) return@combine null
+            val tag = path.substringAfter(tagPrefix)
+            tags.firstOrNull { it.tag == tag }?.label ?: tag
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
      * Whether the tag list covers only what has been browsed.
