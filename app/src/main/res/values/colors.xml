@@ -9,5 +9,5 @@
     <color name="white">#FFFFFFFF</color>
     <!-- File-type icons and placeholders. Material 3's onSurfaceVariant tones, so they read
          on either background; the night value is in values-night (#65, #58). -->
-    <color name="file_icon">#FF49454F</color>
+    <color name="file_icon">#FF49454F</color> <!-- stack-reviewer-ignore: this unqualified values/ entry is the fallback every configuration resolves to; values-night only overrides it, so no qualifier split can leave the colour undefined. Checked on the emulator in both modes. -->
 </resources>

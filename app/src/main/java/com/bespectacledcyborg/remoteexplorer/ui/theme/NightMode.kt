@@ -17,7 +17,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
  */
 fun applyThemeMode(context: Context, mode: ThemeMode) {
     val uiModeManager = context.getSystemService(UiModeManager::class.java) ?: return
-    uiModeManager.setApplicationNightMode(
+    uiModeManager.setApplicationNightMode(  // stack-reviewer-ignore: minSdk is 34 (app/build.gradle.kts), and setApplicationNightMode is API 31, so no device this installs on lacks it.
         when (mode) {
             ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
             ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
