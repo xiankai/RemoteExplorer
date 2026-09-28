@@ -79,6 +79,9 @@ enum class ViewType {
 
 typealias ThumbnailsMap = Map<String, List<String>>
 
+/** How long a folder that failed to list for its cover waits before it is tried again. */
+private const val COVER_RETRY_MILLIS = 30_000L
+
 /** Unique-work name for the tag scan, shared by the enqueue and the observer that follows it. */
 private const val SCAN_TAGS_WORK = "scanTags"
 
@@ -607,6 +610,9 @@ class ExplorerViewModel(
      */
     private val coversSettled: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /** When a folder last failed to list for its cover; see [loadCover]. */
+    private val coverFailedAt = ConcurrentHashMap<String, Long>()
+
     private var coverLoader: Job? = null
 
     /**
@@ -623,12 +629,17 @@ class ExplorerViewModel(
 
     private fun followWantedCovers(connectionId: Int) {
         coversSettled.clear()
+        coverFailedAt.clear()
         coverLoader?.cancel()
         coverLoader = viewModelScope.launch(Dispatchers.IO) {
             _wantedCovers.collectLatest { wanted ->
                 coroutineScope {
+                    val now = System.currentTimeMillis()
                     wanted
                         .filter { it !in coversSettled }
+                        .filter { path ->
+                            coverFailedAt[path]?.let { now - it >= COVER_RETRY_MILLIS } ?: true
+                        }
                         .forEach { path ->
                             launch { loadCover(connectionId, path) }
                         }
@@ -653,9 +664,10 @@ class ExplorerViewModel(
             // then, so the second ask is a database read.
             throw e
         } catch (e: Exception) {
-            // Settled regardless: a folder the share will not list should not be retried on
-            // every scroll. Opening it reports the error properly.
-            coversSettled += path
+            // Not settled, since the share may only have hiccuped — but not retried on
+            // every scroll either: a folder it will not list waits out a back-off before it
+            // is asked again. Opening it reports the error properly.
+            coverFailedAt[path] = System.currentTimeMillis()
             Log.w("ExplorerViewModel", "Could not list '$path' for its cover", e)
         }
     }
