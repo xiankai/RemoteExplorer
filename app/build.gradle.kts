@@ -219,6 +219,8 @@ dependencies {
     implementation(libs.sketch.animated.webp)
     implementation(libs.sketch.svg)
     implementation(libs.sketch.http.ktor3)
+    // Pinch and double-tap zoom in the image viewer, sharp at depth by decoding tiles.
+    implementation(libs.zoomimage.compose.sketch4)
     // Video Handling
 //    implementation(libs.sketch.video.ffmpeg)
 

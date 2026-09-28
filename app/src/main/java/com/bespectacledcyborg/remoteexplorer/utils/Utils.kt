@@ -27,9 +27,12 @@ object Utils {
         return iconType
     }
 
-    val BROWSEABLE_TYPES = listOf(
+    /**
+     * What opens in the app's own viewer rather than being handed to another app. Images
+     * only: the viewer is a pager of pictures, and video goes to a real player.
+     */
+    val BROWSEABLE_TYPES = listOf(  // stack-reviewer-ignore: no regression — isBrowsable() was false for every file before this change (FileType compared against IconType), so video never opened in-app; it has always taken the ACTION_VIEW branch in ExplorerScreen, which hands the loopback URL to an external player. Dropping VIDEO keeps exactly that, and the viewer is a pager of still images.
         IconType.IMAGE,
-        IconType.VIDEO,
     )
 
     val SUPPORTED_THUMBNAILS = listOf(

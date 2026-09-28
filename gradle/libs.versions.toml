@@ -12,6 +12,8 @@ ktor = "3.4.1"
 lifecycleRuntime = "2.10.0"
 metadataExtractor = "2.19.0"
 sketch = "4.3.1"
+# Pinned to the release built against sketch 4.3.1; later ones pull a newer Sketch and Kotlin.
+zoomimage = "1.4.0"
 smbj = "0.14.0"
 kotlin = "2.3.10"
 room = "2.8.4"
@@ -47,6 +49,7 @@ sketch-animated-webp = { module = "io.github.panpf.sketch4:sketch-animated-webp"
 sketch-svg = { module = "io.github.panpf.sketch4:sketch-svg", version.ref = "sketch" }
 sketch-video-ffmpeg = { module = "io.github.panpf.sketch4:sketch-video-ffmpeg", version.ref = "sketch" }
 sketch-http-ktor3 = { module = "io.github.panpf.sketch4:sketch-http-ktor3", version.ref = "sketch" }
+zoomimage-compose-sketch4 = { module = "io.github.panpf.zoomimage:zoomimage-compose-sketch4", version.ref = "zoomimage" }
 smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
 ui = { module = "androidx.compose.ui:ui" }
 ui-graphics = { module = "androidx.compose.ui:ui-graphics" }

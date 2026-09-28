@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.BROWSEABLE_TYPES
 import java.nio.file.Paths
 import java.util.Date
@@ -579,9 +580,16 @@ data class LocalFile(
         return Paths.get(parentPath, filename).toString()
     }
 
-    fun isBrowsable(): Boolean {
-        return BROWSEABLE_TYPES.contains<Enum<*>>(type)
-    }
+    /**
+     * Whether this opens in the app's own image viewer.
+     *
+     * This compared the row's [FileType] against a list of [IconType]s — two different
+     * enums, which the `contains<Enum<*>>` made compile — so it was false for everything,
+     * and every image was handed to whichever other app claimed `image/jpeg` over a
+     * loopback URL. The viewer in ImageBrowserScreen was never reached (#67).
+     */
+    fun isBrowsable(): Boolean =
+        type == FileType.FILE && Utils.guessIconType(filename) in BROWSEABLE_TYPES
 }
 
 @Entity
