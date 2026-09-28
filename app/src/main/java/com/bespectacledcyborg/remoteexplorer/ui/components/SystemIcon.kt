@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,7 +18,9 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 
 @Composable
 fun SystemIcon(iconType: IconType, modifier: Modifier = Modifier) {
-    var colorFilter: ColorFilter? = null
+    // Tinted to the theme. Untinted, these vectors are black, which is what drew the
+    // connection tiles black on the dark background (#58).
+    var colorFilter: ColorFilter? = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
     val icon = when(iconType) {
         IconType.CONNECTION-> Icons.Default.FolderShared
         IconType.ADD_CONNECTION -> Icons.Default.CreateNewFolder

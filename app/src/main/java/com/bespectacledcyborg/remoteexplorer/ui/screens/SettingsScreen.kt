@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.TextFieldDialog
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
 
@@ -57,6 +58,28 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Box {
+                var selectingTheme by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { selectingTheme = !selectingTheme },
+                    content = { Text("Theme: ${settings.themeMode.label}") },
+                )
+                DropdownMenu(
+                    expanded = selectingTheme,
+                    onDismissRequest = { selectingTheme = false },
+                ) {
+                    ThemeMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.label) },
+                            onClick = {
+                                selectingTheme = false
+                                settingsViewModel.setThemeMode(mode)
+                            },
+                        )
+                    }
+                }
+            }
+
             TextFieldDialog(
                 title = "Max Storage Cache Size",
                 value = settings.maxStorageCacheSize,

@@ -147,7 +147,11 @@ fun ConnectionDetailsScreen(
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.primary,
+                        // on-container, not primary: primary on primaryContainer is two tints of one
+                    // hue, and in the dark scheme the title all but disappeared into the bar.
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 title = { Text("Connections") },
                 actions = {

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.RemoteExplorer" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- DayNight, so the window behind the first Compose frame follows the app's night mode
+         (#65) rather than flashing white before a dark screen. -->
+    <style name="Theme.RemoteExplorer" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

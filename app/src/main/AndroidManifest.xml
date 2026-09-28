@@ -25,7 +25,11 @@
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustPan"
+            android:configChanges="uiMode"
             android:theme="@style/Theme.RemoteExplorer">
+            <!-- uiMode handled in place: Compose recomposes with the new configuration, so
+                 switching theme (#65) needs no activity restart. The restart used to land
+                 while the theme menu's popup was still being dismissed and hang input. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

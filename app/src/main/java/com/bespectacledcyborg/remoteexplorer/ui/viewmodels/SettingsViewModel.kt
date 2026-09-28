@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
+import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailVolume
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.availableThumbnailVolumes
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.discardThumbnailCache
@@ -32,6 +34,19 @@ class SettingsViewModel(
             settingsRepository.update(
                 settings.value.copy(defaultColumnCount = count)
             )
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            // Applied whether or not the write lands, so the screen never shows one theme
+            // while the menu says another; a failed write only means the next launch puts
+            // the stored one back.
+            try {
+                settingsRepository.update(settings.value.copy(themeMode = mode))
+            } finally {
+                applyThemeMode(getApplication(), mode)
+            }
         }
     }
 

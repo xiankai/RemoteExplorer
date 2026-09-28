@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 16 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 17 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 16, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 17, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 16 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 17 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -145,6 +145,27 @@ class AppDatabaseMigrationTest {
                     assertEquals(5, row.getInt(1))
                     assertTrue("the cache must stay on internal storage", row.isNull(2))
                 }
+        }
+    }
+
+    /**
+     * The theme setting added in 17 arrives as Light for an install that already has a
+     * settings row, and leaves the rest of the row as it was (#65).
+     */
+    @Test
+    fun `opens an existing install in the light theme after 17`() {
+        helper.createDatabase(TEST_DB, 16).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount) VALUES (0, 7, 5)"
+            )
+        }
+
+        migrateToLatest().use { db ->
+            db.query("SELECT themeMode, maxStorageCacheSize FROM settings").use { row ->
+                assertTrue("the settings row did not survive the migration", row.moveToFirst())
+                assertEquals("LIGHT", row.getString(0))
+                assertEquals(7, row.getInt(1))
+            }
         }
     }
 
