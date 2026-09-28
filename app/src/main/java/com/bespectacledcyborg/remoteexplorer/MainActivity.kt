@@ -55,6 +55,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorke
 import com.bespectacledcyborg.remoteexplorer.ui.components.MainView
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
+import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.github.panpf.sketch.SingletonSketch
 import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
@@ -304,6 +305,8 @@ class MainActivity : ComponentActivity() {
             val settingsDao = db.settingsDao()
             val settings = settingsDao.getSettingsOnce()
                 ?: SettingsEntity().also { settingsDao.insert(it) } // add default row
+
+            applyThemeMode(applicationContext, settings.themeMode)
 
             // The configured Sketch has to be REGISTERED as the singleton. This previously
             // built an instance and dropped it on the floor, so every image load used

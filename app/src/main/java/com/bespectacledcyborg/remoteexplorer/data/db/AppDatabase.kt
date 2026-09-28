@@ -54,7 +54,9 @@ import java.util.Date
     //
     // 16 adds TagHidden, the tags hidden in the tag editor. A new table, so it auto-migrates,
     // and an existing install hides nothing until its next alias pass fills it.
-    version = 16,
+    //
+    // 17 adds settings.themeMode, defaulted to LIGHT so an existing install opens light.
+    version = 17,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -74,6 +76,7 @@ import java.util.Date
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 14, to = 15),
         AutoMigration(from = 15, to = 16),
+        AutoMigration(from = 16, to = 17),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)

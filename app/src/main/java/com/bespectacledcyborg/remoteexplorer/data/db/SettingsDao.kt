@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -38,4 +39,16 @@ data class SettingsEntity(
      * buys capacity rather than speed.
      */
     val thumbnailCacheVolume: String? = null,
+    /**
+     * Light, dark, or whatever the device is set to (#65). Light by default, the existing
+     * row included: the owner asked for it, and the dark default was what read as murky.
+     */
+    @ColumnInfo(defaultValue = "LIGHT")
+    val themeMode: ThemeMode = ThemeMode.LIGHT,
 )
+
+enum class ThemeMode(val label: String) {
+    LIGHT("Light"),
+    DARK("Dark"),
+    SYSTEM("Follow system"),
+}

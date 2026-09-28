@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
+import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailVolume
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.availableThumbnailVolumes
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.discardThumbnailCache
@@ -32,6 +34,14 @@ class SettingsViewModel(
             settingsRepository.update(
                 settings.value.copy(defaultColumnCount = count)
             )
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            settingsRepository.update(settings.value.copy(themeMode = mode))
+            // After the write, so the row already says what the recreated screen will ask.
+            applyThemeMode(getApplication(), mode)
         }
     }
 

@@ -9,7 +9,6 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -55,9 +54,15 @@ fun RemoteExplorerTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
+            // The app draws edge to edge (targetSdk 36 enforces it), so the status bar sits
+            // over the top bar's light or dark container and its icons have to match the
+            // theme. This was inverted: light icons over a light bar, dark over dark.
+            // statusBarColor is gone with it — it does nothing edge to edge.
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 

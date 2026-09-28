@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- File-type icons and placeholders. Material 3's onSurfaceVariant tones, so they read
+         on either background; the night value is in values-night (#65, #58). -->
+    <color name="file_icon">#FF49454F</color>
 </resources>
