@@ -88,8 +88,26 @@ interface LocalDatabaseDao {
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename LIKE '%' || :filter || '%'")
     fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String): List<LocalFile>
 
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath LIMIT :limit")
-    fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int = 4): List<LocalFile>
+    /**
+     * The files a folder's tile shows as its cover.
+     *
+     * Files that can have a thumbnail and have not already failed to make one, in name
+     * order. This used to be the first four rows of any kind, in whatever order they were
+     * stored, so a gallery-dl folder's cover was `.DS_Store`, `.stfolder` and friends drawn
+     * as generic icons, and a gallery could lead with its `info.json`.
+     */
+    @Query(
+        "SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath " +
+            "AND type = :type AND thumbnailStatus NOT IN (:excluded) " +
+            "ORDER BY filename LIMIT :limit"
+    )
+    fun getFolderThumbnails(
+        connectionId: Int,
+        parentPath: String,
+        limit: Int = 4,
+        type: FileType = FileType.FILE,
+        excluded: List<ThumbnailStatus> = listOf(ThumbnailStatus.UNSUPPORTED, ThumbnailStatus.ERROR),
+    ): List<LocalFile>
 
     @Query("SELECT filename FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND thumbnailStatus = :thumbnailStatus LIMIT :limit")
     fun getProcessedFolderThumbnails(

@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.Date
 
@@ -78,6 +80,13 @@ internal fun sourceDetailsOf(connection: Connection): SourceDetails = when (conn
  */
 const val DEFAULT_LISTING_TTL_MILLIS = 5 * 60 * 1000L
 
+/**
+ * How many folders may be listed at once to fill in their covers. A listing is one small
+ * SMB round trip, so a few in flight keep a screen of galleries filling without queueing
+ * the directory the user actually opened behind a dozen of them.
+ */
+private const val MAX_CONCURRENT_COVER_LISTINGS = 4
+
 class FileRepository(
     private val fileDataSource: FileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
@@ -92,6 +101,9 @@ class FileRepository(
     private val clock: () -> Long = System::currentTimeMillis,
     private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
 ) {
+    /** See [folderCover]. */
+    private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
+
     suspend fun connect(connection: Connection) {
         return withContext(dispatcher) {
             fileDataSource.connect(sourceDetailsOf(connection))
@@ -267,6 +279,33 @@ class FileRepository(
 
     suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
         return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)
+    }
+
+    /**
+     * What a folder's tile shows, listing the folder first if nothing has ever looked
+     * inside it.
+     *
+     * A cover is made from the folder's own rows, and a folder nobody has opened has none,
+     * so a directory of galleries used to show blank folders indefinitely — every tile
+     * stayed empty until that gallery had been opened once (#66). This fills them in by
+     * listing the folder the way opening it would, and only then: a folder with a sync
+     * record has been looked at, and whether it is stale is the business of opening it, not
+     * of scrolling past it. Otherwise every visit to a parent would re-list every child
+     * on screen each time the TTL ran out.
+     *
+     * The listing is bounded by [coverListingSlots], so a screen of fifteen galleries is
+     * fifteen round trips a few at a time rather than all at once.
+     */
+    suspend fun folderCover(connectionId: Int, folderPath: String): List<String> {
+        val cached = localDatabaseDataSource.getFolderThumbnails(connectionId, folderPath)
+        if (cached.isNotEmpty()) return cached
+        if (localDatabaseDataSource.getLastSyncedAt(connectionId, folderPath) != null) {
+            return cached
+        }
+        coverListingSlots.withPermit {
+            withContext(dispatcher) { syncDirectory(connectionId, folderPath) }
+        }
+        return localDatabaseDataSource.getFolderThumbnails(connectionId, folderPath)
     }
 
     suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {

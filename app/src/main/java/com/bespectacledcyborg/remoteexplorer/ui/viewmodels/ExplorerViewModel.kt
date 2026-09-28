@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 
 import android.app.Application
 import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
@@ -35,6 +36,7 @@ import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +78,9 @@ enum class ViewType {
 }
 
 typealias ThumbnailsMap = Map<String, List<String>>
+
+/** How long a folder that failed to list for its cover waits before it is tried again. */
+private const val COVER_RETRY_MILLIS = 30_000L
 
 /** Unique-work name for the tag scan, shared by the enqueue and the observer that follows it. */
 private const val SCAN_TAGS_WORK = "scanTags"
@@ -189,6 +194,7 @@ class ExplorerViewModel(
                 // from pairings not yet read would name a paired file as the local copy
                 // rather than the remote — a second cache entry for the same picture.
                 pairingRepository.awaitLoaded()
+                followWantedCovers(connection.id)
                 listFiles(connection.id)
                 // After listFiles, which records what is being browsed. The tag thumbnails
                 // are paths, and paths belong to a connection: the set built while browsing
@@ -579,22 +585,90 @@ class ExplorerViewModel(
         workManager.enqueueUniqueWork(SCAN_TAGS_WORK, ExistingWorkPolicy.KEEP, workRequest)
     }
 
+    /**
+     * A file is its own thumbnail, so those are known the moment the listing is.
+     *
+     * Folders are not handled here any more. Their covers used to be read for every folder
+     * in the listing, one query each, before any of them could paint — thousands for a
+     * directory of galleries, most of them nowhere near the screen. They are asked for as
+     * they come into view instead; see [requestCovers].
+     */
     private fun fetchThumbnails(connectionId: Int, files: List<LocalFile>) {
-        viewModelScope.launch {
-            val thumbnailsMap =
-                files.associate {
-                    it.fullPath() to when {
-                        it.type == FileType.FOLDER -> fileRepository.getFolderThumbnails(
-                            connectionId,
-                            it.fullPath()
-                        )
+        val thumbnailsMap = files
+            .filter { it.type != FileType.FOLDER }
+            .associate { it.fullPath() to listOf(it.fullPath()) }
+        if (thumbnailsMap.isEmpty()) return
+        _thumbnails.update { it.plus(thumbnailsMap) }
+    }
 
-                        else -> listOf(it.fullPath())
-                    }
+    /** Folders the grid has on screen or about to be, most wanted first. */
+    private val _wantedCovers = MutableStateFlow<List<String>>(emptyList())
+
+    /**
+     * Folders whose cover has been settled this connection, found or not, so scrolling
+     * back over them costs nothing.
+     */
+    private val coversSettled: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** When a folder last failed to list for its cover; see [loadCover]. */
+    private val coverFailedAt = ConcurrentHashMap<String, Long>()
+
+    private var coverLoader: Job? = null
+
+    /**
+     * Called by the grid with the folders on screen, then those just past it.
+     *
+     * Visibility is what decides the order, because the order is what the user sees: the
+     * first screen fills first, and folders scrolled away are dropped before they cost a
+     * listing — the new set replaces the old one, and anything still waiting for a slot is
+     * cancelled with it.
+     */
+    fun requestCovers(folderPaths: List<String>) {
+        _wantedCovers.update { folderPaths }
+    }
+
+    private fun followWantedCovers(connectionId: Int) {
+        coversSettled.clear()
+        coverFailedAt.clear()
+        coverLoader?.cancel()
+        coverLoader = viewModelScope.launch(Dispatchers.IO) {
+            _wantedCovers.collectLatest { wanted ->
+                coroutineScope {
+                    val now = System.currentTimeMillis()
+                    wanted
+                        .filter { it !in coversSettled }
+                        .filter { path ->
+                            coverFailedAt[path]?.let { now - it >= COVER_RETRY_MILLIS } ?: true
+                        }
+                        .forEach { path ->
+                            launch { loadCover(connectionId, path) }
+                        }
                 }
-            _thumbnails.update {
-                it.plus(thumbnailsMap)
             }
+        }
+    }
+
+    private suspend fun loadCover(connectionId: Int, path: String) {
+        try {
+            val startedAt = System.currentTimeMillis()
+            val cover = fileRepository.folderCover(connectionId, path)
+            coversSettled += path
+            Log.d(
+                "ExplorerViewModel",
+                "Cover for $path: ${cover.size} in ${System.currentTimeMillis() - startedAt}ms"
+            )
+            if (cover.isNotEmpty()) _thumbnails.update { it.plus(path to cover) }
+        } catch (e: CancellationException) {
+            // Scrolled away before it got a slot. Not settled, so it is asked again when it
+            // comes back — and a listing that had already started has written its rows by
+            // then, so the second ask is a database read.
+            throw e
+        } catch (e: Exception) {
+            // Not settled, since the share may only have hiccuped — but not retried on
+            // every scroll either: a folder it will not list waits out a back-off before it
+            // is asked again. Opening it reports the error properly.
+            coverFailedAt[path] = System.currentTimeMillis()
+            Log.w("ExplorerViewModel", "Could not list '$path' for its cover", e)
         }
     }
 
