@@ -377,6 +377,60 @@ class FileRepositoryTest {
 
         assertEquals(listOf("Beach.jpg"), emissions.last().files.map { it.filename })
     }
+
+    @Test
+    fun `a folder nobody has opened is listed once to make its cover`() = runTest {
+        // #66: a cover is made from the folder's own rows, so a gallery never opened had
+        // none and its tile stayed a blank folder for good.
+        val remote = FakeFileDataSource(
+            listOf("c.jpg", "notes.txt", "a.jpg", "b.jpg", "e.jpg", "d.jpg").map { remoteFile(it) }
+        )
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val repository = repository(remote, dao, canHaveThumbnail = { it.endsWith(".jpg") })
+
+        val cover = repository.folderCover(1, "Photos")
+
+        assertEquals(1, remote.listCalls)
+        assertEquals(
+            "only images, in name order, four of them",
+            listOf("Photos/a.jpg", "Photos/b.jpg", "Photos/c.jpg", "Photos/d.jpg"),
+            cover,
+        )
+
+        repository.folderCover(1, "Photos")
+        assertEquals("the second ask is answered from the cache", 1, remote.listCalls)
+    }
+
+    @Test
+    fun `a folder already looked at is not re-listed for its cover`() = runTest {
+        // Even with nothing to show and the TTL long gone: staleness is for opening the
+        // folder to deal with, not for scrolling past it.
+        val remote = FakeFileDataSource(listOf(remoteFile("new.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        dao.upsertDirectorySync(DirectorySync(1, "Photos", Date(now - 10 * ttl)))
+
+        val cover = repository(remote, dao, canHaveThumbnail = { true }).folderCover(1, "Photos")
+
+        assertEquals(0, remote.listCalls)
+        assertEquals(emptyList<String>(), cover)
+    }
+
+    @Test
+    fun `a cover leaves out files that cannot have a thumbnail or failed to make one`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile("a.jpg", thumbnailStatus = ThumbnailStatus.ERROR),
+                cachedFile("b.json", thumbnailStatus = ThumbnailStatus.UNSUPPORTED),
+                cachedFile("c.jpg", thumbnailStatus = ThumbnailStatus.SUCCESS),
+                cachedFile("d.jpg"),
+            )
+        )
+        freshlySynced(dao)
+
+        val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
+
+        assertEquals(listOf("Photos/c.jpg", "Photos/d.jpg"), cover)
+    }
 }
 
 /** Stands in for SMB. Nothing under test opens a file, so [openFile] refuses. */
@@ -498,7 +552,20 @@ private class FakeLocalDatabaseDao(
 
     override fun getFilesWithTag(tag: String): List<LocalFile> = notUsed()
     override fun getFolders(connectionId: Int, parentPath: String, type: FileType) = notUsed()
-    override fun getFolderThumbnails(connectionId: Int, parentPath: String, limit: Int) = notUsed()
+    // The query, restated: files only, none that cannot or did not make a thumbnail, by name.
+    override fun getFolderThumbnails(
+        connectionId: Int,
+        parentPath: String,
+        limit: Int,
+        type: FileType,
+        excluded: List<ThumbnailStatus>,
+    ): List<LocalFile> = files
+        .filter {
+            it.connectionId == connectionId && it.parentPath == parentPath &&
+                it.type == type && it.thumbnailStatus !in excluded
+        }
+        .sortedBy { it.filename }
+        .take(limit)
     override fun getProcessedFolderThumbnails(
         connectionId: Int,
         parentPath: String,

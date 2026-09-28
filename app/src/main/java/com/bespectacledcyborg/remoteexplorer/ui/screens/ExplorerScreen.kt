@@ -194,6 +194,13 @@ fun ExplorerScreen(
                     handleRefresh = { explorerViewModel.forceRefresh() },
                     columnCount = columnCount,
                     isRefreshing = isRefreshing,
+                    onVisibleItemsChanged = { visible ->
+                        explorerViewModel.requestCovers(
+                            visible
+                                .filter { it.type == FileType.FOLDER }
+                                .map { it.item.fullPath() }
+                        )
+                    },
                 )
             }
         },

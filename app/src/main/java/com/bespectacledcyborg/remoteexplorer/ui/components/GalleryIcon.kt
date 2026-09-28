@@ -1,9 +1,8 @@
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -27,34 +26,30 @@ fun GalleryIcon(
                 .fillMaxSize()
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(
-                if (thumbnailUrls.size >= 2) { 2 } else { 1 }
-            ),
+        // Plain rows rather than a LazyVerticalGrid. Four cells never needed laziness, and a
+        // lazy layout inside every tile of a lazy grid is a subcomposition per tile — the
+        // work that makes a fast scroll drop frames and leave tiles blank behind it.
+        val columns = if (thumbnailUrls.size >= 2) 2 else 1
+        Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxSize(0.5f),
-//                .offset(y = (LocalConfiguration.current.screenHeightDp * 0.05f).dp),
-            userScrollEnabled = false
+                .fillMaxSize(0.5f)
+                // The lazy grid clipped a second row that did not fit a short tile.
+                .clipToBounds(),
         ) {
-            items(4) { index ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                ) {
-                    val filename = thumbnailUrls.getOrNull(index)
-                    if (filename != null) {
+            thumbnailUrls.take(4).chunked(columns).take(if (columns == 1) 1 else 2).forEach { row ->
+                Row(Modifier.fillMaxWidth()) {
+                    row.forEach { path ->
                         ImageIcon(
                             getImageUrl,
-                            thumbnailUrls[index],
+                            path,
                             Modifier
-                                .align(Alignment.Center)
-                                .fillMaxWidth()
+                                .weight(1f)
                                 .aspectRatio(1f)
                         )
                     }
+                    // A lone image on the second row keeps its column's width.
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
