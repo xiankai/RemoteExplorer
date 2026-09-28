@@ -27,9 +27,12 @@ object Utils {
         return iconType
     }
 
+    /**
+     * What opens in the app's own viewer rather than being handed to another app. Images
+     * only: the viewer is a pager of pictures, and video goes to a real player.
+     */
     val BROWSEABLE_TYPES = listOf(
         IconType.IMAGE,
-        IconType.VIDEO,
     )
 
     val SUPPORTED_THUMBNAILS = listOf(
