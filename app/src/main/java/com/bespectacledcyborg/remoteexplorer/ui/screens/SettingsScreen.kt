@@ -144,7 +144,7 @@ fun SettingsScreen(
 
                 TextButton(
                     onClick = { selectingColumnCount = !selectingColumnCount },
-                    content = { Text("Default Column Count: ${settings.defaultColumnCount}") },
+                    content = { Text("Column Count: ${settings.defaultColumnCount}") },
                 )
                 DropdownMenu(
                     expanded = selectingColumnCount,

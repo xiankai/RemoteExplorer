@@ -30,11 +30,7 @@ class SettingsViewModel(
     }
 
     fun setDefaultColumnCount(count: Int) {
-        viewModelScope.launch {
-            settingsRepository.update(
-                settings.value.copy(defaultColumnCount = count)
-            )
-        }
+        viewModelScope.launch { settingsRepository.setColumnCount(count) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

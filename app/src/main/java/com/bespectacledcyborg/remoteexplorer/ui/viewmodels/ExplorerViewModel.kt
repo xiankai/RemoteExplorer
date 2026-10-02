@@ -126,8 +126,7 @@ class ExplorerViewModel(
     // order, and the tag observer in init reaches for this.
     private val workManager = WorkManager.getInstance(application.applicationContext)
 
-    // On init: start the http server, find connections, apply the saved column count, and
-    // start following the tag scan.
+    // On init: start the http server, find connections, and start following the tag scan.
     init {
         viewModelScope.launch { serverRepository.startup() }
         // Next to the server on purpose: connect() waits for the first read of this, so a
@@ -136,12 +135,6 @@ class ExplorerViewModel(
         viewModelScope.launch {
             connectionRepository.getConnections().collect { connections ->
                 _connections.update { connections }
-            }
-        }
-        viewModelScope.launch {
-            val defaultColumnCount = settingsRepository.getSettingsOnce()?.defaultColumnCount
-            if (defaultColumnCount != null && !columnCountChosenThisSession) {
-                _columnCount.update { defaultColumnCount }
             }
         }
         // Tags used to be read exactly once here and never again, so a tag discovered by
@@ -546,18 +539,18 @@ class ExplorerViewModel(
         }
     }
 
-    private val _columnCount = MutableStateFlow(SettingsEntity().defaultColumnCount)
-    val columnCountState: StateFlow<Int> = _columnCount.asStateFlow()
-
-    // The settings screen has always offered "Default Column Count" and nothing ever read it;
-    // the grid was hardcoded to 4. Applied once at startup rather than by observing the flow,
-    // so that picking a column count from the toolbar during a session is not clobbered the
-    // next time settings emit.
-    private var columnCountChosenThisSession = false
+    /**
+     * The grid's column count, as stored. One value, written by both the grid's picker and
+     * Settings, and followed rather than read once: it used to be read a single time at
+     * startup, so a change in Settings did nothing until a restart, and a pick from the
+     * toolbar lasted only the session (#71).
+     */
+    val columnCountState: StateFlow<Int> =
+        settingsRepository.columnCount()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsEntity().defaultColumnCount)
 
     fun setColumnCount(columnCount: Int) {
-        columnCountChosenThisSession = true
-        _columnCount.update { columnCount }
+        viewModelScope.launch { settingsRepository.setColumnCount(columnCount) }
     }
 
     fun getFileSize(connectionId: Int, fullPath: String): Long {

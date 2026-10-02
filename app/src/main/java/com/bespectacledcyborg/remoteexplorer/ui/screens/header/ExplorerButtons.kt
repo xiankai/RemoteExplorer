@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Sell
@@ -43,6 +44,7 @@ fun ExplorerButtons(
     )
 
     var selectingColumnCount by remember { mutableStateOf(false) }
+    val columnCount by explorerViewModel.columnCountState.collectAsState()
     val columnCountOptions = List(12) { it + 1 }
     Box {
         IconButton(
@@ -59,9 +61,16 @@ fun ExplorerButtons(
             onDismissRequest = { selectingColumnCount = false },
         ) {
             columnCountOptions.forEach { option ->
+                // Stays open on a pick, so the grid behind it can be tried at a few widths.
+                // The pick is stored: it is the same value Settings shows (#71).
                 DropdownMenuItem(
                     text = { Text(option.toString()) },
                     onClick = { explorerViewModel.setColumnCount(option) },
+                    trailingIcon = {
+                        if (option == columnCount) {
+                            Icon(Icons.Filled.Check, contentDescription = "Current")
+                        }
+                    },
                 )
             }
         }
