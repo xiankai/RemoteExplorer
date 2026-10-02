@@ -52,11 +52,28 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class SortType {
-    NAME_ASC,
-    NAME_DESC,
-    LAST_MODIFIED_ASC,
-    LAST_MODIFIED_DESC
+/** The listing's orders, each with the label the toolbar's sort menu gives it. */
+enum class SortType(val label: String) {
+    NAME_ASC("Name, A to Z"),
+    NAME_DESC("Name, Z to A"),
+    LAST_MODIFIED_ASC("Oldest first"),
+    LAST_MODIFIED_DESC("Newest first"),
+}
+
+/**
+ * The file listing's order. Two files modified in the same instant (a gallery downloaded in
+ * one go often is) fall back to the name, so the time orders do not shuffle between
+ * listings.
+ */
+internal fun fileComparator(sortType: SortType): Comparator<LocalFile> {
+    val byName = compareBy<LocalFile> { it.filename }
+    return when (sortType) {
+        SortType.NAME_ASC -> byName
+        SortType.NAME_DESC -> byName.reversed()
+        SortType.LAST_MODIFIED_ASC -> compareBy<LocalFile> { it.lastModified }.then(byName)
+        SortType.LAST_MODIFIED_DESC ->
+            compareByDescending<LocalFile> { it.lastModified }.then(byName)
+    }
 }
 
 /**
@@ -407,14 +424,7 @@ class ExplorerViewModel(
         }
     }
 
-    fun getSortFunction(sortType: SortType): Comparator<LocalFile> {
-        return when (sortType) {
-            SortType.NAME_ASC -> compareBy { it.filename }
-            SortType.NAME_DESC -> compareByDescending { it.filename }
-            SortType.LAST_MODIFIED_ASC -> compareBy { it.lastModified }
-            SortType.LAST_MODIFIED_DESC -> compareByDescending { it.lastModified }
-        }
-    }
+    fun getSortFunction(sortType: SortType): Comparator<LocalFile> = fileComparator(sortType)
 
     fun addConnection(connection: Connection) {
         viewModelScope.launch {
