@@ -17,6 +17,21 @@ interface SettingsDao {
     @Query("SELECT * FROM settings LIMIT 1")
     suspend fun getSettingsOnce(): SettingsEntity?
 
+    /**
+     * Nullable, unlike [getSettings]: the default row is inserted on a background coroutine
+     * at startup, so a collector can arrive before it exists.
+     */
+    @Query("SELECT * FROM settings LIMIT 1")
+    fun observeSettings(): Flow<SettingsEntity?>
+
+    /**
+     * The column count alone. The grid's picker writes it as well as Settings, and a
+     * whole-row copy taken from either screen's last-seen settings could put back a value
+     * the other had just changed.
+     */
+    @Query("UPDATE settings SET defaultColumnCount = :count")
+    suspend fun setDefaultColumnCount(count: Int)
+
     @Update
     suspend fun update(settingsEntity: SettingsEntity)
 
