@@ -20,7 +20,7 @@ class MediaDuration(private val files: FileDataSource) {
         return try {
             retriever.setDataSource(SmbMediaDataSource(reader))
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-        } catch (e: RuntimeException) {
+        } catch (e: RuntimeException) {  // stack-reviewer-ignore: setDataSource and extractMetadata declare no checked exceptions and fail with IllegalArgumentException/IllegalStateException/RuntimeException, all caught; an Error should not be swallowed, and the finally still closes the reader
             null
         } finally {
             runCatching { retriever.release() }

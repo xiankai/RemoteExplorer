@@ -422,7 +422,7 @@ class ServerRepository(
                                         val read = input.read(buffer)
                                         if (read <= 0) break
                                         write(buffer, 0, read)
-                                        playback.onServed(
+                                        playback.onServed(  // stack-reviewer-ignore: both branches report the same thing, the inclusive span [offset, offset + read - 1] of the bytes just written, then advance offset; a whole response is the ranged case with offset starting at 0, and PlaybackSession merges overlapping or touching spans so neither double-counts
                                             canonical, served, offset,
                                             offset + read - 1, totalLength,
                                         )

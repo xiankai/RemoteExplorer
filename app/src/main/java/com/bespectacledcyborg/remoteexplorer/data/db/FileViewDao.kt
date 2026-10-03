@@ -119,6 +119,7 @@ interface FileViewDao {
     @Query(
         "UPDATE FileView SET " +
                 "openCount = openCount + 1, " +
+                // stack-reviewer-ignore: :day cannot be null, it is a non-null Long in every signature down to ViewRecorder.recordOpen, which always computes it; IS is there for the stored side, a row that has never counted a day
                 "daysViewed = daysViewed + CASE WHEN lastCountedDay IS :day THEN 0 ELSE 1 END, " +
                 "lastCountedDay = :day, " +
                 "firstOpenedAt = COALESCE(firstOpenedAt, :at), " +
@@ -192,6 +193,7 @@ interface FileViewDao {
                 "  FROM FileView AS fv " +
                 "  INNER JOIN FileTagRelation AS r ON r.connectionId = fv.connectionId " +
                 "    AND r.parentPath = fv.parentPath AND r.filename = fv.filename " +
+                // stack-reviewer-ignore: across connections on purpose, matching TAG_AND_ALIASES and getTags, which group the tag list by canonical alone: a tag is a string, not a share's property, so a per-connection join would split one list entry's totals from what opening it lists
                 "  LEFT JOIN TagAlias AS a ON a.tag = r.tag " +
                 "  UNION " +
                 "  SELECT COALESCE(a.canonical, d.tag) AS groupKey, " +
