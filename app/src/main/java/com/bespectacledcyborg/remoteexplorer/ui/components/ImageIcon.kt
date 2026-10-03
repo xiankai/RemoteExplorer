@@ -4,6 +4,7 @@ import FallbackIcon
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.bespectacledcyborg.remoteexplorer.R
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
@@ -18,7 +19,14 @@ import com.github.panpf.sketch.request.placeholder
 typealias GetImageUrl = (fullPath: String, thumbnail: Boolean) -> String
 
 @Composable
-fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = Modifier) {
+fun ImageIcon(
+    getImageUrl: GetImageUrl,
+    fullPath: String?,
+    modifier: Modifier = Modifier,
+    // Fit for a file's own tile, so the whole picture shows. A folder's cover collage crops
+    // instead, so each cover fills its quarter rather than letterboxing inside it (#72).
+    contentScale: ContentScale = ContentScale.Fit,
+) {
 
     if (fullPath == null) {
         return FallbackIcon(null, modifier)
@@ -57,7 +65,8 @@ fun ImageIcon(getImageUrl: GetImageUrl, fullPath: String?, modifier: Modifier = 
             uri = uri,
             contentDescription = contentDescription,
             modifier = modifier.progressIndicator(state, progressPainter),
-            state = state
+            state = state,
+            contentScale = contentScale,
         )
     }
 }
