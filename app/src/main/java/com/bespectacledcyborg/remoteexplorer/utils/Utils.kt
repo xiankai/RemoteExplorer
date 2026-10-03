@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.utils
 
 import com.bespectacledcyborg.remoteexplorer.data.ENCODING
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.github.panpf.sketch.util.MimeTypeMap
 import java.net.ServerSocket
@@ -89,6 +90,9 @@ object Utils {
         // Jetty 12 rejects %2F in URL paths per Jakarta Servlet 6.0 spec.
         val encodedPath = path.split("/").joinToString("/") { URLEncoder.encode(it, ENCODING) }
         val baseUrl = "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
-        return if (thumbnail) "$baseUrl&thumbnail=true" else baseUrl
+        // The size is for Sketch, which keys its own caches by URL: without it a cell that
+        // had loaded a 128 px thumbnail would keep showing those bytes after THUMBNAIL_SIZE
+        // went up (#73). The server does not read it.
+        return if (thumbnail) "$baseUrl&thumbnail=true&size=$THUMBNAIL_SIZE" else baseUrl
     }
 }

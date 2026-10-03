@@ -33,7 +33,7 @@ class VideoDecoder {
         // Call native method to decode frame, already scaled to the thumbnail box. The
         // native side used to hand back the frame at full resolution — a 4K frame is about
         // 33 MB of RGBA — which crossed JNI, was copied again below, and was then thrown
-        // away at 128 px. sws_scale has to run anyway for the colour conversion, so giving
+        // away at thumbnail size. sws_scale has to run anyway for the colour conversion, so giving
         // it the target size costs nothing and shrinks everything after it.
         val combinedData = decodeVideoFrameNative(reader, THUMBNAIL_SIZE) ?: run {
             Log.e(TAG, "Failed to decode video frame")

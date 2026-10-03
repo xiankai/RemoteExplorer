@@ -1,6 +1,8 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,7 +55,26 @@ class ThumbnailCacheKeyTest {
 
         assertTrue("must stay within one path segment", !key.contains('/'))
         assertTrue(key.endsWith(".jpg"))
-        assertTrue("hex of 16 bytes plus the extension", key.length == 32 + ".jpg".length)
+        val suffix = "-$THUMBNAIL_SIZE.jpg"
+        assertTrue("hex of 16 bytes plus the size and extension", key.length == 32 + suffix.length)
+    }
+
+    @Test
+    fun `a thumbnail rendered at another size is a different entry`() {
+        // Presence is what marks a thumbnail cached, so a key without the size would go on
+        // serving the old 128 px files verbatim after THUMBNAIL_SIZE went up (#73).
+        assertNotEquals(
+            thumbnailCacheKey(1, "Photos/beach.jpg", size = 128),
+            thumbnailCacheKey(1, "Photos/beach.jpg"),
+        )
+    }
+
+    @Test
+    fun `only files at the current size count as current`() {
+        assertTrue(isCurrentThumbnailFile(thumbnailCacheKey(1, "Photos/beach.jpg")))
+        assertFalse(isCurrentThumbnailFile(thumbnailCacheKey(1, "Photos/beach.jpg", size = 128)))
+        // What the cache held before the size was in the name at all.
+        assertFalse(isCurrentThumbnailFile("0123456789abcdef0123456789abcdef.jpg"))
     }
 
     @Test
