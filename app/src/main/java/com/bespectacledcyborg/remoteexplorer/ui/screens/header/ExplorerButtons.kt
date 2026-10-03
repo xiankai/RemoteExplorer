@@ -92,7 +92,7 @@ fun ExplorerButtons(
             expanded = selectingSort,
             onDismissRequest = { selectingSort = false },
         ) {
-            SortType.entries.forEach { option ->
+            SortType.entries.forEach { option ->  // stack-reviewer-ignore: every entry is a file order by construction; fileComparator is an exhaustive `when` over SortType, so a new entry does not compile until the listing can sort by it
                 DropdownMenuItem(
                     text = { Text(option.label) },
                     onClick = {
