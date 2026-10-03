@@ -1,5 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens
 
+import java.time.DateTimeException
+import java.time.ZoneId
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -138,6 +140,50 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Where a viewing day starts, and in which zone (#76). Side by side because
+            // they only mean anything together. Both are read each time a view is recorded,
+            // so a change applies from the next one, and days already counted stay put.
+            Box {
+                var selectingDayStart by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { selectingDayStart = !selectingDayStart },
+                    content = {
+                        Text("Viewing Day Starts At: ${clockTime(settings.viewingDayStartMinutes)}")
+                    },
+                )
+                DropdownMenu(
+                    expanded = selectingDayStart,
+                    onDismissRequest = { selectingDayStart = false },
+                ) {
+                    (0 until 24).forEach { hour ->
+                        DropdownMenuItem(
+                            text = { Text(clockTime(hour * 60)) },
+                            onClick = {
+                                selectingDayStart = false
+                                settingsViewModel.setViewingDayStart(hour * 60)
+                            },
+                        )
+                    }
+                }
+            }
+
+            TextFieldDialog(
+                title = "Viewing Day Time Zone",
+                value = settings.viewingDayZone,
+                onValueChange = { input ->
+                    val zone = input.trim()
+                    try {
+                        ZoneId.of(zone)
+                    } catch (e: DateTimeException) {
+                        throw IllegalArgumentException("not a time zone, e.g. Asia/Tokyo")
+                    }
+                    settingsViewModel.setViewingDayZone(zone)
+                    zone
+                },
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Box {
                 var selectingColumnCount by remember { mutableStateOf(false) }
                 val columnCountOptions = List(12) { it + 1 }
@@ -161,3 +207,5 @@ fun SettingsScreen(
         }
     }
 }
+
+private fun clockTime(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)

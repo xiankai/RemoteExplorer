@@ -78,7 +78,8 @@ class PlatformVideoThumbnailSource(
     }
 
     /** Bridges [RemoteRandomAccess] to what the platform extractor expects. */
-    private class SmbMediaDataSource(
+    /** Also read by the playback tracker for a file's duration. */
+    internal class SmbMediaDataSource(
         private val reader: RemoteRandomAccess,
     ) : MediaDataSource() {
 

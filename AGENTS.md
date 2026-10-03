@@ -25,7 +25,7 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
        DataSources:  RoutingFileDataSource ─┬ SambaFileDataSource (SMBJ)
                                             └ LocalFileDataSource (java.io.File)
-                     LocalDatabaseDataSource (Room v17)
+                     LocalDatabaseDataSource (Room v18)
 ```
 
 **Two kinds of connection.** A `Connection` is an SMB share or, with `type = LOCAL`, a folder
@@ -55,6 +55,16 @@ players — without downloading files first. URLs look like
 **Room is a mirror, not just preferences.** `LocalFile` caches the remote listing with
 per-file `tagStatus` / `thumbnailStatus` state machines. `listFiles` serves from the DB and
 only hits SMB when the DB is empty or you pull-to-refresh.
+
+**What has been viewed is user data, not cache** (#76). `FileView` holds one row per file
+actually opened or watched, keyed by the canonical identity, and nothing but `ViewRecorder`
+writes it: never put a view column on `LocalFile`, which the reconcile deletes and resets.
+An image counts after `IMAGE_DWELL_MILLIS` on a settled page in the viewer. Anything handed
+to another app counts as a launch, and video and audio add `watchedSeconds` from the bytes
+the loopback server sends (`PlaybackSessions`: ranges merged per session, converted by the
+container's duration, clamped by wall clock). Folders and tags are queries over the table,
+never stored rollups. A viewing day starts at a configured time (noon) in a configured zone
+(`Asia/Tokyo`), both read at write time.
 
 **The tag index protocol** (generator side: infra#199). Files live under
 `gallery-dl/_index/` relative to the share root — on the real library, share `library`,

@@ -46,6 +46,20 @@ class SettingsViewModel(
         }
     }
 
+    /** Where a viewing day starts, in minutes after local midnight (#76). */
+    fun setViewingDayStart(minutes: Int) {
+        viewModelScope.launch {
+            settingsRepository.update(settings.value.copy(viewingDayStartMinutes = minutes))
+        }
+    }
+
+    /** The zone viewing days are counted in. [zone] must already be a valid zone id. */
+    fun setViewingDayZone(zone: String) {
+        viewModelScope.launch {
+            settingsRepository.update(settings.value.copy(viewingDayZone = zone))
+        }
+    }
+
     /** Volumes the thumbnail cache can be put on, for the picker to offer. */
     fun thumbnailVolumes(): List<ThumbnailVolume> =
         availableThumbnailVolumes(getApplication())
