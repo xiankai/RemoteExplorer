@@ -1,9 +1,13 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import kotlin.io.path.createTempDirectory
 
 /**
  * The cache key decides which picture a grid cell shows, so getting it wrong is silent: the
@@ -53,7 +57,45 @@ class ThumbnailCacheKeyTest {
 
         assertTrue("must stay within one path segment", !key.contains('/'))
         assertTrue(key.endsWith(".jpg"))
-        assertTrue("hex of 16 bytes plus the extension", key.length == 32 + ".jpg".length)
+        val suffix = "-$THUMBNAIL_SIZE.jpg"
+        assertTrue("hex of 16 bytes plus the size and extension", key.length == 32 + suffix.length)
+    }
+
+    @Test
+    fun `a thumbnail rendered at another size is a different entry`() {
+        // Presence is what marks a thumbnail cached, so a key without the size would go on
+        // serving the old 128 px files verbatim after THUMBNAIL_SIZE went up (#73).
+        assertNotEquals(
+            thumbnailCacheKey(1, "Photos/beach.jpg", size = 128),
+            thumbnailCacheKey(1, "Photos/beach.jpg"),
+        )
+    }
+
+    @Test
+    fun `only files at the current size count as current`() {
+        assertTrue(isCurrentThumbnailFile(thumbnailCacheKey(1, "Photos/beach.jpg")))
+        assertFalse(isCurrentThumbnailFile(thumbnailCacheKey(1, "Photos/beach.jpg", size = 128)))
+        // What the cache held before the size was in the name at all.
+        assertFalse(isCurrentThumbnailFile("0123456789abcdef0123456789abcdef.jpg"))
+    }
+
+    @Test
+    fun `the trim deletes files at other sizes and keeps the current ones`() {
+        val dir = createTempDirectory("thumbnails").toFile()
+        try {
+            val current = File(dir, thumbnailCacheKey(1, "a.jpg")).apply { writeText("new") }
+            val old = File(dir, thumbnailCacheKey(1, "b.jpg", size = 128)).apply { writeText("old") }
+            val unsized = File(dir, "0123456789abcdef0123456789abcdef.jpg").apply { writeText("old") }
+
+            val kept = deleteOtherSizes(arrayOf(current, old, unsized))
+
+            assertEquals(listOf(current), kept)
+            assertTrue(current.exists())
+            assertFalse(old.exists())
+            assertFalse(unsized.exists())
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 
     @Test

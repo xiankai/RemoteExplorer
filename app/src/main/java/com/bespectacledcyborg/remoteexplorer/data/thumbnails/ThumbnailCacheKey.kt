@@ -1,5 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
+import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
+import java.io.File
 import java.security.MessageDigest
 
 /**
@@ -22,11 +24,38 @@ import java.security.MessageDigest
  * `Pairings.canonicalize`, applied once, by the server, before anything reaches the cache —
  * this function only digests what it is given.
  */
-internal fun thumbnailCacheKey(connectionId: Int, path: String): String {
+/*
+ * The name also carries the size the thumbnail was rendered at, so raising [THUMBNAIL_SIZE]
+ * misses every file rendered before it rather than serving them on verbatim (#73). Presence
+ * is what marks a thumbnail cached, so a key without the size would keep handing out the old
+ * 128 px files forever. [isCurrentThumbnailFile] is how the trim recognises the leftovers.
+ */
+internal fun thumbnailCacheKey(
+    connectionId: Int,
+    path: String,
+    size: Int = THUMBNAIL_SIZE,
+): String {
     val digest = MessageDigest.getInstance("SHA-256")
         .digest("$connectionId\u0000$path".toByteArray(Charsets.UTF_8))
 
-    return digest.take(KEY_BYTES).joinToString("") { "%02x".format(it) } + ".jpg"
+    return digest.take(KEY_BYTES).joinToString("") { "%02x".format(it) } + suffixFor(size)
 }
+
+/** Whether a cache file was rendered at the current [THUMBNAIL_SIZE]. */
+internal fun isCurrentThumbnailFile(name: String): Boolean = name.endsWith(suffixFor(THUMBNAIL_SIZE))
+
+/**
+ * Deletes the files among [files] rendered at another [THUMBNAIL_SIZE] and returns the rest.
+ *
+ * Nothing will look those up again (#73), so they go whatever the cache's total, rather than
+ * squatting on the ceiling until age pushes them out. One that will not delete is kept in
+ * the result, so the trim still counts the space it takes.
+ */
+internal fun deleteOtherSizes(files: Array<File>): List<File> {
+    val (current, stale) = files.partition { isCurrentThumbnailFile(it.name) }
+    return current + stale.filterNot { it.delete() }
+}
+
+private fun suffixFor(size: Int) = "-$size.jpg"
 
 private const val KEY_BYTES = 16

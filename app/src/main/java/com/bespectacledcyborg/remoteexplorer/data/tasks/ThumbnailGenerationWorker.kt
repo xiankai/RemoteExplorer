@@ -21,7 +21,15 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
-const val THUMBNAIL_SIZE = 128
+/**
+ * The long side, in pixels, every thumbnail is rendered at — and so what a grid cell shows.
+ *
+ * It was 128, which every cell upscaled roughly threefold (#73). 512 is about a cell's own
+ * width at the default three columns: a phone's is around 360 px, a 1600 px portrait
+ * tablet's around 530. It also names the cache files (see `thumbnailCacheKey`), so changing
+ * it retires every thumbnail rendered at the old size instead of serving them on.
+ */
+const val THUMBNAIL_SIZE = 512
 const val THUMBNAIL_GENERATION_WORK_TAG = "generateThumbnail"
 const val THUMBNAIL_WORKER_INPUT_CONNECTION_ID = "CONNECTION_ID"
 const val THUMBNAIL_WORKER_INPUT_PARENT_PATH = "PARENT_PATH"
@@ -143,7 +151,7 @@ class ThumbnailGenerationWorker(
         // Read the file into a bitmap
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
 
-        // Calculate sample size for 128x128
+        // Calculate sample size for THUMBNAIL_SIZE
         val sampleSize =
             calculateSampleSize(options, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
 
@@ -159,11 +167,21 @@ class ThumbnailGenerationWorker(
     }
 }
 
+/**
+ * How much to scale a [width] x [height] bitmap so its long side is [THUMBNAIL_SIZE].
+ *
+ * Never above 1: an image already smaller than a thumbnail is stored as it is. Blowing it up
+ * here would cost the disk of a full-size thumbnail and look no better than letting the cell
+ * scale it.
+ */
+internal fun thumbnailScale(width: Int, height: Int): Float =
+    minOf(1f, THUMBNAIL_SIZE.toFloat() / maxOf(width, height, 1))
+
 fun resizeBitmap(bitmap: Bitmap, thumbnailFile: File) {
     // Fit inside the box rather than filling it. Scaling straight to THUMBNAIL_SIZE square
     // ignored the aspect ratio, so every thumbnail that was not already square came out
     // stretched — which is most photographs.
-    val scale = THUMBNAIL_SIZE.toFloat() / maxOf(bitmap.width, bitmap.height)
+    val scale = thumbnailScale(bitmap.width, bitmap.height)
     val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
     val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
 

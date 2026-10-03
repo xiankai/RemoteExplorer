@@ -39,13 +39,24 @@ class LocalImageThumbnailSource(
 
         header?.let(::extractEmbeddedThumbnail)?.let { jpeg ->
             val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
-            if (bitmap != null) {
-                Log.d(TAG, "Served $path from its embedded thumbnail (${jpeg.size} bytes)")
-                resizeBitmap(bitmap.rotated(rotation), destination)
-                return true
+            // A camera's embedded thumbnail is usually 160 px. Next to a 128 px thumbnail
+            // that was plenty; at THUMBNAIL_SIZE it would be the same blur #73 is about, so
+            // a small one is passed over for the full decode below.
+            when {
+                // Present but undecodable. Fall through and do it the expensive way.
+                bitmap == null -> Log.d(TAG, "Embedded thumbnail for $path would not decode")
+
+                !isEmbeddedLargeEnough(bitmap.width, bitmap.height) -> {
+                    Log.d(TAG, "Embedded thumbnail for $path is too small (${bitmap.width}x${bitmap.height})")
+                    bitmap.recycle()
+                }
+
+                else -> {
+                    Log.d(TAG, "Served $path from its embedded thumbnail (${jpeg.size} bytes)")
+                    resizeBitmap(bitmap.rotated(rotation), destination)
+                    return true
+                }
             }
-            // Present but undecodable. Fall through and do it the expensive way.
-            Log.d(TAG, "Embedded thumbnail for $path would not decode")
         }
 
         return decodeDownsampled(connectionId, path, destination, rotation, header)
@@ -74,7 +85,7 @@ class LocalImageThumbnailSource(
      * The bounds pass is what makes this affordable. The old worker set
      * `inJustDecodeBounds` on an Options object it then never used for a bounds decode, so
      * `outWidth`/`outHeight` stayed 0, `inSampleSize` was always 1, and a 24 MP photo was
-     * decoded whole — around 96 MB of ARGB_8888 — purely to be scaled down to 128 px.
+     * decoded whole — around 96 MB of ARGB_8888 — purely to be scaled down to a thumbnail.
      */
     private fun decodeDownsampled(
         connectionId: Int,
@@ -135,6 +146,10 @@ class LocalImageThumbnailSource(
  * too-small bitmap back up to fill the thumbnail, which looks worse than decoding slightly
  * more than needed.
  */
+/** Whether an embedded thumbnail can stand in for a full decode at [THUMBNAIL_SIZE]. */
+internal fun isEmbeddedLargeEnough(width: Int, height: Int): Boolean =
+    maxOf(width, height) >= THUMBNAIL_SIZE
+
 internal fun sampleSizeFor(width: Int, height: Int, target: Int): Int {
     if (width <= 0 || height <= 0 || target <= 0) return 1
 

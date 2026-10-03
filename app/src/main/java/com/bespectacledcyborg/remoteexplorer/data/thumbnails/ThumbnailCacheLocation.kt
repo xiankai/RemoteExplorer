@@ -12,9 +12,11 @@ private const val TAG = "ThumbnailCacheLocation"
 private const val CACHE_DIR_NAME = "thumbnails"
 
 /**
- * How much the thumbnails may occupy on internal storage. At the 128 px they are written
- * out as, that is room for tens of thousands of them — far more than a browsing session
- * touches, while still being a bound rather than no bound at all.
+ * How much the thumbnails may occupy on internal storage. At the 512 px they are written
+ * out as (tens of KB each), that is room for several thousand — more than a browsing
+ * session touches, while still being a bound rather than no bound at all. It held tens of
+ * thousands at 128 px; the trim is least-recently-written, so the smaller count means older
+ * folders re-render sooner, not that anything breaks.
  */
 const val MAX_INTERNAL_THUMBNAIL_CACHE_BYTES = 256L * 1024 * 1024
 
