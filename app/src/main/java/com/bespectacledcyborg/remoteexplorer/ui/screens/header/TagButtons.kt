@@ -4,7 +4,6 @@ import ExpandableSearchBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -45,15 +44,13 @@ fun TagButtons(
             )
         }
     )
-    IconButton(
-        onClick = { explorerViewModel.sortTags(
-            if (sortState.value == SortType.NAME_ASC) SortType.NAME_DESC else SortType.NAME_ASC
-        ) },
-        content = {
-            Icon(
-                Icons.Filled.SortByAlpha,
-                contentDescription = "Sort by name",
-            )
-        }
+    // Name both ways, and every view order (#76): a tag sums the files it lists or
+    // contains. The time orders stay off, since a tag has no modified time to sort by.
+    SortMenu(
+        current = sortState.value,
+        options = SortType.entries.filter {
+            it != SortType.LAST_MODIFIED_ASC && it != SortType.LAST_MODIFIED_DESC
+        },
+        onSelect = explorerViewModel::sortTags,
     )
 }

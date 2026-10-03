@@ -28,6 +28,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
+import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
@@ -47,44 +49,98 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** The listing's orders, each with the label the toolbar's sort menu gives it. */
-enum class SortType(val label: String) {
+/** The listing's orders, each with the label a sort menu gives it. */
+enum class SortType(
+    val label: String,
+    /** Whether the order reads what has been viewed (#76), so the totals need fetching. */
+    val usesViews: Boolean = false,
+) {
     NAME_ASC("Name, A to Z"),
     NAME_DESC("Name, Z to A"),
     LAST_MODIFIED_ASC("Oldest first"),
     LAST_MODIFIED_DESC("Newest first"),
+
+    /** Popularity: most opens first, the most recently opened breaking a tie. */
+    MOST_VIEWED("Most viewed", usesViews = true),
+
+    /** Novelty: fewest opens first, and never opened (0) before anything. */
+    LEAST_VIEWED("Least viewed", usesViews = true),
+
+    /** Most recently opened first; never opened last. */
+    RECENTLY_VIEWED("Recently viewed", usesViews = true),
+
+    /** Return frequency: opened on the most distinct viewing days first. */
+    MOST_DAYS_VIEWED("Viewed on most days", usesViews = true),
+
+    /** Most time spent playing first. */
+    MOST_WATCHED("Longest watched", usesViews = true),
 }
 
 /**
- * The file listing's order. Two files modified in the same instant (a gallery downloaded in
- * one go often is) fall back to the name, so the time orders do not shuffle between
- * listings.
+ * The order of anything with view totals, a file, folder or tag alike, which is what lets
+ * one sort menu order all three (#76). Every order falls back to [byName], so entries that
+ * tie, most of a library at 0, stay in a stable order between listings.
  */
-internal fun fileComparator(sortType: SortType): Comparator<LocalFile> {
-    val byName = compareBy<LocalFile> { it.filename }
-    return when (sortType) {
-        SortType.NAME_ASC -> byName
-        SortType.NAME_DESC -> byName.reversed()
-        SortType.LAST_MODIFIED_ASC -> compareBy<LocalFile> { it.lastModified }.then(byName)
-        SortType.LAST_MODIFIED_DESC ->
-            compareByDescending<LocalFile> { it.lastModified }.then(byName)
-    }
+internal fun <T> viewComparator(
+    sortType: SortType,
+    views: (T) -> ViewTotals,
+    byName: Comparator<T>,
+): Comparator<T>? = when (sortType) {
+    SortType.MOST_VIEWED -> compareByDescending<T> { views(it).openCount }
+        .thenByDescending { views(it).lastOpenedAt ?: Long.MIN_VALUE }
+        .then(byName)
+    SortType.LEAST_VIEWED -> compareBy<T> { views(it).openCount }.then(byName)
+    SortType.RECENTLY_VIEWED -> compareByDescending<T> { views(it).lastOpenedAt ?: Long.MIN_VALUE }
+        .then(byName)
+    SortType.MOST_DAYS_VIEWED -> compareByDescending<T> { views(it).daysViewed }
+        .thenByDescending { views(it).lastOpenedAt ?: Long.MIN_VALUE }
+        .then(byName)
+    SortType.MOST_WATCHED -> compareByDescending<T> { views(it).watchedSeconds }
+        .thenByDescending { views(it).lastOpenedAt ?: Long.MIN_VALUE }
+        .then(byName)
+    else -> null
 }
 
 /**
  * The tag list's order: by what the list shows, ignoring case, so `female/glasses` and
  * `Smile` sit where a reader looks for them rather than after every capital. Tags have no
- * modified time, so the two time orders fall back to the name.
+ * modified time, so the two time orders fall back to the name. The view orders sum the
+ * files each entry lists or contains ([views], keyed by canonical, else tag).
  */
-internal fun tagComparator(sortType: SortType): Comparator<LocalTagWithMetadata> {
+internal fun tagComparator(
+    sortType: SortType,
+    views: Map<String, ViewTotals> = emptyMap(),
+): Comparator<LocalTagWithMetadata> {
     val byName = compareBy<LocalTagWithMetadata, String>(String.CASE_INSENSITIVE_ORDER) { it.label }
+    viewComparator(sortType, { views[it.canonical ?: it.tag] ?: ViewTotals.NONE }, byName)
+        ?.let { return it }
     return when (sortType) {
         SortType.NAME_DESC -> byName.reversed()
+        else -> byName
+    }
+}
+
+/** The file listing's order. [views] is keyed by [LocalFile.fullPath]. */
+internal fun fileComparator(
+    sortType: SortType,
+    views: Map<String, ViewTotals> = emptyMap(),
+): Comparator<LocalFile> {
+    val byName = compareBy<LocalFile> { it.filename }
+    viewComparator(sortType, { views[it.fullPath()] ?: ViewTotals.NONE }, byName)
+        ?.let { return it }
+    // Two files modified in the same instant (a gallery downloaded in one go often is) fall
+    // back to the name, so the time orders do not shuffle between listings.
+    return when (sortType) {
+        SortType.NAME_DESC -> byName.reversed()
+        SortType.LAST_MODIFIED_ASC -> compareBy<LocalFile> { it.lastModified }.then(byName)
+        SortType.LAST_MODIFIED_DESC ->
+            compareByDescending<LocalFile> { it.lastModified }.then(byName)
         else -> byName
     }
 }
@@ -113,6 +169,7 @@ class ExplorerViewModel(
     // disagree with the one the server is writing to.
     private val thumbnailManager: ThumbnailManager,
     private val pairingRepository: PairingRepository,
+    private val viewRecorder: ViewRecorder,
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -424,7 +481,24 @@ class ExplorerViewModel(
         }
     }
 
-    fun getSortFunction(sortType: SortType): Comparator<LocalFile> = fileComparator(sortType)
+    fun getSortFunction(sortType: SortType, views: Map<String, ViewTotals> = emptyMap()): Comparator<LocalFile> =
+        fileComparator(sortType, views)
+
+    /**
+     * An open, in the browsing connection's frame: an image held in the viewer past the
+     * dwell threshold, or a file handed to another app. Named canonically before it is
+     * written, so the share and its Syncthing copy are one record.
+     */
+    fun recordOpen(file: LocalFile) {
+        val canonical = pairingRepository.current().canonicalize(file.connectionId, file.fullPath())
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                viewRecorder.recordOpen(canonical)
+            } catch (e: Exception) {
+                Log.w("ExplorerViewModel", "Could not record opening ${file.fullPath()}", e)
+            }
+        }
+    }
 
     fun addConnection(connection: Connection) {
         viewModelScope.launch {
@@ -510,11 +584,28 @@ class ExplorerViewModel(
         _tagSort.update { sortType }
     }
 
+    /**
+     * Each tag-list entry's view totals, read only while the tag list is in a view order,
+     * and again after every recorded view.
+     */
+    private val tagViews: StateFlow<Map<String, ViewTotals>> =
+        combine(_tagSort, viewRecorder.changes) { sort, _ -> sort }
+            .map { sort ->
+                if (!sort.usesViews) emptyMap() else try {
+                    viewRecorder.tagTotals()
+                } catch (e: Exception) {
+                    Log.w("ExplorerViewModel", "Could not read tag view totals", e)
+                    emptyMap()
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     val visibleTagsState: StateFlow<List<LocalTagWithMetadata>> =
-        combine(_tags, _tagSearch, _tagQuery, _tagSort) { tags, search, query, sort ->
+        combine(_tags, _tagSearch, _tagQuery, _tagSort, tagViews) { tags, search, query, sort, views ->
             val matching =
                 if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query, it.label) }
-            matching.sortedWith(tagComparator(sort))
+            matching.sortedWith(tagComparator(sort, views))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun searchTags(query: String) {
@@ -710,6 +801,29 @@ class ExplorerViewModel(
             }
         }
     }
+
+    /**
+     * View totals for the directory on screen, keyed by [LocalFile.fullPath]: a file's own,
+     * a folder's summed over what is directly inside it. Read only while the listing is in
+     * a view order, and again after every recorded view, so a sort by views follows what
+     * was just opened.
+     */
+    val listingViewsState: StateFlow<Map<String, ViewTotals>> =
+        combine(_list, _path, _sort, viewRecorder.changes) { list, path, sort, _ ->
+            Triple(list[path].orEmpty(), sort, browsingConnectionId)
+        }
+            .map { (files, sort, connectionId) ->
+                if (!sort.usesViews || connectionId == null || files.isEmpty()) {
+                    emptyMap()
+                } else try {
+                    viewRecorder.totalsFor(connectionId, files, pairingRepository.current())
+                } catch (e: Exception) {
+                    Log.w("ExplorerViewModel", "Could not read view totals", e)
+                    emptyMap()
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     private suspend fun fetchTagThumbnails(
         tags: List<LocalTagWithMetadata>

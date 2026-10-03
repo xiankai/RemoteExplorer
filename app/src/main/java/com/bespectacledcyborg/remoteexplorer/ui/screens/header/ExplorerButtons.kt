@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridOn
@@ -77,37 +76,14 @@ fun ExplorerButtons(
     }
 
     // Every order the listing has, not a name-only toggle: the time orders were implemented
-    // and unreachable (#75). The Tags screen keeps its own name toggle on purpose, since tags
-    // have no modified time to sort by.
+    // and unreachable (#75), and the view orders (#76) sort a folder by the sum of what is
+    // directly inside it.
     val sort by explorerViewModel.sortState.collectAsState()
-    var selectingSort by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { selectingSort = !selectingSort }, content = {
-            Icon(
-                Icons.AutoMirrored.Filled.Sort,
-                contentDescription = "Sort: ${sort.label}",
-            )
-        })
-        DropdownMenu(
-            expanded = selectingSort,
-            onDismissRequest = { selectingSort = false },
-        ) {
-            SortType.entries.forEach { option ->  // stack-reviewer-ignore: every entry is a file order by construction; fileComparator is an exhaustive `when` over SortType, so a new entry does not compile until the listing can sort by it
-                DropdownMenuItem(
-                    text = { Text(option.label) },
-                    onClick = {
-                        explorerViewModel.sort(option)
-                        selectingSort = false
-                    },
-                    trailingIcon = {
-                        if (option == sort) {
-                            Icon(Icons.Filled.Check, contentDescription = "Current")
-                        }
-                    },
-                )
-            }
-        }
-    }
+    SortMenu(
+        current = sort,
+        options = SortType.entries,
+        onSelect = explorerViewModel::sort,
+    )
     IconButton(onClick = onOpenTagsScreen, content = {
         Icon(
             Icons.Filled.Sell,

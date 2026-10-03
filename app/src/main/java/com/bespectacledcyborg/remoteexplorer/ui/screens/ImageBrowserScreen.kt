@@ -35,6 +35,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.bespectacledcyborg.remoteexplorer.data.views.IMAGE_DWELL_MILLIS
+import kotlinx.coroutines.delay
 import com.github.panpf.sketch.AsyncImage
 import com.github.panpf.sketch.rememberAsyncImageState
 import com.github.panpf.sketch.request.ComposableImageRequest
@@ -92,6 +97,22 @@ fun ImageBrowserScreen(
         // landed, so opening an image is never three downloads racing for one link.
         val settledPage = pagerState.settledPage
         var settledPageLoaded by remember(settledPage) { mutableStateOf(false) }
+
+        // An open is a settled page held past the dwell threshold (#76), so flicking
+        // through a folder credits nothing, and the neighbours the pager pre-loads are
+        // never counted. Only while the viewer is in front: time with the app in the
+        // background is not looking. Once per landing, however often it is resumed.
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(settledPage, images) {
+            val image = images.getOrNull(settledPage) ?: return@LaunchedEffect
+            var counted = false
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                if (counted) return@repeatOnLifecycle
+                delay(IMAGE_DWELL_MILLIS)
+                counted = true
+                explorerViewModel.recordOpen(image)
+            }
+        }
 
         HorizontalPager(
             state = pagerState,
