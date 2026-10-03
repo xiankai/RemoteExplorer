@@ -21,6 +21,7 @@ import java.util.Date
         SettingsEntity::class,
         DirectorySync::class,
         Pairing::class,
+        FileView::class,
     ],
     exportSchema = true,
     // 9 carries no schema change: Connection.password is still one TEXT column. The bump
@@ -56,7 +57,12 @@ import java.util.Date
     // and an existing install hides nothing until its next alias pass fills it.
     //
     // 17 adds settings.themeMode, defaulted to LIGHT so an existing install opens light.
-    version = 17,
+    //
+    // 18 adds FileView, the record of what has been opened and watched (#76), and the two
+    // settings that say where a viewing day starts. A new table and two defaulted columns,
+    // so it auto-migrates: nothing existing is touched, an existing install starts with
+    // nothing viewed, and its days start at noon in Asia/Tokyo.
+    version = 18,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -77,6 +83,7 @@ import java.util.Date
         AutoMigration(from = 14, to = 15),
         AutoMigration(from = 15, to = 16),
         AutoMigration(from = 16, to = 17),
+        AutoMigration(from = 17, to = 18),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -85,6 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localDatabaseDao(): LocalDatabaseDao
     abstract fun settingsDao(): SettingsDao
     abstract fun pairingDao(): PairingDao
+    abstract fun fileViewDao(): FileViewDao
 }
 
 class Converters {

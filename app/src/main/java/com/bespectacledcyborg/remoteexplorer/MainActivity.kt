@@ -66,6 +66,10 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import com.bespectacledcyborg.remoteexplorer.data.views.MediaDuration
+import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackSessions
+import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import kotlinx.coroutines.launch
 
 class CustomWorkerFactory(
@@ -217,6 +221,17 @@ class ExplorerViewModelFactory(
             open = fileRepository::connect,
         )
 
+        // What has been opened and watched (#76). The playback tracker outlives any one
+        // screen, as the server does, so it gets a scope of its own rather than a view
+        // model's.
+        val viewRecorder = ViewRecorder(db.fileViewDao(), settingsRepository::getSettingsOnce)
+        val mediaDuration = MediaDuration(fileDataSource)
+        val playbackSessions = PlaybackSessions(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+            durationOf = { served -> mediaDuration.of(served) },
+            credit = viewRecorder::recordWatched,
+        ).also { it.start() }
+
         val serverRepository = ServerRepository(
             fileDataSource,
             defaultDispatcher,
@@ -229,6 +244,7 @@ class ExplorerViewModelFactory(
                 pairingRepository::current,
                 connectionOpener::ensureOpen,
             ),
+            playback = playbackSessions,
         )
 
         @Suppress("UNCHECKED_CAST")
@@ -241,6 +257,7 @@ class ExplorerViewModelFactory(
             settingsRepository,
             thumbnailManager,
             pairingRepository,
+            viewRecorder,
         ) as T
     }
 }

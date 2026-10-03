@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 17 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 18 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 17, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 18, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 17 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 18 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -280,6 +280,54 @@ class AppDatabaseMigrationTest {
                 assertTrue(row.moveToFirst())
                 assertEquals(0, row.getInt(0))
             }
+        }
+    }
+
+    /**
+     * 18: an existing install keeps its settings, connections and cached listing, starts
+     * with nothing viewed, and counts its viewing days from noon in Asia/Tokyo.
+     */
+    @Test
+    fun `arrives at 18 with everything kept, nothing viewed, and days from noon in Tokyo`() {
+        helper.createDatabase(TEST_DB, 17).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode) " +
+                        "VALUES (0, 8, 5, 'DARK')"
+            )
+            db.execSQL("INSERT INTO Connection (id, name, lastModified) VALUES (1, 'nas', 0)")
+            db.execSQL(
+                "INSERT INTO LocalFile " +
+                        "(connectionId, parentPath, filename, type, canHaveThumbnail, tagStatus, thumbnailStatus, lastModified) " +
+                        "VALUES (1, 'Photos', 'beach.jpg', 'FILE', 1, 'SUCCESS', 'SUCCESS', 0)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 18, true).use { db ->
+            db.query(
+                "SELECT maxStorageCacheSize, defaultColumnCount, themeMode, " +
+                        "viewingDayStartMinutes, viewingDayZone FROM settings"
+            ).use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(8, row.getInt(0))
+                assertEquals(5, row.getInt(1))
+                assertEquals("DARK", row.getString(2))
+                assertEquals(12 * 60, row.getInt(3))
+                assertEquals("Asia/Tokyo", row.getString(4))
+            }
+            db.query("SELECT COUNT(*) FROM Connection").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(1, row.getInt(0))
+            }
+            db.query("SELECT COUNT(*) FROM LocalFile").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(1, row.getInt(0))
+            }
+            db.query("SELECT COUNT(*) FROM FileView").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
+            }
+            // And the new table takes a record against an existing connection.
+            db.execSQL(
+                "INSERT INTO FileView (connectionId, parentPath, filename, openCount, watchedSeconds, daysViewed) " +
+                        "VALUES (1, 'Photos', 'beach.jpg', 1, 0, 1)"
+            )
         }
     }
 

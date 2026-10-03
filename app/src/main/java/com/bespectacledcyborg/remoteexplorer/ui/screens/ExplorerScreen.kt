@@ -27,6 +27,9 @@ import androidx.core.net.toUri
 import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
+import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
@@ -53,8 +56,18 @@ fun ExplorerScreen(
         explorerViewModel.filterState,
         explorerViewModel.sortState,
         explorerViewModel.pathState,
-    ) { list, search, filter, sort, path ->
-        var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort))
+        explorerViewModel.listingViewsState,
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val list = values[0] as Map<String, List<LocalFile>>
+        val search = values[1] as String
+        @Suppress("UNCHECKED_CAST")
+        val filter = values[2] as List<IconType>
+        val sort = values[3] as SortType
+        val path = values[4] as String
+        @Suppress("UNCHECKED_CAST")
+        val views = values[5] as Map<String, ViewTotals>
+        var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
         if (filter.isNotEmpty()) {
             finalList = finalList.filter {
                 val iconType = Utils.guessIconType(it.filename)
@@ -96,6 +109,10 @@ fun ExplorerScreen(
 
                         try {
                             context.startActivity(intent)
+                            // A launch, which is all the app can know here. How much was
+                            // watched comes from the bytes the player then pulls through
+                            // the loopback server.
+                            explorerViewModel.recordOpen(item.item)
                         } catch (e: ActivityNotFoundException) {
                             Toast.makeText(
                                 context,

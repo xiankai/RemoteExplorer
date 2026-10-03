@@ -60,7 +60,24 @@ data class SettingsEntity(
      */
     @ColumnInfo(defaultValue = "LIGHT")
     val themeMode: ThemeMode = ThemeMode.LIGHT,
+    /**
+     * When a viewing day starts, in minutes after local midnight (#76). Noon by default, so
+     * a sitting that runs past midnight counts as one day rather than two. Read each time
+     * a view is recorded rather than once at startup, so a change applies from the next
+     * view on. Days already counted keep the day they were given.
+     */
+    @ColumnInfo(defaultValue = "$DEFAULT_VIEWING_DAY_START_MINUTES")
+    val viewingDayStartMinutes: Int = DEFAULT_VIEWING_DAY_START_MINUTES,
+    /**
+     * The zone viewing days are counted in. Deliberately a setting and not the device's
+     * current zone: the boundary belongs to the viewing habit, not to wherever the phone is.
+     */
+    @ColumnInfo(defaultValue = DEFAULT_VIEWING_DAY_ZONE)
+    val viewingDayZone: String = DEFAULT_VIEWING_DAY_ZONE,
 )
+
+const val DEFAULT_VIEWING_DAY_START_MINUTES = 12 * 60
+const val DEFAULT_VIEWING_DAY_ZONE = "Asia/Tokyo"
 
 enum class ThemeMode(val label: String) {
     LIGHT("Light"),

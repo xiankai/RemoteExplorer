@@ -4,6 +4,8 @@ import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
+import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackListener
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
 import io.ktor.http.Headers
@@ -40,6 +42,9 @@ const val ENCODING = "UTF-8"
  */
 private const val RANGE_CHUNK_BYTES = 64 * 1024
 
+/** What the server measures as watched; see ServerRepository.playback. */
+private val PLAYBACK_TYPES = setOf(IconType.VIDEO, IconType.AUDIO)
+
 /** See ServerRepository.renderSlots. */
 private const val MAX_CONCURRENT_RENDERS = 3
 
@@ -57,6 +62,12 @@ class ServerRepository(
     private val canonicalize: (ConnectionId, String) -> FileIdentity,
     /** Which copy to read a canonical file from. */
     private val resolver: SourceResolver,
+    /**
+     * Told about every byte of a video or audio file that goes out, which is how watched
+     * time is measured (#76). Images are left out: Sketch fetches those for the app's own
+     * viewer, which counts them by dwell instead.
+     */
+    private val playback: PlaybackListener = PlaybackListener.NONE,
 ) {
     /**
      * How many thumbnails may be produced at once.
@@ -314,6 +325,7 @@ class ServerRepository(
 
                         // Serve original image
                         val served = servedFrom()
+                        val tracked = Utils.guessIconType(decodedPath) in PLAYBACK_TYPES
                         val file = fileDataSource.openFile(served.connectionId, served.path)
                         file.use {
                             val totalLength = file.length()
@@ -373,6 +385,12 @@ class ServerRepository(
                                             if (read <= 0) break
 
                                             write(buffer, 0, read)
+                                            if (tracked) {
+                                                playback.onServed(
+                                                    canonical, served, offset,
+                                                    offset + read - 1, totalLength,
+                                                )
+                                            }
                                             offset += read
                                             remaining -= read
                                         }
@@ -388,7 +406,28 @@ class ServerRepository(
                                 }
                             } else {
                                 call.respondOutputStream {
-                                    file.inputStream().transferTo(this)
+                                    if (!tracked) {
+                                        file.inputStream().transferTo(this)
+                                        return@respondOutputStream
+                                    }
+                                    // Chunk by chunk rather than transferTo, so a player
+                                    // streaming the whole file in one response reports
+                                    // progress as it plays, not one lump at the end.
+                                    val buffer = ByteArray(RANGE_CHUNK_BYTES)
+                                    var offset = 0L
+                                    // Not closed here, as transferTo's was not: the
+                                    // handle's own `use` above owns it.
+                                    val input = file.inputStream()
+                                    while (true) {
+                                        val read = input.read(buffer)
+                                        if (read <= 0) break
+                                        write(buffer, 0, read)
+                                        playback.onServed(
+                                            canonical, served, offset,
+                                            offset + read - 1, totalLength,
+                                        )
+                                        offset += read
+                                    }
                                 }
                             }
                         }
