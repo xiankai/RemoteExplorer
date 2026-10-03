@@ -15,7 +15,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_WORKER_INPUT_P
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorker
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.maxThumbnailCacheBytes
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.resolveThumbnailCacheDir
-import com.bespectacledcyborg.remoteexplorer.data.thumbnails.isCurrentThumbnailFile
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.deleteOtherSizes
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.thumbnailCacheKey
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import java.io.File
@@ -150,12 +150,7 @@ class ThumbnailManager(
     ) {
         val files = cache
             .listFiles { file -> !file.name.endsWith(SCRATCH_SUFFIX) }
-            ?.filter { file ->
-                // Rendered at another THUMBNAIL_SIZE (#73). Nothing will ever look these up
-                // again, so they go whatever the total, rather than squatting on the
-                // ceiling until age pushes them out.
-                isCurrentThumbnailFile(file.name) || !file.delete()
-            }
+            ?.let(::deleteOtherSizes)
             ?: return
         var total = files.sumOf { it.length() }
         if (total <= maxBytes) return

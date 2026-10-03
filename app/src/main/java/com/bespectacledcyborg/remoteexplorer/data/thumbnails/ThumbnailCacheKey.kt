@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
+import java.io.File
 import java.security.MessageDigest
 
 /**
@@ -42,6 +43,18 @@ internal fun thumbnailCacheKey(
 
 /** Whether a cache file was rendered at the current [THUMBNAIL_SIZE]. */
 internal fun isCurrentThumbnailFile(name: String): Boolean = name.endsWith(suffixFor(THUMBNAIL_SIZE))
+
+/**
+ * Deletes the files among [files] rendered at another [THUMBNAIL_SIZE] and returns the rest.
+ *
+ * Nothing will look those up again (#73), so they go whatever the cache's total, rather than
+ * squatting on the ceiling until age pushes them out. One that will not delete is kept in
+ * the result, so the trim still counts the space it takes.
+ */
+internal fun deleteOtherSizes(files: Array<File>): List<File> {
+    val (current, stale) = files.partition { isCurrentThumbnailFile(it.name) }
+    return current + stale.filterNot { it.delete() }
+}
 
 private fun suffixFor(size: Int) = "-$size.jpg"
 
