@@ -130,9 +130,7 @@ fun Routes(
         composable<Route.SettingsRoute> {
             SettingsScreen(
                 settingsViewModel = settingsViewModel,
-                onBackPressed = {
-                    navHostController.navigate(Route.ConnectionsRoute)
-                }
+                onBackPressed = { navHostController.popBackStack() }
             )
         }
     }
