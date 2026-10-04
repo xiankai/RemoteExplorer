@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountLabel
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountOptions
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
 
@@ -44,7 +46,6 @@ fun ExplorerButtons(
 
     var selectingColumnCount by remember { mutableStateOf(false) }
     val columnCount by explorerViewModel.columnCountState.collectAsState()
-    val columnCountOptions = List(12) { it + 1 }
     Box {
         IconButton(
             onClick = { selectingColumnCount = !selectingColumnCount },
@@ -61,7 +62,7 @@ fun ExplorerButtons(
         ) {
             columnCountOptions.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.toString()) },
+                    text = { Text(columnCountLabel(option)) },
                     onClick = {
                         explorerViewModel.setColumnCount(option)
                         selectingColumnCount = false  // stack-reviewer-ignore: deliberate reversal requested by the owner in #84; the pick is still stored for #71, the menu just closes like the sort menu does

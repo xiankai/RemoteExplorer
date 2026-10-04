@@ -71,7 +71,7 @@ class SettingsDaoTest {
         repository.setColumnCount(6)
         collector.join()
 
-        assertEquals(listOf(3, 6), counts)
+        assertEquals(listOf(AUTO_COLUMN_COUNT, 6), counts)
     }
 
     @Test

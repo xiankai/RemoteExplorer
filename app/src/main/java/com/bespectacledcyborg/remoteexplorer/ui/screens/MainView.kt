@@ -1,6 +1,9 @@
 package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +44,9 @@ sealed class Route {
     object SettingsRoute
 }
 
+private const val SCREEN_FADE_OUT_MILLIS = 90
+private const val SCREEN_FADE_IN_MILLIS = 210
+
 @Composable
 fun MainView(
     explorerViewModel: ExplorerViewModel,
@@ -68,7 +74,14 @@ fun Routes(
     settingsViewModel: SettingsViewModel,
     navHostController: NavHostController,
 ) {
-    NavHost(navController = navHostController, startDestination = Route.ConnectionsRoute) {
+    NavHost(
+        navController = navHostController,
+        startDestination = Route.ConnectionsRoute,
+        enterTransition = { fadeIn(tween(SCREEN_FADE_IN_MILLIS, delayMillis = SCREEN_FADE_OUT_MILLIS)) },
+        exitTransition = { fadeOut(tween(SCREEN_FADE_OUT_MILLIS)) },
+        popEnterTransition = { fadeIn(tween(SCREEN_FADE_IN_MILLIS, delayMillis = SCREEN_FADE_OUT_MILLIS)) },
+        popExitTransition = { fadeOut(tween(SCREEN_FADE_OUT_MILLIS)) },
+    ) {
         composable<Route.ConnectionsRoute> {
             ConnectionsScreen(
                 explorerViewModel = explorerViewModel,
@@ -82,17 +95,18 @@ fun Routes(
                 pairings = explorerViewModel.pairingsState.collectAsState().value,
                 onSavePairing = explorerViewModel::savePairing,
                 onDeletePairing = explorerViewModel::deletePairing,
+                testResult = explorerViewModel.connectionTestState.collectAsState().value,
                 onSave = {
                     explorerViewModel.addConnection(it)
-                    navHostController.navigate(Route.ConnectionsRoute)
+                    navHostController.popBackStack()
                 },
                 onTest = {
                     explorerViewModel.testConnection(it)
                 },
-                onCancel = { navHostController.navigate(Route.ConnectionsRoute) },
+                onCancel = { navHostController.popBackStack() },
                 onDelete = {
                     explorerViewModel.deleteConnection(it)
-                    navHostController.navigate(Route.ConnectionsRoute)
+                    navHostController.popBackStack()
                 },
             )
         }
