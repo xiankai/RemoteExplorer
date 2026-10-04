@@ -33,6 +33,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
+import com.bespectacledcyborg.remoteexplorer.ui.components.resolveColumnCount
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ExplorerButtons
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
@@ -219,7 +220,7 @@ fun ExplorerScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = { explorerViewModel.forceRefresh() },
-                    columnCount = columnCount,
+                    columnCount = resolveColumnCount(columnCount),
                     isRefreshing = isRefreshing,
                     scrollKey = pathState,
                     onVisibleItemsChanged = { visible ->

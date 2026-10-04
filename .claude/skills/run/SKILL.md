@@ -65,10 +65,11 @@ REX_APPID=com.bespectacledcyborg.remoteexplorer.releasedebug tools/dev-seed-conn
 Port 1445 rather than 445 because macOS runs its own SMB server on `*:445` and Docker
 cannot bind an occupied port. That is what the per-connection port field is for.
 
-**Do not fill the form with `adb input` instead.** `windowSoftInputMode` is `adjustPan`,
-so the keyboard shifts the form the moment the first field takes focus, and every
-coordinate captured beforehand is stale for the rest of the sequence — the values land in
-the wrong fields silently. The seed script edits the database instead (it needs a
+**Do not fill the form by tapping coordinates instead.** The form scrolls to keep the
+focused field above the keyboard, so every coordinate captured beforehand is stale for the
+rest of the sequence — the values land in the wrong fields silently. When the form itself
+is under test, tap the first field and move on with `input keyevent KEYCODE_TAB`. The seed
+script edits the database instead (it needs a
 debuggable build for `run-as`, and edits the file on the host since the device has no
 `sqlite3`).
 

@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.TextFieldDialog
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountLabel
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountOptions
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,11 +188,9 @@ fun SettingsScreen(
 
             Box {
                 var selectingColumnCount by remember { mutableStateOf(false) }
-                val columnCountOptions = List(12) { it + 1 }
-
                 TextButton(
                     onClick = { selectingColumnCount = !selectingColumnCount },
-                    content = { Text("Column Count: ${settings.defaultColumnCount}") },
+                    content = { Text("Column Count: ${columnCountLabel(settings.defaultColumnCount)}") },
                 )
                 DropdownMenu(
                     expanded = selectingColumnCount,
@@ -198,7 +198,7 @@ fun SettingsScreen(
                 ) {
                     columnCountOptions.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.toString()) },
+                            text = { Text(columnCountLabel(option)) },
                             onClick = { settingsViewModel.setDefaultColumnCount(option) },
                         )
                     }

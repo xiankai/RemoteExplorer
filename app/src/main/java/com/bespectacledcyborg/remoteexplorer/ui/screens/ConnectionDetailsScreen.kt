@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -56,6 +59,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.DEFAULT_SMB_PORT
 import com.bespectacledcyborg.remoteexplorer.ui.components.LocalRootPickerDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.PairingSection
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ConnectionDetailsButtons
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ConnectionTest
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +70,7 @@ fun ConnectionDetailsScreen(
     onCancel: () -> Unit,
     onTest: (Connection) -> Unit,
     onDelete: (Connection) -> Unit,
+    testResult: ConnectionTest? = null,
     connections: List<Connection> = emptyList(),
     pairings: List<Pairing> = emptyList(),
     onSavePairing: (Pairing) -> Unit = {},
@@ -167,6 +172,9 @@ fun ConnectionDetailsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -220,52 +228,33 @@ fun ConnectionDetailsScreen(
                 val localFocusManager = LocalFocusManager.current
                 val keyboardController = LocalSoftwareKeyboardController.current
 
-                // Allowed to shrink, and scroll, so what sits below it — the buttons and the
-                // pairings — is not pushed off a short screen by the seven SMB fields.
-                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                    itemsIndexed(fields) { index, field ->
-                        val imeAction =
-                            if (index == fields.lastIndex) {
-                                ImeAction.Done
-                            } else ImeAction.Next
-
-                        val keyboardActions =
-                            KeyboardActions(
-                                onNext = {
-                                    localFocusManager.moveFocus(FocusDirection.Down)
-                                },
-                                onDone = {
-                                    localFocusManager.clearFocus()
-                                    keyboardController?.hide()
-                                }
-                            )
-
-                        val (value, onValueChange, label) = field
-                        val visualTransformation =
-                            if (label == "Password") {
-                                PasswordVisualTransformation()
-                            } else {
-                                VisualTransformation.None
-                            }
-
-                        val keyboardType =
-                            if (label == "Port") {
-                                KeyboardType.Number
-                            } else {
-                                KeyboardType.Text
-                            }
-
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    fields.forEachIndexed { index, (value, onValueChange, label) ->
                         OutlinedTextField(
                             value = value,
                             onValueChange = onValueChange,
                             label = { Text(label) },
+                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(
-                                imeAction = imeAction,
-                                keyboardType = keyboardType
+                                imeAction =
+                                    if (index == fields.lastIndex) ImeAction.Done else ImeAction.Next,
+                                keyboardType =
+                                    if (label == "Port") KeyboardType.Number else KeyboardType.Text,
                             ),
-                            keyboardActions = keyboardActions,
-                            visualTransformation = visualTransformation
+                            keyboardActions = KeyboardActions(
+                                onNext = { localFocusManager.moveFocus(FocusDirection.Down) },
+                                onDone = {
+                                    localFocusManager.clearFocus()
+                                    keyboardController?.hide()
+                                },
+                            ),
+                            visualTransformation =
+                                if (label == "Password") {
+                                    PasswordVisualTransformation()
+                                } else {
+                                    VisualTransformation.None
+                                },
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -313,6 +302,11 @@ fun ConnectionDetailsScreen(
                     }
                 }
 
+                if (testResult != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ConnectionTestResult(testResult)
+                }
+
                 // Only for a saved connection: a pairing names both sides by id, and a
                 // connection being added has none yet.
                 if (connection != null) {
@@ -346,6 +340,22 @@ fun ConnectionDetailsScreen(
             }
         },
         containerColor = MaterialTheme.colorScheme.background
+    )
+}
+
+@Composable
+private fun ConnectionTestResult(result: ConnectionTest) {
+    val (text, color) = when (result) {
+        ConnectionTest.Running -> "Testing…" to MaterialTheme.colorScheme.onBackground
+        is ConnectionTest.Passed -> result.message to MaterialTheme.colorScheme.primary
+        is ConnectionTest.Failed -> result.message to MaterialTheme.colorScheme.error
+    }
+    Text(
+        text = text,
+        color = color,
+        style = MaterialTheme.typography.bodyLarge,
+        textAlign = TextAlign.End,
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Insert the fixture connection straight into the app's Room database.
 #
-# Typing it into the UI is not reproducible: windowSoftInputMode is adjustPan, so the
-# keyboard shifts the form as soon as the first field takes focus and every coordinate
-# captured beforehand goes stale mid-sequence. This writes the row instead.
+# Typing it into the UI is not reproducible: the form scrolls to keep the focused field
+# above the keyboard, so every coordinate captured beforehand goes stale mid-sequence.
+# This writes the row instead.
 #
 # Only works on a debuggable build — `run-as` is what grants access to the private data
 # directory, and there is no sqlite3 binary on the device, so the file is edited here and

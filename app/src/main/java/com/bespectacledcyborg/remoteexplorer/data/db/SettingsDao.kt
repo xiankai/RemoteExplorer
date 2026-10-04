@@ -39,11 +39,13 @@ interface SettingsDao {
     suspend fun insert(settings: SettingsEntity)
 }
 
+const val AUTO_COLUMN_COUNT = 0
+
 @Entity(tableName = "settings")
 data class SettingsEntity(
     @PrimaryKey val id: Int = 0, // Singleton, always id = 0
     val maxStorageCacheSize: Int = 4, // Max cache size in GB
-    val defaultColumnCount: Int = 3,    // Default column count
+    val defaultColumnCount: Int = AUTO_COLUMN_COUNT,
     /**
      * Which volume the thumbnail cache lives on — null for internal storage, otherwise a
      * volume UUID (see `ThumbnailCacheLocation`).

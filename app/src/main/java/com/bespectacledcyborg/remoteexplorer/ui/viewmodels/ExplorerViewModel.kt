@@ -150,6 +150,12 @@ enum class ViewType {
     LIST
 }
 
+sealed interface ConnectionTest {
+    data object Running : ConnectionTest
+    data class Passed(val message: String) : ConnectionTest
+    data class Failed(val message: String) : ConnectionTest
+}
+
 typealias ThumbnailsMap = Map<String, List<String>>
 
 /** How long a folder that failed to list for its cover waits before it is tried again. */
@@ -286,20 +292,34 @@ class ExplorerViewModel(
         }
     }
 
+    private val _connectionTest = MutableStateFlow<ConnectionTest?>(null)
+    val connectionTestState: StateFlow<ConnectionTest?> = _connectionTest.asStateFlow()
+    private var connectionTestJob: Job? = null
+
     fun testConnection(connection: Connection) {
-        viewModelScope.launch {
-            try {
+        connectionTestJob?.cancel()
+        _connectionTest.update { ConnectionTest.Running }
+        connectionTestJob = viewModelScope.launch {
+            val result = try {
                 fileRepository.connect(connection)
-                _toast.emit(
+                ConnectionTest.Passed(
                     when (connection.type) {
                         ConnectionType.SMB -> "Connected to ${connection.hostname}"
                         ConnectionType.LOCAL -> "Opened ${connection.localRoot}"
                     }
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _toast.emit(e.message ?: "Unable to connect to ${connection.hostname}")
+                ConnectionTest.Failed(e.message ?: "Unable to connect to ${connection.hostname}")
             }
+            _connectionTest.update { result }
         }
+    }
+
+    private fun clearConnectionTest() {
+        connectionTestJob?.cancel()
+        _connectionTest.update { null }
     }
 
     fun changePath(path: String) {
@@ -528,6 +548,7 @@ class ExplorerViewModel(
     }
 
     fun editConnection(connection: Connection?) {
+        clearConnectionTest()
         viewModelScope.launch { _connection.update { connection } }
     }
 

@@ -138,10 +138,11 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
 - **macOS ships bash 3.2.** No `mapfile`, no `${var^}`. Scripts in `tools/` target 3.2.
 - **Port 445 is taken on macOS** by its own SMB server, which is why the fixture publishes
   1445 and why `Connection.port` exists.
-- **Do not drive the connection form with `adb input`.** `windowSoftInputMode` is
-  `adjustPan`, so the keyboard shifts the layout as soon as the first field focuses and
-  every pre-captured coordinate goes stale mid-sequence — values land in the wrong fields
-  silently. `tools/dev-seed-connection.sh` writes the row into Room instead.
+- **Do not drive the connection form by tapping coordinates.** The form scrolls to keep the
+  focused field above the keyboard, so every pre-captured coordinate goes stale
+  mid-sequence and values land in the wrong fields silently. Tap the first field once, then
+  move between fields with `input keyevent KEYCODE_TAB`. To just get a working connection,
+  `tools/dev-seed-connection.sh` writes the row into Room instead.
 - **Tap by real bounds**, never by eyeballing a screenshot: `adb shell uiautomator dump`,
   then tap the node's centre. Cold start is ~10s; `am start -W` blocks until drawn.
 - **A trailing `moov` atom is handled now, and used to be fatal.** Neither decoder needs
