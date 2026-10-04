@@ -8,6 +8,7 @@ import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackListener
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.findAvailablePort
+import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -444,11 +445,6 @@ class ServerRepository(
         call.respondText("Requested range not satisfiable")
     }
 
-    /**
-     * [path] is the request's own path. The type used to be guessed from the handle's UNC
-     * path, which names the same file with the host and share in front — only the extension
-     * is read, so the answer is the same — and exists on SMB alone.
-     */
     private fun commonHeaders(
         path: String,
         start: Long,
@@ -456,24 +452,21 @@ class ServerRepository(
         totalLength: Long,
         isPartial: Boolean,
     ): Headers {
-        val mimeType = URLConnection.guessContentTypeFromName(path)
-
         val requestedLength = end - start + 1
         val headers = mutableListOf(
             HttpHeaders.AcceptRanges to listOf("bytes"),
-            HttpHeaders.ContentType to listOf(mimeType),
+            HttpHeaders.ContentType to listOf(contentTypeOf(path)),
             HttpHeaders.ContentLength to listOf(requestedLength.toString()),
         )
-        // Content-Range belongs on a 206 and nowhere else, and it has to carry the total —
-        // "bytes 0-99" without "/12345" is malformed, and a player that parses it strictly
-        // cannot work out how long the file is or how far it may seek. Both were wrong
-        // here: the total was missing, and the header went out on full responses too.
         if (isPartial) {
             headers += HttpHeaders.ContentRange to listOf("bytes $start-$end/$totalLength")
         }
         return headersOf(*headers.toTypedArray())
     }
 }
+
+internal fun contentTypeOf(path: String): String =
+    URLConnection.guessContentTypeFromName(path) ?: ContentType.Application.OctetStream.toString()
 
 /**
  * The byte range to serve, or null when the request asks for one that does not exist.
