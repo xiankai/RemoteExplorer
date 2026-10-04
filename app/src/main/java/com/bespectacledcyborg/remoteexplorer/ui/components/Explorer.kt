@@ -83,7 +83,7 @@ fun <T>Explorer(
                 state = gridState,
             ) {
                 items(items) { item ->
-                    key(columnCount) {
+                    key(columnCount) {  // stack-reviewer-ignore: this is Compose's runtime key() inside one item's own lambda, not a LazyList item key; it only has to be unique among that item's children, and it is the sole child. Its job is to remount the tile when the column count changes so images are requested at the new size.
                         ExplorerItem(
                             item.name,
                             item.type,
