@@ -144,7 +144,9 @@ Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** devi
   move between fields with `input keyevent KEYCODE_TAB`. To just get a working connection,
   `tools/dev-seed-connection.sh` writes the row into Room instead.
 - **Tap by real bounds**, never by eyeballing a screenshot: `adb shell uiautomator dump`,
-  then tap the node's centre. Cold start is ~10s; `am start -W` blocks until drawn.
+  then tap the node's centre. While the mobile MCP is connected that dump is killed and
+  writes nothing; take the bounds from `mobile_list_elements_on_screen` and tap with
+  `adb shell input tap` instead (`.claude/skills/run/SKILL.md`). Cold start is ~10s; `am start -W` blocks until drawn.
 - **A trailing `moov` atom is handled now, and used to be fatal.** Neither decoder needs
   `+faststart` any more — both seek to the end for the index. It was fatal because our AVIO
   shim answered `AVSEEK_SIZE` with the length of the 2 MB prefix it had copied, so the
