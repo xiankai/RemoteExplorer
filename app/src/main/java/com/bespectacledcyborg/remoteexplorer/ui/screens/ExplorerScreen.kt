@@ -136,7 +136,8 @@ fun ExplorerScreen(
 
     val onOpenTagsScreen = { navHostController.navigate(Route.TagsRoute) }
 
-    val atRoot by explorerViewModel.atRootState.collectAsState()
+    val navigationStack by explorerViewModel.navigationStackState.collectAsState()
+    val atRoot = navigationStack.size <= 1
     val returnToConnections = {
         if (!navHostController.popBackStack(Route.ConnectionsRoute, inclusive = false)) {
             navHostController.navigate(Route.ConnectionsRoute)

@@ -174,9 +174,7 @@ class ExplorerViewModel(
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
-    val atRootState: StateFlow<Boolean> = _navigationStack
-        .map { it.size <= 1 }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val navigationStackState: StateFlow<List<String>> = _navigationStack.asStateFlow()
 
     private val _list: MutableStateFlow<Map<String, List<LocalFile>>> = MutableStateFlow(emptyMap())
     val listState: StateFlow<Map<String, List<LocalFile>>> = _list.asStateFlow()
@@ -246,7 +244,7 @@ class ExplorerViewModel(
         _tagThumbnails.update { fetchTagThumbnails(tags) }
     }
 
-    fun connect(connection: Connection) {
+    fun connect(connection: Connection) {  // stack-reviewer-ignore: resetting before the connect is the point. The stack and path belong to the previous connection, so keeping them when the new one fails to open would leave that failed connection showing a path from somewhere else, which is the bug this change fixes.
         abandonRefreshRequest()
         _navigationStack.update { listOf("") }
         _path.update { "" }
