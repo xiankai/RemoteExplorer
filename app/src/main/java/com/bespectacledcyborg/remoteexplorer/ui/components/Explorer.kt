@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -36,26 +37,17 @@ fun <T>Explorer(
     handleRefresh: () -> Unit,
     viewType: ViewType = ViewType.GRID,
     columnCount: Int,
-    // The spinner used to be driven by a local flag cleared after a hardcoded one-second
-    // delay, so it reported a duration rather than a refresh: it stopped while a slow share
-    // was still being listed, and span for a second over a screen that refreshes nothing.
-    // The caller owns it now, and a screen with nothing to refresh passes false.
     isRefreshing: Boolean = false,
-    /**
-     * The items on screen, then about a screen past them in each direction, most wanted
-     * first. What a caller fetches eagerly should be fetched in this order: it is what the
-     * user is looking at, then what they are about to scroll to.
-     */
     onVisibleItemsChanged: (List<Item<T>>) -> Unit = {},
+    scrollKey: Any? = null,
 ) {
-    val gridState = rememberLazyGridState()
-    val listState = rememberLazyListState()
+    val gridState = key(scrollKey) { rememberLazyGridState() }
+    val listState = key(scrollKey) { rememberLazyListState() }
     val currentItems by rememberUpdatedState(items)
     val currentOnVisible by rememberUpdatedState(onVisibleItemsChanged)
 
     LaunchedEffect(viewType, gridState, listState) {
         snapshotFlow {
-            // Read inside the snapshot so a new listing, not only a scroll, re-reports.
             val visible = if (viewType == ViewType.LIST) {
                 listState.layoutInfo.visibleItemsInfo.map { it.index }
             } else {
@@ -90,14 +82,18 @@ fun <T>Explorer(
                 columns = GridCells.Fixed(columnCount),
                 state = gridState,
             ) {
-                items(items) { item -> ExplorerItem(
-                    item.name,
-                    item.type,
-                    item.thumbnails,
-                    handleItemClick(item),
-                    handleLongItemClick(item),
-                    getImageUrl,
-                ) }
+                items(items) { item ->
+                    key(columnCount) {
+                        ExplorerItem(
+                            item.name,
+                            item.type,
+                            item.thumbnails,
+                            handleItemClick(item),
+                            handleLongItemClick(item),
+                            getImageUrl,
+                        )
+                    }
+                }
             }
         }
     }
