@@ -15,7 +15,7 @@ fun ConnectionsButtons(
         content = {
             Icon(
                 Icons.Filled.Storage,
-                contentDescription = "Manage Storage",
+                contentDescription = "Settings",
             )
         }
     )

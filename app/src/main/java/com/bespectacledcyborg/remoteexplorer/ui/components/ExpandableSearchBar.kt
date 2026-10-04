@@ -77,7 +77,7 @@ fun ExpandableSearchBar(
                         content = {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = ""
+                                contentDescription = "Close search"
                             )
                         },
                         onClick = {
@@ -91,7 +91,7 @@ fun ExpandableSearchBar(
 
                         IconButton(
                             content = {
-                                Icon(Icons.Filled.Close, contentDescription = "")
+                                Icon(Icons.Filled.Close, contentDescription = "Clear search")
                             },
                             onClick = {
                                 value = ""

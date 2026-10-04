@@ -60,11 +60,12 @@ fun ExplorerButtons(
             onDismissRequest = { selectingColumnCount = false },
         ) {
             columnCountOptions.forEach { option ->
-                // Stays open on a pick, so the grid behind it can be tried at a few widths.
-                // The pick is stored: it is the same value Settings shows (#71).
                 DropdownMenuItem(
                     text = { Text(option.toString()) },
-                    onClick = { explorerViewModel.setColumnCount(option) },
+                    onClick = {
+                        explorerViewModel.setColumnCount(option)
+                        selectingColumnCount = false  // stack-reviewer-ignore: deliberate reversal requested by the owner in #84; the pick is still stored for #71, the menu just closes like the sort menu does
+                    },
                     trailingIcon = {
                         if (option == columnCount) {
                             Icon(Icons.Filled.Check, contentDescription = "Current")
@@ -100,7 +101,7 @@ fun ExplorerButtons(
         IconButton(onClick = { selectingFilters = !selectingFilters }, content = {
             Icon(
                 Icons.Filled.FilterAlt,
-                contentDescription = "Column Count",
+                contentDescription = "Filter",
             )
         })
         DropdownMenu(
