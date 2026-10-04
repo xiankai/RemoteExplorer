@@ -225,6 +225,7 @@ fun ExplorerScreen(
                     handleRefresh = { explorerViewModel.forceRefresh() },
                     columnCount = columnCount,
                     isRefreshing = isRefreshing,
+                    scrollKey = pathState,
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible
