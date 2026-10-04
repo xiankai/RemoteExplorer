@@ -136,7 +136,15 @@ fun ExplorerScreen(
 
     val onOpenTagsScreen = { navHostController.navigate(Route.TagsRoute) }
 
-    BackHandler {
+    val navigationStack by explorerViewModel.navigationStackState.collectAsState()
+    val atRoot = navigationStack.size <= 1
+    val returnToConnections = {
+        if (!navHostController.popBackStack(Route.ConnectionsRoute, inclusive = false)) {
+            navHostController.navigate(Route.ConnectionsRoute)
+        }
+    }
+
+    BackHandler(enabled = !atRoot) {
         explorerViewModel.goBack()
     }
 
@@ -161,7 +169,7 @@ fun ExplorerScreen(
                         onBreadcrumbClick = { path ->
                             explorerViewModel.search("")
                             if (path == "home") {
-                                navHostController.navigate(Route.ConnectionsRoute)
+                                returnToConnections()
                             } else {
                                 explorerViewModel.changePath(path)
                             }
@@ -172,10 +180,12 @@ fun ExplorerScreen(
                 },
 
                 navigationIcon = {
-                    IconButton(onClick = { explorerViewModel.goBack() }) {
+                    IconButton(onClick = {
+                        if (atRoot) returnToConnections() else explorerViewModel.goBack()
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Localized description"
+                            contentDescription = "Back"
                         )
                     }
                 },

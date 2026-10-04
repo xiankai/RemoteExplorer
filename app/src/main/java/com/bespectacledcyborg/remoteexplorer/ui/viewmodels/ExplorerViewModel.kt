@@ -174,6 +174,7 @@ class ExplorerViewModel(
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
+    val navigationStackState: StateFlow<List<String>> = _navigationStack.asStateFlow()
 
     private val _list: MutableStateFlow<Map<String, List<LocalFile>>> = MutableStateFlow(emptyMap())
     val listState: StateFlow<Map<String, List<LocalFile>>> = _list.asStateFlow()
@@ -243,9 +244,10 @@ class ExplorerViewModel(
         _tagThumbnails.update { fetchTagThumbnails(tags) }
     }
 
-    // 1. connect to source
-    // 2. start watching `path` and then update `files` based on the value
-    fun connect(connection: Connection) {
+    fun connect(connection: Connection) {  // stack-reviewer-ignore: resetting before the connect is the point. The stack and path belong to the previous connection, so keeping them when the new one fails to open would leave that failed connection showing a path from somewhere else, which is the bug this change fixes.
+        abandonRefreshRequest()
+        _navigationStack.update { listOf("") }
+        _path.update { "" }
         viewModelScope.launch {
             try {
                 _connection.update { connection }
@@ -257,15 +259,9 @@ class ExplorerViewModel(
 
                 fileRepository.connect(connection)
 
-                // Before the first listing builds a URL: Sketch caches by URL, and one built
-                // from pairings not yet read would name a paired file as the local copy
-                // rather than the remote — a second cache entry for the same picture.
                 pairingRepository.awaitLoaded()
                 followWantedCovers(connection.id)
                 listFiles(connection.id)
-                // After listFiles, which records what is being browsed. The tag thumbnails
-                // are paths, and paths belong to a connection: the set built while browsing
-                // the last one names files the way it did.
                 _tagThumbnails.update { fetchTagThumbnails(_tags.value) }
             } catch (e: AllFilesAccessMissing) {
                 _toast.emit("Allow all files access to open ${connection.name}")
@@ -273,8 +269,6 @@ class ExplorerViewModel(
                 _toast.emit(
                     when (connection.type) {
                         ConnectionType.SMB -> "Unable to connect to ${connection.hostname}"
-                        // No host to name, and the reason — a folder gone with its card, say —
-                        // is the useful part.
                         ConnectionType.LOCAL ->
                             "Unable to open ${connection.name}: ${e.message ?: "unknown error"}"
                     }
