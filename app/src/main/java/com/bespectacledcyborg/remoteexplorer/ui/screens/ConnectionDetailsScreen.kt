@@ -116,21 +116,20 @@ fun ConnectionDetailsScreen(
         when (type) {
             ConnectionType.SMB -> Connection(
                 id = id,
-                name = name,
+                name = name.trim(),
                 type = ConnectionType.SMB,
-                hostname = hostname,
-                // A blank or non-numeric entry falls back to the standard SMB port.
-                port = port.toIntOrNull()?.takeIf { it in 1..65535 } ?: DEFAULT_SMB_PORT,
-                username = username,
+                hostname = hostname.trim(),
+                port = port.trim().toIntOrNull()?.takeIf { it in 1..65535 } ?: DEFAULT_SMB_PORT,
+                username = username.trim(),
                 password = SecretText(password),
-                domain = domain,
-                share = share,
+                domain = domain.trim(),
+                share = share.trim(),
                 lastModified = Date()
             )
 
             ConnectionType.LOCAL -> Connection(
                 id = id,
-                name = name,
+                name = name.trim(),
                 type = ConnectionType.LOCAL,
                 hostname = null,
                 username = null,
@@ -212,17 +211,17 @@ fun ConnectionDetailsScreen(
                 val fields: List<Triple<String, (String) -> Unit, String>> =
                     when (type) {
                         ConnectionType.SMB -> listOf(
-                            Triple(name, { name = it.trim() }, "Name"),
-                            Triple(hostname, { hostname = it.trim() }, "Hostname"),
-                            Triple(port, { port = it.trim() }, "Port"),
-                            Triple(username, { username = it.trim() }, "Username"),
-                            Triple(password, { password = it.trim() }, "Password"),
-                            Triple(domain, { domain = it.trim() }, "Domain"),
-                            Triple(share, { share = it.trim() }, "Share"),
+                            Triple(name, { name = it }, "Name"),
+                            Triple(hostname, { hostname = it }, "Hostname"),
+                            Triple(port, { port = it }, "Port"),
+                            Triple(username, { username = it }, "Username"),
+                            Triple(password, { password = it }, "Password"),
+                            Triple(domain, { domain = it }, "Domain"),
+                            Triple(share, { share = it }, "Share"),
                         )
 
                         ConnectionType.LOCAL -> listOf(
-                            Triple(name, { name = it.trim() }, "Name"),
+                            Triple(name, { name = it }, "Name"),
                         )
                     }
                 val localFocusManager = LocalFocusManager.current
