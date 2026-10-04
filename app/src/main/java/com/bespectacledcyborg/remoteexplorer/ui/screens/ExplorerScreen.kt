@@ -109,10 +109,6 @@ fun ExplorerScreen(
 
                         try {
                             context.startActivity(intent)
-                            // A launch, which is all the app can know here. How much was
-                            // watched comes from the bytes the player then pulls through
-                            // the loopback server.
-                            explorerViewModel.recordOpen(item.item)
                         } catch (e: ActivityNotFoundException) {
                             Toast.makeText(
                                 context,

@@ -44,7 +44,7 @@ class ViewRecorder(
     /** Bumped after every write, so a listing sorted by views can re-read. */
     val changes: StateFlow<Long> = _changes.asStateFlow()
 
-    /** An open: an image held past [IMAGE_DWELL_MILLIS], or anything handed to another app. */
+    /** An open: an image held past [IMAGE_DWELL_MILLIS], or the first content served to another app for a file after [OPEN_IDLE_GAP_MILLIS] without any. */
     suspend fun recordOpen(canonical: FileIdentity) {
         val now = clock()
         val current = settings() ?: SettingsEntity()

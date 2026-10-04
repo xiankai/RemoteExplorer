@@ -478,11 +478,6 @@ class ExplorerViewModel(
     fun getSortFunction(sortType: SortType, views: Map<String, ViewTotals> = emptyMap()): Comparator<LocalFile> =
         fileComparator(sortType, views)
 
-    /**
-     * An open, in the browsing connection's frame: an image held in the viewer past the
-     * dwell threshold, or a file handed to another app. Named canonically before it is
-     * written, so the share and its Syncthing copy are one record.
-     */
     fun recordOpen(file: LocalFile) {
         val canonical = pairingRepository.current().canonicalize(file.connectionId, file.fullPath())
         viewModelScope.launch(Dispatchers.IO) {

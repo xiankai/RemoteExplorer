@@ -69,6 +69,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import com.bespectacledcyborg.remoteexplorer.data.views.MediaDuration
 import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackSessions
+import com.bespectacledcyborg.remoteexplorer.data.views.ServedOpens
 import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import kotlinx.coroutines.launch
 
@@ -245,6 +246,10 @@ class ExplorerViewModelFactory(
                 connectionOpener::ensureOpen,
             ),
             playback = playbackSessions,
+            opens = ServedOpens(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                record = viewRecorder::recordOpen,
+            ),
         )
 
         @Suppress("UNCHECKED_CAST")
