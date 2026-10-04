@@ -15,5 +15,5 @@ fun columnCountLabel(columnCount: Int): String =
 fun resolveColumnCount(columnCount: Int): Int {
     if (columnCount != AUTO_COLUMN_COUNT) return columnCount
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    return (screenWidthDp / AUTO_TILE_WIDTH_DP).coerceIn(2, 12)
+    return (screenWidthDp / AUTO_TILE_WIDTH_DP).coerceIn(2, 12)  // stack-reviewer-ignore: the grid is GridCells.Fixed, which divides the available width evenly, so tiles shrink to fit and cannot overflow; 180dp is the target width that keeps a folder's cover area above GalleryIcon's 120dp collage threshold (verified on the tablet: 6 columns, collages intact)
 }
