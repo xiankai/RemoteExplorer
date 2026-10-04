@@ -4,6 +4,7 @@ import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
+import com.bespectacledcyborg.remoteexplorer.data.views.OpenListener
 import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackListener
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
@@ -69,6 +70,7 @@ class ServerRepository(
      * viewer, which counts them by dwell instead.
      */
     private val playback: PlaybackListener = PlaybackListener.NONE,
+    private val opens: OpenListener = OpenListener.NONE,
 ) {
     /**
      * How many thumbnails may be produced at once.
@@ -326,7 +328,8 @@ class ServerRepository(
 
                         // Serve original image
                         val served = servedFrom()
-                        val tracked = Utils.guessIconType(decodedPath) in PLAYBACK_TYPES
+                        val iconType = Utils.guessIconType(decodedPath)
+                        val tracked = iconType in PLAYBACK_TYPES
                         val file = fileDataSource.openFile(served.connectionId, served.path)
                         file.use {
                             val totalLength = file.length()
@@ -350,6 +353,7 @@ class ServerRepository(
                                     call.response.headers.append(name, value)
                                 }
                             }
+                            if (iconType !in Utils.BROWSEABLE_TYPES) opens.onServed(canonical)
 
                             if (rangeHeader != null) {
                                 Log.d(
