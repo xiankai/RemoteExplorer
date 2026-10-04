@@ -102,6 +102,17 @@ adb shell cat /sdcard/ui.xml    # find the clickable node's bounds="[x1,y1][x2,y
 adb shell input tap <centre-x> <centre-y>
 ```
 
+While the mobile MCP server is connected, `uiautomator dump` is killed (exit 137) and
+writes nothing, on the tablet and the Pixel alike. Then read bounds from the MCP's
+`mobile_list_elements_on_screen` instead: its `at=x,y size=WxH` are real pixels, so tap the
+centre with `adb shell input tap`. Don't tap through the MCP itself in landscape: its
+coordinate scaling assumes portrait, so taps by ref or by screenshot position land in the
+wrong place.
+
+On the tablet the release app runs beneath the debug one, so a Back that leaves the debug
+app puts the next tap into the owner's real setup. `am start -W` the debug app before each
+sequence, and check `dumpsys activity activities | grep topResumedActivity` when unsure.
+
 Cold start takes ~10s on the emulator. Tapping before the activity is drawn lands on
 whatever is underneath — usually the launcher, which is confusing to debug from a
 screenshot alone. `am start -W` blocks until it is drawn.
