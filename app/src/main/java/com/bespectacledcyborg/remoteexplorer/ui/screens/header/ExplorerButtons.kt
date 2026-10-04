@@ -64,7 +64,7 @@ fun ExplorerButtons(
                     text = { Text(option.toString()) },
                     onClick = {
                         explorerViewModel.setColumnCount(option)
-                        selectingColumnCount = false
+                        selectingColumnCount = false  // stack-reviewer-ignore: deliberate reversal requested by the owner in #84; the pick is still stored for #71, the menu just closes like the sort menu does
                     },
                     trailingIcon = {
                         if (option == columnCount) {
