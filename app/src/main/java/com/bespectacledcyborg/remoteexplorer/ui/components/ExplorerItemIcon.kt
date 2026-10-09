@@ -6,6 +6,7 @@ import SystemIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
+import com.bespectacledcyborg.remoteexplorer.utils.Utils
 
 @Composable
 fun ExplorerItemIcon(
@@ -21,6 +22,12 @@ fun ExplorerItemIcon(
     type === FileType.ADD_CONNECTION -> SystemIcon(IconType.ADD_CONNECTION, modifier)
     type === FileType.FOLDER -> SystemIcon(IconType.FOLDER, modifier)
     else -> FallbackIcon(filename, modifier)
+}
+
+fun drawsPicture(type: FileType, thumbnails: List<String>): Boolean = when {
+    type === FileType.FOLDER && thumbnails.isNotEmpty() -> true
+    thumbnails.size == 1 -> Utils.canHaveThumbnail(thumbnails.first().substringAfterLast("/"))
+    else -> false
 }
 
 enum class IconType {
