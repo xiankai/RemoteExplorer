@@ -68,7 +68,7 @@ never stored rollups. A viewing day starts at a configured time (noon) in a conf
 
 **The tag index protocol** (generator side: infra#199). Files live under
 `gallery-dl/_index/` relative to the share root — on the real library, share `library`,
-which is `/srv/library`. Two independent halves, with two different contracts:
+which is `/srv/library`. Three independent parts, each with its own contract:
 
 - `index.ndjson` (+ `.gz`) and `index.meta.json` — an append-only log of directory-scoped
   records, last record per path wins. Same `generation` → range-read from the stored byte
