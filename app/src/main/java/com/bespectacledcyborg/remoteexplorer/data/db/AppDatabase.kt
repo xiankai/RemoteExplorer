@@ -22,6 +22,9 @@ import java.util.Date
         DirectorySync::class,
         Pairing::class,
         FileView::class,
+        DirAnnotationKind::class,
+        DirAnnotation::class,
+        AnnotationIngest::class,
     ],
     exportSchema = true,
     // 9 carries no schema change: Connection.password is still one TEXT column. The bump
@@ -62,7 +65,12 @@ import java.util.Date
     // settings that say where a viewing day starts. A new table and two defaulted columns,
     // so it auto-migrates: nothing existing is touched, an existing install starts with
     // nothing viewed, and its days start at noon in Asia/Tokyo.
-    version = 18,
+    //
+    // 19 adds the author captions (infra#312): DirAnnotationKind from the index,
+    // DirAnnotation and AnnotationIngest from the annotation store, and settings.showCaptions,
+    // off. New tables and a defaulted column, so it auto-migrates, and an existing install
+    // shows no captions until it turns them on.
+    version = 19,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -84,6 +92,7 @@ import java.util.Date
         AutoMigration(from = 15, to = 16),
         AutoMigration(from = 16, to = 17),
         AutoMigration(from = 17, to = 18),
+        AutoMigration(from = 18, to = 19),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -93,6 +102,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
     abstract fun pairingDao(): PairingDao
     abstract fun fileViewDao(): FileViewDao
+    abstract fun annotationDao(): AnnotationDao
 }
 
 class Converters {

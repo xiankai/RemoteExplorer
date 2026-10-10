@@ -28,6 +28,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.bespectacledcyborg.remoteexplorer.data.Caption
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.ClosedCaptionDisabled
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import android.app.Activity
 import android.os.SystemClock
 import androidx.compose.runtime.DisposableEffect
@@ -136,6 +147,13 @@ fun ImageBrowserScreen(
             )
         }
 
+        val showCaptions by explorerViewModel.showCaptionsState.collectAsState()
+        val shownImage = images.getOrNull(pagerState.currentPage)
+        var caption by remember { mutableStateOf<Caption?>(null) }
+        LaunchedEffect(shownImage?.connectionId, shownImage?.parentPath) {
+            caption = shownImage?.let { explorerViewModel.captionFor(it) }
+        }
+
         AnimatedVisibility(
             visible = chromeVisible && images.isNotEmpty(),
             enter = fadeIn(),
@@ -143,6 +161,7 @@ fun ImageBrowserScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             val current = images.getOrNull(pagerState.currentPage)
+            val galleryCaption = caption
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -153,14 +172,29 @@ fun ImageBrowserScreen(
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                if (current != null) {
-                    Text(
-                        text = current.filename,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                if (galleryCaption != null && showCaptions) {
+                    CaptionText(galleryCaption)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (current != null) {
+                        Text(
+                            text = current.filename,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    if (galleryCaption != null) {
+                        IconButton(onClick = { explorerViewModel.setShowCaptions(!showCaptions) }) {
+                            Icon(
+                                if (showCaptions) Icons.Filled.ClosedCaption else Icons.Filled.ClosedCaptionDisabled,
+                                contentDescription = if (showCaptions) "Hide captions" else "Show captions",
+                                tint = Color.White,
+                            )
+                        }
+                    }
                 }
                 Text(
                     text = "${pagerState.currentPage + 1} of ${images.size}",
@@ -168,6 +202,35 @@ fun ImageBrowserScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CaptionText(caption: Caption) {
+    var showOriginal by remember(caption) { mutableStateOf(false) }
+    val original = caption.original
+    val text = if (showOriginal && original != null) original else caption.text
+    val originalLabel = "original" + caption.originalLanguage?.let { " ($it)" }.orEmpty()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 200.dp)
+            .verticalScroll(rememberScrollState())
+            .clickable(enabled = original != null) { showOriginal = !showOriginal }
+            .padding(bottom = 8.dp),
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (original != null) {
+            Text(
+                text = if (showOriginal) "${originalLabel.replaceFirstChar { it.uppercase() }} · tap for English" else "English · tap for $originalLabel",
+                color = Color.White.copy(alpha = 0.6f),
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }

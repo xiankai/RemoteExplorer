@@ -86,6 +86,7 @@ fun ExplorerScreen(
         finalList
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
+    val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
     val columnCount by explorerViewModel.columnCountState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
@@ -215,6 +216,7 @@ fun ExplorerScreen(
                                 it.fullPath(), emptyList()
                             ),
                             item = it,
+                            captioned = it.fullPath() in captionedFolders,
                         )
                     },
                     handleItemClick = handleItemClick,

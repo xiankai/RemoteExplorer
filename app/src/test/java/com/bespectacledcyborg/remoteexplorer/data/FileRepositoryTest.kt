@@ -643,6 +643,10 @@ private class FakeLocalDatabaseDao(
     override fun clearTagHidden(connectionId: Int) = notUsed()
     override fun addTagHidden(hidden: List<com.bespectacledcyborg.remoteexplorer.data.db.TagHidden>) = notUsed()
     override fun getTagAliasPairs(): List<TagAliasPair> = notUsed()
+    override fun clearAnnotationKinds(connectionId: Int) = notUsed()
+    override fun deleteAnnotationKinds(connectionId: Int, parentPath: String) = notUsed()
+    override fun addAnnotationKinds(kinds: List<com.bespectacledcyborg.remoteexplorer.data.db.DirAnnotationKind>) = notUsed()
+    override fun getAnnotatedDirectories(kind: String): List<com.bespectacledcyborg.remoteexplorer.data.db.AnnotatedDirectory> = notUsed()
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

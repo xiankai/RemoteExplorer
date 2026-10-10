@@ -40,6 +40,8 @@ object TagIndex {
     const val META = "$DIRECTORY/index.meta.json"
     const val ALIASES = "$DIRECTORY/aliases.ndjson"
     const val ALIASES_META = "$DIRECTORY/aliases.meta.json"
+    const val ANNOTATIONS = "$DIRECTORY/annotations.ndjson"
+    const val ANNOTATIONS_META = "$DIRECTORY/annotations.meta.json"
 
     /**
      * Unknown keys are ignored rather than fatal, which is the whole forward-compatibility
@@ -98,34 +100,15 @@ internal object GenerationSerializer : KSerializer<String> {
 /** Whether a record's tags describe one file or everything directly inside a directory. */
 enum class TagScope { DIRECTORY, FILE }
 
-/**
- * One line of the log.
- *
- * The log is append-only and **the last record for a path wins** — a changed gallery is
- * appended rather than rewritten, which is exactly what makes resuming from a byte offset
- * valid. A record with [deleted] set is a tombstone: drop that path's tags.
- */
 data class TagIndexRecord(
     val path: String,
     val scope: TagScope,
     val tags: List<String>,
-    /**
-     * How many files the directory held when the record was written, used for tag counts —
-     * a directory-scoped tag has no per-file rows to count.
-     *
-     * Accurate as of the last tag change rather than as of now: the generator appends when
-     * a gallery's tags change, so files added or removed without a tag change are not
-     * reflected until the next one. That is a count in a list being slightly stale, which
-     * nobody can see, and not worth a crawl to correct.
-     */
     val files: Int,
     val deleted: Boolean,
+    val annotations: List<String> = emptyList(),
 )
 
-/**
- * The wire form, kept separate from [TagIndexRecord] so the app's model does not have to
- * carry the generator's spelling — `scope` as a string, absent fields meaning defaults.
- */
 @Serializable
 private data class WireRecord(
     val path: String,
@@ -133,21 +116,9 @@ private data class WireRecord(
     val tags: List<String>? = null,
     val files: Int? = null,
     val deleted: Boolean? = null,
+    val annotations: List<String>? = null,
 )
 
-/**
- * Parses one line, or returns null for a line this build cannot use.
- *
- * Null rather than throwing, for blank lines and for anything malformed or of a shape added
- * after this build: one unreadable record must not abort an ingest that is otherwise fine,
- * because the alternative is a single bad line on the share making every tag in the library
- * unreachable. A skipped record is a gallery without tags until the next full re-pull, which
- * is the same as it not being there yet.
- *
- * A record with no recognisable scope is skipped rather than guessed at. Guessing FILE for a
- * directory would attach a gallery's tags to nothing; guessing DIRECTORY for a file would
- * attach them to every sibling.
- */
 fun parseTagIndexLine(line: String): TagIndexRecord? {
     val trimmed = line.trim()
     if (trimmed.isEmpty()) return null
@@ -156,22 +127,22 @@ fun parseTagIndexLine(line: String): TagIndexRecord? {
         ?: return null
     if (wire.path.isEmpty()) return null
 
-    val scope = when (wire.scope) {
-        "dir" -> TagScope.DIRECTORY
-        "file" -> TagScope.FILE
-        else -> return null
-    }
+    val scope = parseScope(wire.scope) ?: return null
 
-    // A tombstone carries no tags, and is the one record that is allowed to have none: an
-    // empty tag list otherwise means the gallery has been un-tagged, which is also a
-    // removal, so both arrive here as "this path has no tags" and are handled the same.
     return TagIndexRecord(
         path = wire.path,
         scope = scope,
         tags = wire.tags.orEmpty(),
         files = wire.files ?: 0,
         deleted = wire.deleted == true,
+        annotations = wire.annotations.orEmpty(),
     )
+}
+
+internal fun parseScope(scope: String?): TagScope? = when (scope) {
+    "dir" -> TagScope.DIRECTORY
+    "file" -> TagScope.FILE
+    else -> null
 }
 
 /**

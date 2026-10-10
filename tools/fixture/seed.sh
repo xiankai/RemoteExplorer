@@ -139,7 +139,7 @@ log="$index/index.ndjson"
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:blush","parody:touhou project"],"files":2,"mtime":1790047600}'
   printf '%s\n' '{"scope":"file","path":"gallery-dl/patreon/loose files/single.jpg","site":"patreon","tags":["creator:somebody"],"mtime":1790047700}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[999] deleted gallery","site":"pixiv","tags":["gone"],"files":0,"deleted":true,"mtime":1790047800}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910,"annotations":["narration"]}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950}'
 } >> "$log"
 
@@ -174,6 +174,15 @@ aliases="$index/aliases.ndjson"
 groups=$(wc -l < "$aliases" | tr -d ' ')
 printf '{\n  "schema": 1,\n  "generation": 1,\n  "groups": %s,\n  "queued": 0,\n  "overrides": 0,\n  "built_at": "2026-09-26T12:42:49+0900"\n}\n' \
   "$groups" > "$index/aliases.meta.json"
+
+annotations="$index/annotations.ndjson"
+{
+  printf '%s\n' '{"body": {"format": "text/plain", "language": "ja", "value": "フィクスチャの説明文です。"}, "classifier": {"by": "fixture", "verdict": "narration"}, "created": "2026-10-10T17:23:46+0900", "creator": "author", "generator": {"field": "caption", "source": "gallery-dl"}, "id": "gallery-dl:pixiv.caption", "kind": "narration", "motivation": "describing", "path": "gallery-dl/pixiv/[137128361] 羽衣狐", "quality": "narration", "scope": "dir", "source_hash": "fixture"}'
+  printf '%s\n' '{"body": {"format": "text/plain", "language": "en", "value": "A fixture caption, translated."}, "created": "2026-10-10T17:23:46+0900", "creator": "machine", "derived_from": {"id": "gallery-dl:pixiv.caption", "path": "gallery-dl/pixiv/[137128361] 羽衣狐"}, "generator": {"model": "fixture", "source": "llm"}, "id": "llm:translate-en:fixture", "kind": "narration", "motivation": "describing", "path": "gallery-dl/pixiv/[137128361] 羽衣狐", "quality": "narration", "scope": "dir", "source_hash": "fixture"}'
+  printf '%s\n' '{"classifier": {"by": "fixture", "verdict": "not"}, "created": "2026-10-10T17:23:46+0900", "creator": "author", "deleted": true, "generator": {"field": "uploader_comment", "source": "gallery-dl"}, "id": "gallery-dl:examplebooru.uploader_comment", "kind": "narration", "motivation": "describing", "path": "gallery-dl/examplebooru/[artist] a gallery (with parens)", "quality": "not", "scope": "dir", "source_hash": "fixture"}'
+} > "$annotations"
+printf '{\n  "schema": 1,\n  "generation": 1,\n  "records": %s,\n  "bytes": %s,\n  "built_at": "2026-10-10T17:23:46+0900"\n}\n' \
+  "$(wc -l < "$annotations" | tr -d ' ')" "$(wc -c < "$annotations" | tr -d ' ')" > "$index/annotations.meta.json"
 
 echo "seeded $media:"
 find "$media" -type f | sort | sed "s|$media|  media|"
