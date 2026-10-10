@@ -93,7 +93,6 @@ fun ImageBrowserScreen(
         }
     }
 
-    // A tap hides the caption, so a picture can be looked at with nothing over it.
     var chromeVisible by rememberSaveable { mutableStateOf(true) }
 
     Box(

@@ -95,7 +95,7 @@ which is `/srv/library`. Three independent parts, each with its own contract:
   "Show author captions" setting. The text is the authors' own words: never put real
   caption text in a commit, test or fixture.
 
-Both metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
+All three metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
 spelled them differently, the parser matched the fixture, and the real index silently read as
 absent — an unreadable meta is deliberately treated as no meta. The tag list shows one entry
 per alias group, labelled by its canonical, and counts what opening it lists across the whole

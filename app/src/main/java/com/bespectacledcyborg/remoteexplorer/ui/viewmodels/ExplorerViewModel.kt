@@ -250,7 +250,6 @@ class ExplorerViewModel(
 
     private suspend fun refreshTags() {
         val tags = tagRepository.getTags()
-        // Aliases arrive through the same scan, so they are re-read with the tags.
         _tagSearch.update { tagRepository.getTagSearch() }
         _tags.update { tags }
         _tagThumbnails.update { fetchTagThumbnails(tags) }
