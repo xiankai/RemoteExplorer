@@ -23,9 +23,6 @@ fun ImageIcon(
     getImageUrl: GetImageUrl,
     fullPath: String?,
     modifier: Modifier = Modifier,
-    // Fit for a file's own tile, so the whole picture shows. A folder's cover collage crops
-    // instead, so each cover fills its quarter rather than letterboxing inside it (#72).
-    contentScale: ContentScale = ContentScale.Fit,
 ) {
 
     if (fullPath == null) {
@@ -66,7 +63,7 @@ fun ImageIcon(
             contentDescription = contentDescription,
             modifier = modifier.progressIndicator(state, progressPainter),
             state = state,
-            contentScale = contentScale,
+            contentScale = ContentScale.Crop,
         )
     }
 }
