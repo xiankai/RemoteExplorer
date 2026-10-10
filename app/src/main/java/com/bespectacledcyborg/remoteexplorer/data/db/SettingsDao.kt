@@ -32,6 +32,9 @@ interface SettingsDao {
     @Query("UPDATE settings SET defaultColumnCount = :count")
     suspend fun setDefaultColumnCount(count: Int)
 
+    @Query("UPDATE settings SET showCaptions = :show")
+    suspend fun setShowCaptions(show: Boolean)
+
     @Update
     suspend fun update(settingsEntity: SettingsEntity)
 
@@ -76,6 +79,8 @@ data class SettingsEntity(
      */
     @ColumnInfo(defaultValue = DEFAULT_VIEWING_DAY_ZONE)
     val viewingDayZone: String = DEFAULT_VIEWING_DAY_ZONE,
+    @ColumnInfo(defaultValue = "0")
+    val showCaptions: Boolean = false,
 )
 
 const val DEFAULT_VIEWING_DAY_START_MINUTES = 12 * 60

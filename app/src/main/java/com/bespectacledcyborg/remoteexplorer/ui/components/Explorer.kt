@@ -25,6 +25,7 @@ data class Item<T> (
     val type: FileType,
     val thumbnails: List<String>,
     val item: T,
+    val captioned: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +92,7 @@ fun <T>Explorer(
                             handleItemClick(item),
                             handleLongItemClick(item),
                             getImageUrl,
+                            item.captioned,
                         )
                     }
                 }

@@ -30,6 +30,10 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.crypto.KeystoreCredentialCipher
 import com.bespectacledcyborg.remoteexplorer.data.tags.AliasFileTagSource
+import com.bespectacledcyborg.remoteexplorer.data.tags.AnnotationFileTagSource
+import com.bespectacledcyborg.remoteexplorer.data.tags.IndexLog
+import com.bespectacledcyborg.remoteexplorer.data.tags.IndexLogReader
+import com.bespectacledcyborg.remoteexplorer.data.CaptionRepository
 import com.bespectacledcyborg.remoteexplorer.data.tags.CombinedTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.IndexFileTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.SharesOnlyTagSource
@@ -139,6 +143,11 @@ class ExplorerViewModelFactory(
                                 TagIndexReader(tagIndexFiles), localDatabaseDataSource
                             ),
                             AliasFileTagSource(tagIndexFiles, localDatabaseDataSource),
+                            AnnotationFileTagSource(
+                                IndexLogReader(tagIndexFiles, IndexLog.ANNOTATIONS),
+                                db.annotationDao(),
+                                defaultDispatcher,
+                            ),
                             XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
                         )
                     ),
@@ -263,6 +272,7 @@ class ExplorerViewModelFactory(
             thumbnailManager,
             pairingRepository,
             viewRecorder,
+            CaptionRepository(db.annotationDao(), db.localDatabaseDao(), defaultDispatcher),
         ) as T
     }
 }

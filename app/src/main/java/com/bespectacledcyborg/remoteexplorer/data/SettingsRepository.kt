@@ -37,6 +37,16 @@ class SettingsRepository(
         settingsDao.setDefaultColumnCount(count)
     }
 
+    fun showCaptions(): Flow<Boolean> =
+        settingsDao.observeSettings()
+            .filterNotNull()
+            .map { it.showCaptions }
+            .distinctUntilChanged()
+
+    suspend fun setShowCaptions(show: Boolean) {
+        settingsDao.setShowCaptions(show)
+    }
+
     suspend fun update(settings: SettingsEntity) {
         settingsDao.update(settings)
     }

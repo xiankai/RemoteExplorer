@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 18 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 19 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 18, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 19, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 18 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 19 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -328,6 +328,30 @@ class AppDatabaseMigrationTest {
                 "INSERT INTO FileView (connectionId, parentPath, filename, openCount, watchedSeconds, daysViewed) " +
                         "VALUES (1, 'Photos', 'beach.jpg', 1, 0, 1)"
             )
+        }
+    }
+
+    @Test
+    fun `arrives at 19 with settings kept, captions off and none ingested`() {
+        helper.createDatabase(TEST_DB, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode) " +
+                        "VALUES (0, 8, 5, 'DARK')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 19, true).use { db ->
+            db.query("SELECT maxStorageCacheSize, themeMode, showCaptions FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(8, row.getInt(0))
+                assertEquals("DARK", row.getString(1))
+                assertEquals(0, row.getInt(2))
+            }
+            listOf("DirAnnotationKind", "DirAnnotation", "AnnotationIngest").forEach { table ->
+                db.query("SELECT COUNT(*) FROM $table").use { row ->
+                    assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
+                }
+            }
         }
     }
 

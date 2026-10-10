@@ -1,0 +1,792 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 19,
+    "identityHash": "5eeaa416fcdb42c7d8ee3fea1f30fed3",
+    "entities": [
+      {
+        "tableName": "Connection",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL DEFAULT 'SMB', `hostname` TEXT, `port` INTEGER NOT NULL DEFAULT 445, `username` TEXT, `password` TEXT, `domain` TEXT, `share` TEXT, `localRoot` TEXT, `lastModified` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'SMB'"
+          },
+          {
+            "fieldPath": "hostname",
+            "columnName": "hostname",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "port",
+            "columnName": "port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "445"
+          },
+          {
+            "fieldPath": "username",
+            "columnName": "username",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "password",
+            "columnName": "password",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "share",
+            "columnName": "share",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "localRoot",
+            "columnName": "localRoot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastModified",
+            "columnName": "lastModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Connection_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_Connection_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "LocalFile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `filename` TEXT NOT NULL, `type` TEXT NOT NULL, `canHaveThumbnail` INTEGER NOT NULL, `tagStatus` TEXT NOT NULL, `thumbnailStatus` TEXT NOT NULL, `lastModified` INTEGER NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `filename`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filename",
+            "columnName": "filename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canHaveThumbnail",
+            "columnName": "canHaveThumbnail",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagStatus",
+            "columnName": "tagStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thumbnailStatus",
+            "columnName": "thumbnailStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastModified",
+            "columnName": "lastModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "filename"
+          ]
+        }
+      },
+      {
+        "tableName": "LocalTag",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tag` TEXT NOT NULL, PRIMARY KEY(`tag`))",
+        "fields": [
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "tag"
+          ]
+        }
+      },
+      {
+        "tableName": "FileTagRelation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `filename` TEXT NOT NULL, `tag` TEXT NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `filename`, `tag`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filename",
+            "columnName": "filename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "filename",
+            "tag"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_FileTagRelation_tag",
+            "unique": false,
+            "columnNames": [
+              "tag"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_FileTagRelation_tag` ON `${TABLE_NAME}` (`tag`)"
+          }
+        ]
+      },
+      {
+        "tableName": "DirTagRelation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `tag` TEXT NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `tag`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "tag"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_DirTagRelation_tag",
+            "unique": false,
+            "columnNames": [
+              "tag"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_DirTagRelation_tag` ON `${TABLE_NAME}` (`tag`)"
+          }
+        ]
+      },
+      {
+        "tableName": "TagIndexIngest",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `generation` TEXT NOT NULL, `bytesRead` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesRead",
+            "columnName": "bytesRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId"
+          ]
+        }
+      },
+      {
+        "tableName": "TagAlias",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `tag` TEXT NOT NULL, `canonical` TEXT NOT NULL, PRIMARY KEY(`connectionId`, `tag`, `canonical`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonical",
+            "columnName": "canonical",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "tag",
+            "canonical"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_TagAlias_tag",
+            "unique": false,
+            "columnNames": [
+              "tag"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TagAlias_tag` ON `${TABLE_NAME}` (`tag`)"
+          },
+          {
+            "name": "index_TagAlias_canonical",
+            "unique": false,
+            "columnNames": [
+              "canonical"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TagAlias_canonical` ON `${TABLE_NAME}` (`canonical`)"
+          }
+        ]
+      },
+      {
+        "tableName": "TagAliasIngest",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `generation` TEXT NOT NULL, PRIMARY KEY(`connectionId`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId"
+          ]
+        }
+      },
+      {
+        "tableName": "TagHidden",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `tag` TEXT NOT NULL, PRIMARY KEY(`connectionId`, `tag`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "tag"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_TagHidden_tag",
+            "unique": false,
+            "columnNames": [
+              "tag"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TagHidden_tag` ON `${TABLE_NAME}` (`tag`)"
+          }
+        ]
+      },
+      {
+        "tableName": "settings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `maxStorageCacheSize` INTEGER NOT NULL, `defaultColumnCount` INTEGER NOT NULL, `thumbnailCacheVolume` TEXT, `themeMode` TEXT NOT NULL DEFAULT 'LIGHT', `viewingDayStartMinutes` INTEGER NOT NULL DEFAULT 720, `viewingDayZone` TEXT NOT NULL DEFAULT 'Asia/Tokyo', `showCaptions` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxStorageCacheSize",
+            "columnName": "maxStorageCacheSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultColumnCount",
+            "columnName": "defaultColumnCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thumbnailCacheVolume",
+            "columnName": "thumbnailCacheVolume",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "themeMode",
+            "columnName": "themeMode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'LIGHT'"
+          },
+          {
+            "fieldPath": "viewingDayStartMinutes",
+            "columnName": "viewingDayStartMinutes",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "720"
+          },
+          {
+            "fieldPath": "viewingDayZone",
+            "columnName": "viewingDayZone",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'Asia/Tokyo'"
+          },
+          {
+            "fieldPath": "showCaptions",
+            "columnName": "showCaptions",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "DirectorySync",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `lastSyncedAt` INTEGER NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedAt",
+            "columnName": "lastSyncedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath"
+          ]
+        }
+      },
+      {
+        "tableName": "Pairing",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`localConnectionId` INTEGER NOT NULL, `localSubPath` TEXT NOT NULL, `remoteConnectionId` INTEGER NOT NULL, `remoteSubPath` TEXT NOT NULL, PRIMARY KEY(`localConnectionId`, `localSubPath`), FOREIGN KEY(`localConnectionId`) REFERENCES `Connection`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`remoteConnectionId`) REFERENCES `Connection`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "localConnectionId",
+            "columnName": "localConnectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localSubPath",
+            "columnName": "localSubPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteConnectionId",
+            "columnName": "remoteConnectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteSubPath",
+            "columnName": "remoteSubPath",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "localConnectionId",
+            "localSubPath"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Pairing_remoteConnectionId",
+            "unique": false,
+            "columnNames": [
+              "remoteConnectionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Pairing_remoteConnectionId` ON `${TABLE_NAME}` (`remoteConnectionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Connection",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "localConnectionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "Connection",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "remoteConnectionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "FileView",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `filename` TEXT NOT NULL, `openCount` INTEGER NOT NULL, `watchedSeconds` REAL NOT NULL, `daysViewed` INTEGER NOT NULL, `lastCountedDay` INTEGER, `firstOpenedAt` INTEGER, `lastOpenedAt` INTEGER, PRIMARY KEY(`connectionId`, `parentPath`, `filename`), FOREIGN KEY(`connectionId`) REFERENCES `Connection`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filename",
+            "columnName": "filename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openCount",
+            "columnName": "openCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "watchedSeconds",
+            "columnName": "watchedSeconds",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "daysViewed",
+            "columnName": "daysViewed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCountedDay",
+            "columnName": "lastCountedDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "firstOpenedAt",
+            "columnName": "firstOpenedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastOpenedAt",
+            "columnName": "lastOpenedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "filename"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_FileView_openCount",
+            "unique": false,
+            "columnNames": [
+              "openCount"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_FileView_openCount` ON `${TABLE_NAME}` (`openCount`)"
+          },
+          {
+            "name": "index_FileView_lastOpenedAt",
+            "unique": false,
+            "columnNames": [
+              "lastOpenedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_FileView_lastOpenedAt` ON `${TABLE_NAME}` (`lastOpenedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Connection",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "connectionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "DirAnnotationKind",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `kind` TEXT NOT NULL, PRIMARY KEY(`connectionId`, `parentPath`, `kind`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "kind"
+          ]
+        }
+      },
+      {
+        "tableName": "DirAnnotation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `parentPath` TEXT NOT NULL, `id` TEXT NOT NULL, `text` TEXT NOT NULL, `language` TEXT, `derivedFrom` TEXT, `supersedes` TEXT, PRIMARY KEY(`connectionId`, `parentPath`, `id`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPath",
+            "columnName": "parentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "derivedFrom",
+            "columnName": "derivedFrom",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "supersedes",
+            "columnName": "supersedes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId",
+            "parentPath",
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "AnnotationIngest",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` INTEGER NOT NULL, `generation` TEXT NOT NULL, `bytesRead` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
+        "fields": [
+          {
+            "fieldPath": "connectionId",
+            "columnName": "connectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesRead",
+            "columnName": "bytesRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connectionId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5eeaa416fcdb42c7d8ee3fea1f30fed3')"
+    ]
+  }
+}

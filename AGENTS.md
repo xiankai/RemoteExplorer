@@ -68,7 +68,7 @@ never stored rollups. A viewing day starts at a configured time (noon) in a conf
 
 **The tag index protocol** (generator side: infra#199). Files live under
 `gallery-dl/_index/` relative to the share root — on the real library, share `library`,
-which is `/srv/library`. Two independent halves, with two different contracts:
+which is `/srv/library`. Three independent parts, each with its own contract:
 
 - `index.ndjson` (+ `.gz`) and `index.meta.json` — an append-only log of directory-scoped
   records, last record per path wins. Same `generation` → range-read from the stored byte
@@ -86,7 +86,16 @@ which is `/srv/library`. Two independent halves, with two different contracts:
   arrive with the groups into `TagHidden` and are left out of the tag list, not out of a
   gallery's own tags.
 
-Both metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
+- `annotations.ndjson` and `annotations.meta.json` — author captions (infra#312),
+  read with the same generation/byte-offset protocol as the index, keyed by `path` + `id`,
+  last record wins. Only a live `quality: narration` record is kept; a tombstone or any other
+  verdict (`not`, `minor`) removes it. An `llm:translate-en:*` record with `derived_from` is
+  the English shown first, and only while its source is live. The index record's
+  `annotations: ["narration"]` drives the tile badge. Both are behind the off-by-default
+  "Show author captions" setting. The text is the authors' own words: never put real
+  caption text in a commit, test or fixture.
+
+All three metas spell `generation` as an integer and `built_at` as an ISO string. The fixture once
 spelled them differently, the parser matched the fixture, and the real index silently read as
 absent — an unreadable meta is deliberately treated as no meta. The tag list shows one entry
 per alias group, labelled by its canonical, and counts what opening it lists across the whole

@@ -385,14 +385,6 @@ interface LocalDatabaseDao {
     @Query("DELETE FROM DirTagRelation WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun deleteDirTagRelations(connectionId: Int, parentPath: String)
 
-    /**
-     * Throws away everything one connection ingested from the index.
-     *
-     * For a full pull, which replaces rather than adds to: the log it is reading is a
-     * different one from whatever produced these rows, so a path that has since lost its
-     * tags would otherwise keep them forever. Sidecar-derived rows are untouched — they came
-     * from files on the share and this knows nothing about them.
-     */
     @Query("DELETE FROM DirTagRelation WHERE connectionId = :connectionId")
     fun clearIngestedTags(connectionId: Int)
 
@@ -446,18 +438,6 @@ interface LocalDatabaseDao {
         }
     }
 
-    /**
-     * One pass over the index, applied as a single transaction.
-     *
-     * All of it or none: a pass that stopped half way would leave the stored offset
-     * disagreeing with the rows, and the next pass would resume from a point it never
-     * actually reached. Since the offset is written here too, either both land or neither
-     * does and the pass simply runs again.
-     *
-     * [replace] is set for a full pull, where the log being read is a different one from
-     * whatever produced the existing rows — so a path that has since lost its tags has to
-     * lose them here rather than keeping them forever.
-     */
     @Transaction
     fun applyTagIndex(
         connectionId: Int,
@@ -467,10 +447,14 @@ interface LocalDatabaseDao {
         generation: String,
         bytesRead: Long,
     ) {
-        if (replace) clearIngestedTags(connectionId)
+        if (replace) {
+            clearIngestedTags(connectionId)
+            clearAnnotationKinds(connectionId)
+        }
 
         directories.forEach {
             applyDirectoryTags(connectionId, it.parentPath, it.tags, it.deleted)
+            applyAnnotationKinds(connectionId, it.parentPath, if (it.deleted) emptyList() else it.annotations)
         }
         files.forEach {
             applyFileTags(connectionId, it.parentPath, it.filename, it.tags, it.deleted)
@@ -478,6 +462,23 @@ interface LocalDatabaseDao {
 
         upsertTagIndexIngest(TagIndexIngest(connectionId, generation, bytesRead))
     }
+
+    @Query("DELETE FROM DirAnnotationKind WHERE connectionId = :connectionId")
+    fun clearAnnotationKinds(connectionId: Int)
+
+    @Query("DELETE FROM DirAnnotationKind WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun deleteAnnotationKinds(connectionId: Int, parentPath: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun addAnnotationKinds(kinds: List<DirAnnotationKind>)
+
+    fun applyAnnotationKinds(connectionId: Int, parentPath: String, kinds: List<String>) {
+        deleteAnnotationKinds(connectionId, parentPath)
+        addAnnotationKinds(kinds.map { DirAnnotationKind(connectionId, parentPath, it) })
+    }
+
+    @Query("SELECT connectionId, parentPath FROM DirAnnotationKind WHERE kind = :kind")
+    fun getAnnotatedDirectories(kind: String): List<AnnotatedDirectory>
 
     // ---- the alias layer ----------------------------------------------------------------
 
@@ -537,20 +538,13 @@ interface LocalDatabaseDao {
     fun addTagHidden(hidden: List<TagHidden>)
 }
 
-/**
- * One directory-scoped record, in the terms the database stores.
- *
- * The record's file count is deliberately not carried through. Nothing reads it: a tag now
- * counts the rows opening it will show, so a gallery counts once however many files it
- * holds. Storing a number with no reader would be a slow way to find out it had gone stale.
- */
 data class DirectoryTagUpdate(
     val parentPath: String,
     val tags: List<String>,
     val deleted: Boolean,
+    val annotations: List<String> = emptyList(),
 )
 
-/** One file-scoped record, likewise. */
 data class FileTagUpdate(
     val parentPath: String,
     val filename: String,
@@ -749,6 +743,18 @@ data class TagHidden(
 data class TagAliasIngest(
     val connectionId: Int,
     val generation: String,
+)
+
+@Entity(primaryKeys = ["connectionId", "parentPath", "kind"])
+data class DirAnnotationKind(
+    val connectionId: Int,
+    val parentPath: String,
+    val kind: String,
+)
+
+data class AnnotatedDirectory(
+    val connectionId: Int,
+    val parentPath: String,
 )
 
 /**

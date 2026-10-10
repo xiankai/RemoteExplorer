@@ -33,6 +33,10 @@ class SettingsViewModel(
         viewModelScope.launch { settingsRepository.setColumnCount(count) }
     }
 
+    fun setShowCaptions(show: Boolean) {
+        viewModelScope.launch { settingsRepository.setShowCaptions(show) }
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
             // Applied whether or not the write lands, so the screen never shows one theme

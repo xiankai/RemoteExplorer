@@ -9,6 +9,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.bespectacledcyborg.remoteexplorer.data.Caption
+import com.bespectacledcyborg.remoteexplorer.data.CaptionRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
@@ -19,6 +21,7 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
+import com.bespectacledcyborg.remoteexplorer.data.db.AnnotatedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
 import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
@@ -176,6 +179,7 @@ class ExplorerViewModel(
     private val thumbnailManager: ThumbnailManager,
     private val pairingRepository: PairingRepository,
     private val viewRecorder: ViewRecorder,
+    private val captionRepository: CaptionRepository,
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -202,6 +206,8 @@ class ExplorerViewModel(
     private val _tagThumbnails: MutableStateFlow<ThumbnailsMap> =
         MutableStateFlow(emptyMap())
     val tagThumbnailsState = _tagThumbnails.asStateFlow()
+
+    private val _captioned = MutableStateFlow(emptySet<AnnotatedDirectory>())
 
     // Declared before init: Kotlin initialises properties and init blocks in declaration
     // order, and the tag observer in init reaches for this.
@@ -244,10 +250,19 @@ class ExplorerViewModel(
 
     private suspend fun refreshTags() {
         val tags = tagRepository.getTags()
-        // Aliases arrive through the same scan, so they are re-read with the tags.
         _tagSearch.update { tagRepository.getTagSearch() }
         _tags.update { tags }
         _tagThumbnails.update { fetchTagThumbnails(tags) }
+        _captioned.update {
+            try {
+                captionRepository.captionedDirectories()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ExplorerViewModel", "Could not read captioned directories", e)
+                it
+            }
+        }
     }
 
     fun connect(connection: Connection) {  // stack-reviewer-ignore: resetting before the connect is the point. The stack and path belong to the previous connection, so keeping them when the new one fails to open would leave that failed connection showing a path from somewhere else, which is the bug this change fixes.
@@ -518,6 +533,37 @@ class ExplorerViewModel(
     }
 
     val pairingsState: StateFlow<List<Pairing>> = pairingRepository.pairings
+
+    val showCaptionsState: StateFlow<Boolean> =
+        settingsRepository.showCaptions().stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setShowCaptions(show: Boolean) {
+        viewModelScope.launch { settingsRepository.setShowCaptions(show) }
+    }
+
+    val captionedFoldersState: StateFlow<Set<String>> =
+        combine(_list, _path, _captioned, showCaptionsState, pairingsState) { list, path, captioned, show, _ ->
+            if (!show || captioned.isEmpty()) return@combine emptySet()
+            val pairings = pairingRepository.current()
+            list[path].orEmpty()
+                .filter { it.type == FileType.FOLDER }
+                .map { it.fullPath() to pairings.canonicalize(it.connectionId, it.fullPath()) }
+                .filter { (_, canonical) -> AnnotatedDirectory(canonical.connectionId, canonical.path) in captioned }
+                .map { (path, _) -> path }
+                .toSet()
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    suspend fun captionFor(image: LocalFile): Caption? {
+        val gallery = pairingRepository.current().canonicalize(image.connectionId, image.parentPath)
+        return try {
+            captionRepository.captionFor(gallery.connectionId, gallery.path)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("ExplorerViewModel", "Could not read the caption for ${image.parentPath}", e)
+            null
+        }
+    }
 
     /**
      * The list on screen follows the table, so a write that fails shows as nothing having
