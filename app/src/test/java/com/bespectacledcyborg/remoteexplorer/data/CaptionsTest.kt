@@ -63,6 +63,19 @@ class CaptionsTest {
     }
 
     @Test
+    fun `a manual caption replaces a translation it supersedes`() {
+        val caption = pickCaption(
+            listOf(
+                row("gallery-dl:pixiv.caption", "source", "ja"),
+                row("llm:translate-en:m", "translation", "en", derivedFrom = "gallery-dl:pixiv.caption"),
+                row("manual:kj", "edited", "en", supersedes = "llm:translate-en:m"),
+            )
+        )
+
+        assertEquals("edited", caption?.text)
+    }
+
+    @Test
     fun `nothing to show is no caption`() {
         assertNull(pickCaption(emptyList()))
     }

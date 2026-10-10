@@ -29,7 +29,9 @@ fun pickCaption(rows: List<DirAnnotation>): Caption? {
         ?: return null
     if (source.language == ENGLISH) return Caption(source.text, original = null, originalLanguage = null)
 
-    val english = rows.firstOrNull { it.derivedFrom == source.id && it.language == ENGLISH }
+    val english = rows.firstOrNull {
+        it.derivedFrom == source.id && it.language == ENGLISH && it.id !in superseded
+    }
         ?: return Caption(source.text, original = null, originalLanguage = source.language)
     return Caption(english.text, original = source.text, originalLanguage = source.language)
 }
