@@ -28,8 +28,6 @@ import io.ktor.server.routing.head
 import io.ktor.server.routing.options
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.URLConnection
 
@@ -48,7 +46,6 @@ private const val RANGE_CHUNK_BYTES = 64 * 1024
 /** What the server measures as watched; see ServerRepository.playback. */
 private val PLAYBACK_TYPES = setOf(IconType.VIDEO, IconType.AUDIO)
 
-/** See ServerRepository.renderSlots. */
 private const val MAX_CONCURRENT_RENDERS = 3
 
 class ServerRepository(
@@ -75,17 +72,7 @@ class ServerRepository(
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
 ) {
-    /**
-     * How many thumbnails may be produced at once.
-     *
-     * A grid of forty video cells means forty simultaneous requests, and each one is an SMB
-     * read plus a decode. Nothing bounded that, and the benchmark shows it buys almost
-     * nothing: four in flight improved wall clock 32s to 28s while roughly doubling every
-     * individual request, because the share and the decoder are the contended resources
-     * either way. Three keeps the pipeline busy without turning one slow file into forty
-     * slow ones.
-     */
-    private val renderSlots = Semaphore(MAX_CONCURRENT_RENDERS)
+    private val renderSlots = NewestFirstPermits(MAX_CONCURRENT_RENDERS)
 
     private fun extractConnectionId(call: RoutingCall): Int {
         val connectionId: Int =
