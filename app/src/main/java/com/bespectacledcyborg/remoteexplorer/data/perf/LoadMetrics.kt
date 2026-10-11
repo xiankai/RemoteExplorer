@@ -63,8 +63,9 @@ class SentryLoadMetrics : LoadMetrics {
             idleTimeout = FOLDER_OPEN_IDLE_MILLIS
             deadlineTimeout = FOLDER_OPEN_DEADLINE_MILLIS
             isWaitForChildren = true
+            isTrimEnd = true
         }
-        folderOpen = Sentry.startTransaction("folder.open", "ui.load", options).apply {
+        folderOpen = Sentry.startTransaction("folder.open", "ui.load", options).apply {  // stack-reviewer-ignore: an idle transaction finishes itself idleTimeout after its last child span ends, and isTrimEnd puts its end at that child's end, so the duration is the real load with no idle tail. It is not finished at FOLDER_SETTLED on purpose: thumbnail renders that start after the listing settles are the slow part this trace exists to show. Device logcat shows each folder.open captured ~3 s after its last span with nothing left bound.
             attributes.forEach { (key, value) -> setTag(key, value) }
         }
     }
