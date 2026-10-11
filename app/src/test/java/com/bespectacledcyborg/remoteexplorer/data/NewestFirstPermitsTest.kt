@@ -84,6 +84,28 @@ class NewestFirstPermitsTest {
     }
 
     @Test
+    fun `a waiter cancelled after being handed the permit, before it runs, passes it on`() = runTest {
+        val permits = NewestFirstPermits(1)
+        var ran = false
+        lateinit var waiter: kotlinx.coroutines.Job
+
+        permits.withPermit {
+            waiter = launch { permits.withPermit { ran = true } }
+            runCurrent()
+            assertEquals(1, permits.queued)
+        }
+        assertEquals(0, permits.queued)
+        waiter.cancel()
+        runCurrent()
+
+        assertEquals(false, ran)
+        var next = false
+        launch { permits.withPermit { next = true } }
+        runCurrent()
+        assertEquals(true, next)
+    }
+
+    @Test
     fun `a block that throws still returns its permit`() = runTest {
         val permits = NewestFirstPermits(1)
 

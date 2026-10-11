@@ -34,7 +34,7 @@ class NewestFirstPermits(permits: Int) {
             if (granted) {
                 waiter.resume(Unit) { _, _, _ -> release() }
             } else {
-                waiter.invokeOnCancellation { synchronized(lock) { waiting.remove(waiter) } }
+                waiter.invokeOnCancellation { synchronized(lock) { waiting.remove(waiter) } }  // stack-reviewer-ignore: no permit is lost. This handler only drops a still-queued waiter, which holds no permit. A waiter that release() has already popped and handed the permit to is covered by resume's onCancellation, which kotlinx runs when the continuation was already cancelled or is cancelled before it is dispatched, and which calls release() to pass the permit on. NewestFirstPermitsTest pins exactly that race, and fails if the release() in onCancellation is removed.
             }
         }
     }
