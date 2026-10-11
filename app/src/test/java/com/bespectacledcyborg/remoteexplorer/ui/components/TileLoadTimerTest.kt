@@ -9,7 +9,7 @@ import org.junit.Test
 class TileLoadTimerTest {
     private var now = 1_000L
     private val metrics = RecordingLoadMetrics()
-    private val timer = TileLoadTimer(metrics) { now }
+    private val timer = TileLoadTimer(metrics, mapOf("client_slots" to "8")) { now }
 
     @Test
     fun `a tile that loads records the time from start to image and where it came from`() {
@@ -20,7 +20,10 @@ class TileLoadTimerTest {
         val recorded = metrics.recorded.single()
         assertEquals(LoadMetric.TILE_LOAD, recorded.metric)
         assertEquals(420L, recorded.millis)
-        assertEquals(mapOf("result" to "ok", "from" to "result_cache"), recorded.attributes)
+        assertEquals(
+            mapOf("client_slots" to "8", "result" to "ok", "from" to "result_cache"),
+            recorded.attributes,
+        )
     }
 
     @Test
@@ -29,7 +32,10 @@ class TileLoadTimerTest {
         now += 90
         timer.failed()
 
-        assertEquals(mapOf("result" to "error", "from" to "none"), metrics.recorded.single().attributes)
+        assertEquals(
+            mapOf("client_slots" to "8", "result" to "error", "from" to "none"),
+            metrics.recorded.single().attributes,
+        )
     }
 
     @Test
@@ -42,9 +48,21 @@ class TileLoadTimerTest {
     }
 
     @Test
-    fun `a result with no start is not timed from zero`() {
+    fun `a cache hit that never started loading is recorded as instant`() {
         timer.succeeded("memory_cache")
 
-        assertTrue(metrics.recorded.isEmpty())
+        val recorded = metrics.recorded.single()
+        assertEquals(0L, recorded.millis)
+        assertEquals("memory_cache", recorded.attributes["from"])
+    }
+
+    @Test
+    fun `a tile is recorded once even if Sketch reports success twice`() {
+        timer.started()
+        now += 50
+        timer.succeeded("network")
+        timer.succeeded("network")
+
+        assertEquals(1, metrics.recorded.size)
     }
 }
