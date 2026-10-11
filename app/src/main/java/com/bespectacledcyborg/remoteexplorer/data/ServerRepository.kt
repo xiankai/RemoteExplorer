@@ -32,7 +32,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.URLConnection
-import java.net.URLDecoder
 
 const val ENCODING = "UTF-8"
 
@@ -172,8 +171,7 @@ class ServerRepository(
                     }
                     get("/{path...}") {
                         val connectionId = extractConnectionId(call)
-                        val fullPath = call.parameters.getAll("path")?.joinToString("/")
-                        val decodedPath = URLDecoder.decode(fullPath, ENCODING)
+                        val decodedPath = call.parameters.getAll("path")?.joinToString("/").orEmpty()
                         val isThumbnail = call.queryParameters["thumbnail"] == "true"
 
                         Log.d(
