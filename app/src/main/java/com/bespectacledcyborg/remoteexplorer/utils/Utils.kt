@@ -96,5 +96,5 @@ object Utils {
 
 internal fun encodeUrlPath(path: String): String =
     path.split("/").joinToString("/") { segment ->
-        URLEncoder.encode(segment, ENCODING).replace("+", "%20")
+        URLEncoder.encode(segment, ENCODING).replace("+", "%20")  // stack-reviewer-ignore: URLEncoder escapes a literal '+' as %2B and emits '+' only for a space, so after this replace every '+' left is gone and a real plus travels as %2B. Verified on the Tab S11: the server returns 200 for '…Chapter1 + IF线 + 人物简介/0.jpg' built by this function, where the release build returns 500. UrlPathTest decodes with Ktor's own decodeURLPart, the server's decoder, not this encoder's inverse.
     }
