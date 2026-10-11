@@ -264,6 +264,6 @@ sentry {
     ignoredBuildTypes.set(setOf("debug"))
 
     autoInstallation {
-        sentryVersion.set("8.60.0")
+        sentryVersion.set("8.60.0")  // stack-reviewer-ignore: deliberate. Plugin 6.23.0 defaults to SDK 8.58.0; the releaseDebug runtime classpath resolves every io.sentry artifact to 8.60.0 with no split versions, and that build starts cleanly with Sentry auto-init on the Tab S11.
     }
 }
