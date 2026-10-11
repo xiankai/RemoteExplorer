@@ -122,7 +122,7 @@ tools/dev-run.sh --shot /tmp/app.png                                        # ev
 `.claude/skills/run/SKILL.md` carries the detail. A green build proves nothing about this
 app — read the screenshot.
 
-Requires: JDK 21, SDK 36, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** device. The
+Requires: JDK 21, SDK 37, NDK 27.2.12479018, cmake 3.22.1, and an **arm64** device. The
 `rex-api36` AVD is arm64-v8a.
 
 ## Things that will bite you

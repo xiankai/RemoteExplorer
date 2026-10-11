@@ -20,13 +20,13 @@ plugins {
     id("com.android.application")
     id("com.google.devtools.ksp")
     alias(libs.plugins.compose.compiler)
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10"
-    id("io.sentry.android.gradle") version "6.1.0"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.21"
+    id("io.sentry.android.gradle") version "6.23.0"
 }
 
 android {
     namespace = "com.bespectacledcyborg.remoteexplorer"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
@@ -255,8 +255,10 @@ sentry {
     org.set("kj")
     projectName.set("remote-explorer")
 
-    // this will upload your source code to Sentry to show it as part of the stack traces
-    // disable if you don't want to expose your sources
     includeSourceContext.set(hasSentryAuth)
     ignoredBuildTypes.set(setOf("debug"))
+
+    autoInstallation {
+        sentryVersion.set("8.60.0")
+    }
 }

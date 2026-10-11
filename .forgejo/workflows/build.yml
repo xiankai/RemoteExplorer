@@ -190,9 +190,9 @@ jobs:
           set -o pipefail
           [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
 
-          echo "installing platform 36 + build-tools"
+          echo "installing platform 37 + build-tools"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+            "platform-tools" "platforms;android-37" "build-tools;36.0.0" >/dev/null
           echo "sdk ready"
         env:
           ANDROID_HOME: /opt/android-sdk
