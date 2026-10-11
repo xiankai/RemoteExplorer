@@ -7,6 +7,10 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
+import com.bespectacledcyborg.remoteexplorer.data.perf.SentryLoadMetrics
+import com.bespectacledcyborg.remoteexplorer.ui.components.LocalLoadMetrics
 import androidx.activity.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -104,7 +108,8 @@ class CustomWorkerFactory(
 class ExplorerViewModelFactory(
     private val application: Application,
     private val db: AppDatabase,
-    private val defaultDispatcher: CoroutineDispatcher
+    private val defaultDispatcher: CoroutineDispatcher,
+    private val metrics: LoadMetrics,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val sambaFileDataSource = SambaFileDataSource()
@@ -121,7 +126,9 @@ class ExplorerViewModelFactory(
         val fileRepository = FileRepository(
             fileDataSource,
             localDatabaseDataSource,
-            defaultDispatcher
+            defaultDispatcher,
+            metrics = metrics,
+            sourceKind = fileDataSource::sourceKind,
         )
         // Both sources for every connection, which is the union rather than a choice: the
         // rolled-up index covers the galleries gallery-dl downloaded, sidecars cover
@@ -259,6 +266,8 @@ class ExplorerViewModelFactory(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
                 record = viewRecorder::recordOpen,
             ),
+            metrics = metrics,
+            sourceKind = fileDataSource::sourceKind,
         )
 
         @Suppress("UNCHECKED_CAST")
@@ -273,6 +282,8 @@ class ExplorerViewModelFactory(
             pairingRepository,
             viewRecorder,
             CaptionRepository(db.annotationDao(), db.localDatabaseDao(), defaultDispatcher),
+            metrics,
+            fileDataSource::sourceKind,
         ) as T
     }
 }
@@ -325,8 +336,9 @@ class MainActivity : ComponentActivity() {
 //            )
             .build()
 
+        val loadMetrics = SentryLoadMetrics()
         val explorerViewModel: ExplorerViewModel by viewModels {
-            ExplorerViewModelFactory(application, db, Dispatchers.IO)
+            ExplorerViewModelFactory(application, db, Dispatchers.IO, loadMetrics)
         }
 
         val settingsViewModel: SettingsViewModel by viewModels {
@@ -367,10 +379,12 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MainView(
-                explorerViewModel = explorerViewModel,
-                settingsViewModel = settingsViewModel
-            )
+            CompositionLocalProvider(LocalLoadMetrics provides loadMetrics) {
+                MainView(
+                    explorerViewModel = explorerViewModel,
+                    settingsViewModel = settingsViewModel
+                )
+            }
         }
     }
 }

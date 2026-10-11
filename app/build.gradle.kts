@@ -78,9 +78,13 @@ android {
             ndk {
                 debugSymbolLevel = "full"
             }
+            manifestPlaceholders["sentryEnvironment"] = "production"
+            manifestPlaceholders["sentryDebug"] = "false"
         }
         debug {
             applicationIdSuffix = ".debug"
+            manifestPlaceholders["sentryEnvironment"] = "debug"
+            manifestPlaceholders["sentryDebug"] = "true"
         }
 
         // Runs the release configuration on a dev machine, side by side with debug. It is
@@ -91,6 +95,7 @@ android {
         register("releaseDebug") {
             initWith(getByName("release"))
             applicationIdSuffix = ".releasedebug"
+            manifestPlaceholders["sentryEnvironment"] = "releasedebug"
             // `run-as` is refused on a non-debuggable package, and it is the only way into the
             // app's private data directory on a Play-image emulator, where `adb root` is not
             // available. Without this, tools/dev-seed-connection.sh cannot write the fixture
