@@ -482,29 +482,31 @@ class ExplorerViewModel(
                     val openedAt = System.currentTimeMillis()
                     var painted = false
 
-                    fileRepository.listFiles(connectionId, path, search, refresh)
-                        .collect { listing ->
-                            _list.update {
-                                it.plus(path to listing.files.withThumbnailEligibility())
-                            }
-                            _isRefreshing.update { listing.syncing }
+                    metrics.traced("folder.listing", refresh.name.lowercase()) {
+                        fileRepository.listFiles(connectionId, path, search, refresh)
+                            .collect { listing ->
+                                _list.update {
+                                    it.plus(path to listing.files.withThumbnailEligibility())
+                                }
+                                _isRefreshing.update { listing.syncing }
 
-                            val elapsed = System.currentTimeMillis() - openedAt
-                            if (!painted) {
-                                painted = true
-                                metrics.record(
-                                    LoadMetric.FOLDER_FIRST_PAINT,
-                                    elapsed,
-                                    folderAttributes + ("syncing" to listing.syncing.toString()),
-                                )
-                            }
+                                val elapsed = System.currentTimeMillis() - openedAt
+                                if (!painted) {
+                                    painted = true
+                                    metrics.record(
+                                        LoadMetric.FOLDER_FIRST_PAINT,
+                                        elapsed,
+                                        folderAttributes + ("syncing" to listing.syncing.toString()),
+                                    )
+                                }
 
-                            fetchThumbnails(connectionId, listing.files)
-                            if (!listing.syncing) {
-                                metrics.record(LoadMetric.FOLDER_SETTLED, elapsed, folderAttributes)
-                                scanTagsJob(connectionId, refresh == RefreshMode.FORCE)
+                                fetchThumbnails(connectionId, listing.files)
+                                if (!listing.syncing) {
+                                    metrics.record(LoadMetric.FOLDER_SETTLED, elapsed, folderAttributes)
+                                    scanTagsJob(connectionId, refresh == RefreshMode.FORCE)
+                                }
                             }
-                        }
+                    }
 
                     _refreshRequest.update { if (it === request) null else it }
                 } catch (e: CancellationException) {

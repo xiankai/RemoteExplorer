@@ -234,6 +234,7 @@ class ServerRepository(
                                 )
 
                             if (variant == null && thumbnailFile.exists()) {
+                                readFrom = "cache"
                                 call.respondFile(thumbnailFile)
                                 logOutcome("cached")
                                 return@get

@@ -79,10 +79,12 @@ android {
                 debugSymbolLevel = "full"
             }
             manifestPlaceholders["sentryEnvironment"] = "production"
+            manifestPlaceholders["sentryDebug"] = "false"
         }
         debug {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["sentryEnvironment"] = "debug"
+            manifestPlaceholders["sentryDebug"] = "true"
         }
 
         // Runs the release configuration on a dev machine, side by side with debug. It is
