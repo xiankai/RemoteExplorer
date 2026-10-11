@@ -70,7 +70,7 @@ import com.github.panpf.sketch.cache.DiskCache
 import com.github.panpf.sketch.fetch.supportKtorHttpUri
 import com.github.panpf.sketch.http.KtorStack
 import com.github.panpf.sketch.util.KtorHttpComponentProvider
-import io.ktor.client.HttpClient
+import com.bespectacledcyborg.remoteexplorer.data.imageHttpClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -365,7 +365,7 @@ class MainActivity : ComponentActivity() {
             SingletonSketch.setSafe { context ->
                 Sketch.Builder(context).apply {
                     addIgnoredComponentProvider(KtorHttpComponentProvider::class)
-                    addComponents { supportKtorHttpUri(KtorStack(thumbnailHttpClient())) }
+                    addComponents { supportKtorHttpUri(KtorStack(imageHttpClient())) }
                     downloadCacheOptions(
                         DiskCache.Options(
                             // Convert setting to actual GB
@@ -384,24 +384,5 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-    }
-}
-
-/**
- * How many image requests may be waiting on the loopback server at once.
- *
- * The client blocks a thread per request until the server answers, and by default those
- * threads come from `Dispatchers.IO` — the same pool the server renders on and answers
- * from. A screen of gallery covers is sixty-odd requests, which is every IO thread there is
- * spent waiting on a server that then has no thread left to reply with: renders finished
- * and nothing was ever sent, until each request gave up after 100 s (#66). Bounded, the
- * requests past the limit wait inside Sketch instead, in the order the grid asked for them,
- * and one scrolled away before it is sent costs nothing at all.
- */
-private const val MAX_IMAGE_REQUESTS_IN_FLIGHT = 8
-
-private fun thumbnailHttpClient() = HttpClient {
-    engine {
-        dispatcher = Dispatchers.IO.limitedParallelism(MAX_IMAGE_REQUESTS_IN_FLIGHT)
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.bespectacledcyborg.remoteexplorer.R
+import com.bespectacledcyborg.remoteexplorer.data.IMAGE_REQUEST_SLOTS
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.github.panpf.sketch.request.LoadState
@@ -28,9 +29,11 @@ val LocalLoadMetrics = staticCompositionLocalOf { LoadMetrics.NONE }
 
 internal class TileLoadTimer(
     private val metrics: LoadMetrics,
+    private val attributes: Map<String, String> = emptyMap(),
     private val clock: () -> Long = SystemClock::elapsedRealtime,
 ) {
     private var startedAt: Long? = null
+    private var abandoned = false
 
     fun onLoadState(loadState: LoadState) = when (loadState) {
         is LoadState.Started -> started()
@@ -42,6 +45,7 @@ internal class TileLoadTimer(
 
     fun started() {
         startedAt = clock()
+        abandoned = false
     }
 
     fun succeeded(from: String) = finish("ok", from)
@@ -50,15 +54,18 @@ internal class TileLoadTimer(
 
     fun canceled() {
         startedAt = null
+        abandoned = true
     }
 
     private fun finish(result: String, from: String) {
-        val started = startedAt ?: return
+        if (abandoned) return
+        val elapsed = startedAt?.let { clock() - it } ?: 0L
         startedAt = null
+        abandoned = true
         metrics.record(
             LoadMetric.TILE_LOAD,
-            clock() - started,
-            mapOf("result" to result, "from" to from),
+            elapsed,
+            attributes + mapOf("result" to result, "from" to from),
         )
     }
 }
@@ -99,7 +106,7 @@ fun ImageIcon(
         })
         val metrics = LocalLoadMetrics.current
         DisposableEffect(state, metrics) {
-            val timer = TileLoadTimer(metrics)
+            val timer = TileLoadTimer(metrics, mapOf("client_slots" to IMAGE_REQUEST_SLOTS.toString()))
             state.onLoadState = timer::onLoadState
             onDispose { state.onLoadState = null }
         }
