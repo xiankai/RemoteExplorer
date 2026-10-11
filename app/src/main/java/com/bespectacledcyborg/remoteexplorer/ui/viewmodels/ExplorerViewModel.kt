@@ -21,6 +21,8 @@ import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.bespectacledcyborg.remoteexplorer.data.db.AnnotatedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
 import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
@@ -164,6 +166,12 @@ typealias ThumbnailsMap = Map<String, List<String>>
 /** How long a folder that failed to list for its cover waits before it is tried again. */
 private const val COVER_RETRY_MILLIS = 30_000L
 
+internal fun depthOf(path: String): String =
+    when (val depth = path.split('/').count { it.isNotEmpty() }) {
+        in 0..3 -> depth.toString()
+        else -> "4+"
+    }
+
 /** Unique-work name for the tag scan, shared by the enqueue and the observer that follows it. */
 private const val SCAN_TAGS_WORK = "scanTags"
 
@@ -180,6 +188,8 @@ class ExplorerViewModel(
     private val pairingRepository: PairingRepository,
     private val viewRecorder: ViewRecorder,
     private val captionRepository: CaptionRepository,
+    private val metrics: LoadMetrics = LoadMetrics.NONE,
+    private val sourceKind: (Int) -> String = { "unknown" },
 ) : AndroidViewModel(application) {
     private val _path = MutableStateFlow("")
     val pathState: StateFlow<String> = _path.asStateFlow()
@@ -457,15 +467,20 @@ class ExplorerViewModel(
                         return@collectLatest
                     }
 
-                    // The refresh applies to the directory it was requested in and nowhere
-                    // else. This used to be a flag captured by the collector itself, so a
-                    // single pull-to-refresh made *every* directory opened afterwards skip
-                    // the cache and go to the share, for the life of the collector.
                     val refresh = if (request?.path == path) {
                         RefreshMode.FORCE
                     } else {
                         RefreshMode.IF_STALE
                     }
+
+                    val folderAttributes = mapOf(
+                        "source" to sourceKind(connectionId),
+                        "depth" to depthOf(path),
+                        "refresh" to refresh.name.lowercase(),
+                    )
+                    metrics.folderOpened(folderAttributes)
+                    val openedAt = System.currentTimeMillis()
+                    var painted = false
 
                     fileRepository.listFiles(connectionId, path, search, refresh)
                         .collect { listing ->
@@ -474,16 +489,23 @@ class ExplorerViewModel(
                             }
                             _isRefreshing.update { listing.syncing }
 
+                            val elapsed = System.currentTimeMillis() - openedAt
+                            if (!painted) {
+                                painted = true
+                                metrics.record(
+                                    LoadMetric.FOLDER_FIRST_PAINT,
+                                    elapsed,
+                                    folderAttributes + ("syncing" to listing.syncing.toString()),
+                                )
+                            }
+
                             fetchThumbnails(connectionId, listing.files)
-//                          thumbnailsJob(connectionId, listing.files)
                             if (!listing.syncing) {
+                                metrics.record(LoadMetric.FOLDER_SETTLED, elapsed, folderAttributes)
                                 scanTagsJob(connectionId, refresh == RefreshMode.FORCE)
                             }
                         }
 
-                    // Consumed. Clearing it means returning to this directory later goes
-                    // back through the TTL rather than forcing a second round trip, and the
-                    // identity check avoids swallowing a refresh requested in the meantime.
                     _refreshRequest.update { if (it === request) null else it }
                 } catch (e: CancellationException) {
                     throw e // collectLatest cancels this body on every new value; not an error.
@@ -802,21 +824,18 @@ class ExplorerViewModel(
         try {
             val startedAt = System.currentTimeMillis()
             val cover = fileRepository.folderCover(connectionId, path)
+            val elapsed = System.currentTimeMillis() - startedAt
             coversSettled += path
-            Log.d(
-                "ExplorerViewModel",
-                "Cover for $path: ${cover.size} in ${System.currentTimeMillis() - startedAt}ms"
+            Log.d("ExplorerViewModel", "Cover for $path: ${cover.size} in ${elapsed}ms")
+            metrics.record(
+                LoadMetric.FOLDER_COVER,
+                elapsed,
+                mapOf("source" to sourceKind(connectionId), "empty" to cover.isEmpty().toString()),
             )
             if (cover.isNotEmpty()) _thumbnails.update { it.plus(path to cover) }
         } catch (e: CancellationException) {
-            // Scrolled away before it got a slot. Not settled, so it is asked again when it
-            // comes back — and a listing that had already started has written its rows by
-            // then, so the second ask is a database read.
             throw e
         } catch (e: Exception) {
-            // Not settled, since the share may only have hiccuped — but not retried on
-            // every scroll either: a folder it will not list waits out a back-off before it
-            // is asked again. Opening it reports the error properly.
             coverFailedAt[path] = System.currentTimeMillis()
             Log.w("ExplorerViewModel", "Could not list '$path' for its cover", e)
         }

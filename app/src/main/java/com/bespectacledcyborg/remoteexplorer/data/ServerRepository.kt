@@ -2,6 +2,8 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import android.util.Log
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailSources
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStore
 import com.bespectacledcyborg.remoteexplorer.data.views.OpenListener
@@ -71,6 +73,8 @@ class ServerRepository(
      */
     private val playback: PlaybackListener = PlaybackListener.NONE,
     private val opens: OpenListener = OpenListener.NONE,
+    private val metrics: LoadMetrics = LoadMetrics.NONE,
+    private val sourceKind: (ConnectionId) -> String = { "unknown" },
 ) {
     /**
      * How many thumbnails may be produced at once.
@@ -194,18 +198,25 @@ class ServerRepository(
                             }
 
                         if (isThumbnail) {
-                            // How long this request took, and which of the three ways it
-                            // ended. A cache hit and a render differ by orders of magnitude,
-                            // so a single average over them says nothing — tools/bench
-                            // separates them on this line. It is also the only per-file
-                            // timing the app emits at all, which is what made the cost of
-                            // this endpoint guesswork before.
                             val startedAt = System.currentTimeMillis()
-                            fun logOutcome(outcome: String) = Log.d(
-                                "ServerRepository",
-                                "Thumbnail $outcome for $decodedPath in " +
-                                        "${System.currentTimeMillis() - startedAt}ms"
-                            )
+                            val media = Utils.guessIconType(decodedPath).name.lowercase()
+                            var readFrom = "none"
+                            fun logOutcome(outcome: String) {
+                                val elapsed = System.currentTimeMillis() - startedAt
+                                Log.d(
+                                    "ServerRepository",
+                                    "Thumbnail $outcome for $decodedPath in ${elapsed}ms"
+                                )
+                                metrics.record(
+                                    LoadMetric.THUMBNAIL_REQUEST,
+                                    elapsed,
+                                    mapOf(
+                                        "outcome" to outcome,
+                                        "media" to media,
+                                        "source" to readFrom,
+                                    ),
+                                )
+                            }
 
                             // `?decoder=` names a specific implementation instead of the
                             // default for this media type. It is how the two video decoders
@@ -266,21 +277,35 @@ class ServerRepository(
                                 return@get
                             }
 
-                            // Bounded, so a folder of videos cannot put one decode per cell
-                            // in flight at once. Held across the render only — the cache hit
-                            // above and the response below are not the contended part.
                             val served = servedFrom()
+                            readFrom = sourceKind(served.connectionId)
+                            val renderAttributes = mapOf("media" to media, "source" to readFrom)
+                            val queuedAt = System.currentTimeMillis()
                             val rendered = renderSlots.withPermit {
-                                if (variant != null) {
-                                    thumbnailManager.renderUncached {
-                                        source.render(served.connectionId, served.path, it)
+                                val renderStartedAt = System.currentTimeMillis()
+                                metrics.record(
+                                    LoadMetric.THUMBNAIL_QUEUE_WAIT,
+                                    renderStartedAt - queuedAt,
+                                    renderAttributes,
+                                )
+                                metrics.traced("thumbnail.render", "$media from $readFrom") {
+                                    if (variant != null) {
+                                        thumbnailManager.renderUncached {
+                                            source.render(served.connectionId, served.path, it)
+                                        }
+                                    } else {
+                                        thumbnailManager.renderInto(
+                                            canonical.connectionId, canonical.path
+                                        ) {
+                                            source.render(served.connectionId, served.path, it)
+                                        }
                                     }
-                                } else {
-                                    thumbnailManager.renderInto(
-                                        canonical.connectionId, canonical.path
-                                    ) {
-                                        source.render(served.connectionId, served.path, it)
-                                    }
+                                }.also {
+                                    metrics.record(
+                                        LoadMetric.THUMBNAIL_RENDER,
+                                        System.currentTimeMillis() - renderStartedAt,
+                                        renderAttributes + ("result" to if (it != null) "ok" else "failed"),
+                                    )
                                 }
                             }
 

@@ -15,6 +15,9 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
+import com.bespectacledcyborg.remoteexplorer.data.perf.RecordingLoadMetrics
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -74,6 +77,7 @@ class FileRepositoryTest {
         // The real predicate needs android.webkit.MimeTypeMap. A constant keeps Android out
         // of these tests; a test that cares which branch of the mapping it lands in says so.
         canHaveThumbnail: (String) -> Boolean = { false },
+        metrics: LoadMetrics = LoadMetrics.NONE,
     ): FileRepository {
         val dispatcher = UnconfinedTestDispatcher()
         return FileRepository(
@@ -83,6 +87,43 @@ class FileRepositoryTest {
             canHaveThumbnail = canHaveThumbnail,
             clock = { now },
             listingTtlMillis = ttl,
+            metrics = metrics,
+            sourceKind = { "local" },
+        )
+    }
+
+    @Test
+    fun `a listing that reaches the source is timed with its source and size`() = runTest {
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"), remoteFile("b.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val metrics = RecordingLoadMetrics()
+
+        repository(remote, dao, metrics = metrics).listFiles(1, "Photos").toList()
+
+        val recorded = metrics.recorded.single()
+        assertEquals(LoadMetric.FOLDER_LISTING, recorded.metric)
+        assertEquals(
+            mapOf("source" to "local", "entries" to "1-10", "forced" to "false"),
+            recorded.attributes,
+        )
+    }
+
+    @Test
+    fun `a listing served from the cache records no listing time`() = runTest {
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("beach.jpg")))
+        freshlySynced(dao)
+        val metrics = RecordingLoadMetrics()
+
+        repository(FakeFileDataSource(), dao, metrics = metrics).listFiles(1, "Photos").toList()
+
+        assertEquals(emptyList<RecordingLoadMetrics.Recorded>(), metrics.recorded)
+    }
+
+    @Test
+    fun `entry counts are bucketed so the attribute stays low-cardinality`() {
+        assertEquals(
+            listOf("0", "1-10", "11-100", "101-1000", "1000+"),
+            listOf(0, 10, 11, 1000, 1001).map(::entriesBucket),
         )
     }
 

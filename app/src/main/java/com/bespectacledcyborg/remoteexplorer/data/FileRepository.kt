@@ -8,6 +8,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
+import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -80,6 +82,14 @@ internal fun sourceDetailsOf(connection: Connection): SourceDetails = when (conn
  */
 const val DEFAULT_LISTING_TTL_MILLIS = 5 * 60 * 1000L
 
+internal fun entriesBucket(count: Int): String = when {
+    count == 0 -> "0"
+    count <= 10 -> "1-10"
+    count <= 100 -> "11-100"
+    count <= 1000 -> "101-1000"
+    else -> "1000+"
+}
+
 /**
  * How many folders may be listed at once to fill in their covers. A listing is one small
  * SMB round trip, so a few in flight keep a screen of galleries filling without queueing
@@ -100,6 +110,8 @@ class FileRepository(
     // Injected for the same reason: a test needs to move time without sleeping through a TTL.
     private val clock: () -> Long = System::currentTimeMillis,
     private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
+    private val metrics: LoadMetrics = LoadMetrics.NONE,
+    private val sourceKind: (ConnectionId) -> String = { "unknown" },
 ) {
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
@@ -110,22 +122,20 @@ class FileRepository(
         }
     }
 
-    /**
-     * Reconciles one directory against the share and records the sync.
-     *
-     * The mapped rows are what the *server* knows; the derived state carried in each
-     * [LocalFile] here (`tagStatus`, `thumbnailStatus`) is only meaningful for a file the
-     * cache has never seen, which is why the reconcile applies it to inserts and to changed
-     * files rather than to everything it is handed.
-     */
     private fun syncDirectory(connectionId: Int, parentPath: String, forced: Boolean = false) {
-        // A forced reconcile is the user asking for another go. The reconcile itself only
-        // resets status for new or changed files, which is what makes a recorded thumbnail
-        // failure stick — correct for a file no decoder can read, but it also outlasts the
-        // app gaining a decoder that now could. This is the one lever the user has for that.
         if (forced) localDatabaseDataSource.clearFailedThumbnails(connectionId, parentPath)
 
+        val listedAt = clock()
         val remoteList = fileDataSource.listFiles(connectionId, parentPath)
+        metrics.record(
+            LoadMetric.FOLDER_LISTING,
+            clock() - listedAt,
+            mapOf(
+                "source" to sourceKind(connectionId),
+                "entries" to entriesBucket(remoteList.size),
+                "forced" to forced.toString(),
+            ),
+        )
         val mappedRemoteList = remoteList.map {
             LocalFile(
                 connectionId = connectionId,

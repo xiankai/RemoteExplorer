@@ -54,5 +54,9 @@
 
     <!-- enable the performance API by setting a sample-rate, adjust in production env -->
     <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
+    <meta-data android:name="io.sentry.metrics.enabled" android:value="true" />
+    <meta-data android:name="io.sentry.traces.profiling.session-sample-rate" android:value="1.0" />
+    <meta-data android:name="io.sentry.traces.profiling.lifecycle" android:value="trace" />
+    <meta-data android:name="io.sentry.environment" android:value="${sentryEnvironment}" />
 </application>
 </manifest>

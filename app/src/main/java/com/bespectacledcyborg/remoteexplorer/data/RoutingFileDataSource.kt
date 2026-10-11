@@ -38,6 +38,12 @@ class RoutingFileDataSource(
     /** Whether [connect] has succeeded for [connectionId] in this process. */
     fun isConnected(connectionId: ConnectionId): Boolean = routes.containsKey(connectionId)
 
+    fun sourceKind(connectionId: ConnectionId): String = when (routes[connectionId]) {
+        null -> "unknown"
+        local -> "local"
+        else -> "smb"
+    }
+
     private fun route(connectionId: ConnectionId): FileDataSource =
         routes[connectionId]
             ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
