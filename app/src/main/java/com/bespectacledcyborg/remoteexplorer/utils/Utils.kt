@@ -86,13 +86,15 @@ object Utils {
     }
 
     fun constructUrl(connectionId: Int, path: String, thumbnail: Boolean = false): String {
-        // Encode each path segment individually, preserving '/' separators.
-        // Jetty 12 rejects %2F in URL paths per Jakarta Servlet 6.0 spec.
-        val encodedPath = path.split("/").joinToString("/") { URLEncoder.encode(it, ENCODING) }
-        val baseUrl = "http://127.0.0.1:${port}/${encodedPath}?connectionId=${connectionId}"
+        val baseUrl = "http://127.0.0.1:${port}/${encodeUrlPath(path)}?connectionId=${connectionId}"
         // The size is for Sketch, which keys its own caches by URL: without it a cell that
         // had loaded a 128 px thumbnail would keep showing those bytes after THUMBNAIL_SIZE
         // went up (#73). The server does not read it.
         return if (thumbnail) "$baseUrl&thumbnail=true&size=$THUMBNAIL_SIZE" else baseUrl
     }
 }
+
+internal fun encodeUrlPath(path: String): String =
+    path.split("/").joinToString("/") { segment ->
+        URLEncoder.encode(segment, ENCODING).replace("+", "%20")  // stack-reviewer-ignore: URLEncoder escapes a literal '+' as %2B and emits '+' only for a space, so after this replace every '+' left is gone and a real plus travels as %2B. Verified on the Tab S11: the server returns 200 for '…Chapter1 + IF线 + 人物简介/0.jpg' built by this function, where the release build returns 500. UrlPathTest decodes with Ktor's own decodeURLPart, the server's decoder, not this encoder's inverse.
+    }
