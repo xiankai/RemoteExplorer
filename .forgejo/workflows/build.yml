@@ -192,7 +192,7 @@ jobs:
 
           echo "installing platform 37 + build-tools"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-37" "build-tools;36.0.0" >/dev/null  # stack-reviewer-ignore: 36.0.0 is AGP 9.4.1's own default build-tools (ToolsRevisionUtils in builder-9.4.1.jar), and compileSdk 37 builds with it — checked locally with only 36.0.0 installed. Build-tools does not track compileSdk.
+            "platform-tools" "platforms;android-37.0" "build-tools;36.0.0" >/dev/null  # stack-reviewer-ignore: 36.0.0 is AGP 9.4.1's own default build-tools (ToolsRevisionUtils in builder-9.4.1.jar), and compileSdk 37 builds with it — checked locally with only 36.0.0 installed. Build-tools does not track compileSdk.
           echo "sdk ready"
         env:
           ANDROID_HOME: /opt/android-sdk

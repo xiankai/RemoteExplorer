@@ -152,7 +152,7 @@ jobs:
           # ndk + cmake versions must match app/build.gradle.kts exactly.
           echo "installing platform 37, build-tools, ndk and cmake (several GB, no layer cache)"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-37" "build-tools;36.0.0" \
+            "platform-tools" "platforms;android-37.0" "build-tools;36.0.0" \
             "ndk;27.2.12479018" "cmake;3.22.1" >/dev/null
           echo "sdk ready"
         env:
