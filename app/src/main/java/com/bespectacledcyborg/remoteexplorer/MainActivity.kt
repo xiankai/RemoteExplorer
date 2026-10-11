@@ -67,9 +67,9 @@ import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.github.panpf.sketch.SingletonSketch
 import com.github.panpf.sketch.Sketch
 import com.github.panpf.sketch.cache.DiskCache
-import com.github.panpf.sketch.fetch.internal.KtorHttpUriFetcherProvider
 import com.github.panpf.sketch.fetch.supportKtorHttpUri
 import com.github.panpf.sketch.http.KtorStack
+import com.github.panpf.sketch.util.KtorHttpComponentProvider
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -364,9 +364,7 @@ class MainActivity : ComponentActivity() {
             // rather than crashing.
             SingletonSketch.setSafe { context ->
                 Sketch.Builder(context).apply {
-                    // Registered ahead of the provider the ktor module installs on its own,
-                    // and ignoring that one, so this client is the one every image uses.
-                    addIgnoreFetcherProvider(KtorHttpUriFetcherProvider::class)
+                    addIgnoredComponentProvider(KtorHttpComponentProvider::class)
                     addComponents { supportKtorHttpUri(KtorStack(thumbnailHttpClient())) }
                     downloadCacheOptions(
                         DiskCache.Options(
