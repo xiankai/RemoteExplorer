@@ -55,7 +55,7 @@ jobs:
   publish:
     runs-on: android
     container:
-      image: android-ci:latest
+      image: android-ci:latest  # stack-reviewer-ignore: built on this host by the deployer from infra's reviewed docker/android-ci, and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job
     timeout-minutes: 45
     steps:
       - name: Checkout the commit that was asked for, if it is on master
@@ -65,7 +65,7 @@ jobs:
           git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
           git clone --quiet --no-tags --filter=blob:none --branch master \
             "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
-          git -C /tmp/repo fetch --quiet origin "+${GITHUB_REF}:refs/publish/trigger"
+          git -C /tmp/repo fetch --quiet origin "+${GITHUB_REF}:refs/publish/trigger"  # stack-reviewer-ignore: the destination is refs/publish/trigger, not a branch, so git's "refusing to fetch into checked-out branch" guard does not apply; reproduced locally for refs/heads/master (dispatch) and refs/tags/publish-* (tag): clone --branch master, this fetch, checkout ^{commit} and the ancestor check all pass
           git config --global --unset-all http.extraHeader
           cd /tmp/repo
           git -c advice.detachedHead=false checkout --quiet 'refs/publish/trigger^{commit}'
