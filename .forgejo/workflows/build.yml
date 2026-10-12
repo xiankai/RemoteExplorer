@@ -74,7 +74,7 @@ jobs:
     # See stacks/act-runner.yml in infra for the runner itself.
     runs-on: android
     container:
-      image: gradle:9.1.0-jdk21   # JDK 21 + git, matching the wrapper's Gradle version
+      image: gradle:9.1.0-jdk21
     # 40, not 25: a cold run was already ~20 min at worst, and one that misses the cache also
     # pays for compressing and saving it afterwards.
     timeout-minutes: 40
@@ -230,21 +230,26 @@ jobs:
           git ls-files '*.sh' -z | xargs -0 --no-run-if-empty shellcheck -S warning || failed=1
           echo "::endgroup::"
 
-          echo "::group::unit tests"
-          ./gradlew --no-daemon -Prex.skipNative testDebugUnitTest || failed=1
+          echo "::group::unit tests and lint"
+          tasks=(testDebugUnitTest lintDebug)
+          [ "${EVENT}" = push ] && tasks+=(mergeExtDexRelease)
+          ./gradlew --no-daemon --continue -Prex.skipNative "${tasks[@]}" || failed=1
           echo "::endgroup::"
 
-          echo "::group::lint"
-          ./gradlew --no-daemon -Prex.skipNative lintDebug || failed=1
+          echo "::group::gc"
+          for log in /tmp/gc-*.log; do
+            awk '/Pause/ { n++; ms += $NF + 0 } END { printf "%s: %d pauses, %.1f s paused\n", FILENAME, n, ms / 1000 }' "$log"
+            tail -1 "$log"
+          done
           echo "::endgroup::"
 
           exit "$failed"
         env:
           ANDROID_HOME: /opt/android-sdk
-          # gradle.properties turns the configuration cache on for developer machines. A
-          # fresh container has no entry to reuse, so it only ever pays the cost of storing
-          # one that is then thrown away — and it is a known source of CI-only failures.
-          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+          EVENT: ${{ github.event_name }}
+          GRADLE_OPTS: >-
+            -Dorg.gradle.configuration-cache=false
+            "-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8 -Xlog:gc:file=/tmp/gc-%p.log"
 
       - name: Tidy the Gradle cache before it is saved
         # Runs before the cache action's post step, which is what saves. That post step only

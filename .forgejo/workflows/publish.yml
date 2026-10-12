@@ -30,8 +30,9 @@
 # several GB heavier than the PR check; it is why this triggers on merge rather than on every
 # push to a branch.
 #
-# A merge that touches only Markdown publishes nothing. versionCode is the build time, so an
-# identical APK would still read as an update to Obtainium. workflow_dispatch is unfiltered.
+# A merge that touches only Markdown publishes nothing. versionCode is the HEAD commit's
+# timestamp, so a docs-only merge would still mint a new version that Obtainium reads as an
+# update. workflow_dispatch is unfiltered, and re-publishing a commit replaces its release.
 name: publish
 on:
   push:
@@ -162,9 +163,7 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/repo
-          # No -Prex.skipNative: the whole point of this artifact is that it contains the
-          # native library.
-          ./gradlew --no-daemon assembleRelease
+          ./gradlew --no-daemon assembleRelease -x lintVitalRelease
         env:
           ANDROID_HOME: /opt/android-sdk
           GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
@@ -214,9 +213,9 @@ jobs:
           apk=app/build/outputs/apk/release/app-release.apk
           api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
 
-          # The tag is read back OUT OF THE APK rather than taken from the clock, so it can
-          # never describe a different build than the one being attached. versionCode is
-          # Instant.now().epochSecond (app/build.gradle.kts), so it is unique and monotonic;
+          # The tag is read back OUT OF THE APK, so it can never describe a different build
+          # than the one being attached. versionCode is the HEAD commit's timestamp
+          # (app/build.gradle.kts), so it is monotonic across merges and the same on a re-run;
           # versionName is `yyyy-MM-dd HH:mm:ss`, whose space and colons git forbids in a ref,
           # so that stays in the release title where it is readable.
           # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
@@ -235,10 +234,21 @@ jobs:
           [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName from $apk"; exit 1; }
           tag="v${code}"
 
+          existing=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token ${RUN_TOKEN}" "$api/releases/tags/${tag}")
+          case "$existing" in
+            200)
+              echo "replacing the existing release $tag"
+              curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/releases/tags/${tag}"
+              curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/tags/${tag}" || echo "tag $tag was already gone"
+              ;;
+            404) ;;
+            *) echo "::error::looking up release $tag returned HTTP $existing"; exit 1 ;;
+          esac
+
           payload=$(jq -n --arg tag "$tag" --arg target "$GITHUB_SHA" --arg name "$name" \
                        --arg body "$(git log -1 --pretty='%s%n%n%H')" \
                        '{tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: false, prerelease: false}')
-          id=$(curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" -H 'Content-Type: application/json' --data "$payload" "$api/releases" | jq -r '.id')  # stack-reviewer-ignore: a duplicate tag cannot arise — a re-run rebuilds, versionCode is Instant.now().epochSecond, and the `publish` concurrency group serialises runs, so every attempt mints a fresh tag
+          id=$(curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" -H 'Content-Type: application/json' --data "$payload" "$api/releases" | jq -r '.id')  # stack-reviewer-ignore: a re-run of the same commit mints the same tag, and the lookup above removes that release and tag first; the `publish` concurrency group serialises runs, so nothing recreates it in between
           [ -n "$id" ] && [ "$id" != "null" ] || { echo "::error::release creation returned no id"; exit 1; }
 
           curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" \
