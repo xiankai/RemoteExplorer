@@ -42,15 +42,10 @@
 # in parallel anyway — they would just mean a clone each and a queue behind one another. Each
 # group runs even if an earlier one fails, so one push surfaces every finding instead of
 # peeling them off one at a time.
-#
-# A change that touches only Markdown runs nothing: shellcheck, unit tests and lint read no
-# .md file. master has no required status checks, so a skipped run cannot leave a PR stuck
-# waiting on one — add a required check and this filter has to go.
 name: build
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths-ignore: ['**.md']
   push:
     branches: [master]
     paths-ignore: ['**.md']
@@ -106,6 +101,7 @@ jobs:
             "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
           if [ -n "${PR_NUMBER}" ]; then
             git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
+            git -C /tmp/repo fetch --quiet origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
             git -C /tmp/repo -c advice.detachedHead=false checkout --quiet pr-head
           else
             # Push to master: the pushed commit.
@@ -116,6 +112,27 @@ jobs:
         env:
           RUN_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+      - name: Skip a Markdown-only change
+        id: scope
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '\.md$'; then
+            echo "Only Markdown changed; nothing for shellcheck, unit tests or lint to read."
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
 
       - name: Gradle cache key
         id: key
@@ -148,7 +165,7 @@ jobs:
           lookup-only: true
 
       - name: Restore the Gradle cache
-        if: steps.shared.outputs.cache-hit != 'true'
+        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         # stack-reviewer-ignore: PR write scoping is enforced by the runner's cache proxy, which sets Forgejo-Cache-WriteIsolationKey itself for every PR run (act/cacheproxy/handler.go), and the server 403s any write outside it (act/artifactcache/handler.go); reading the shared copy is intended
         uses: https://data.forgejo.org/actions/cache@v4
         with:
@@ -161,14 +178,14 @@ jobs:
             gradle-build-
 
       - name: Install shellcheck
-        if: steps.shared.outputs.cache-hit != 'true'
+        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           apt-get update -qq
           apt-get install -y -qq --no-install-recommends shellcheck unzip curl
 
       - name: Install the Android SDK
-        if: steps.shared.outputs.cache-hit != 'true'
+        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           # Only what a non-native Gradle run needs. No NDK, no cmake — see the header.
@@ -198,7 +215,7 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
 
       - name: Checks
-        if: steps.shared.outputs.cache-hit != 'true'
+        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         run: |
           set -uo pipefail
           cd /tmp/repo
@@ -229,7 +246,7 @@ jobs:
       - name: Tidy the Gradle cache before it is saved
         # Runs before the cache action's post step, which is what saves. That post step only
         # saves on success and on a miss, so this matters only then, but it is cheap.
-        if: steps.shared.outputs.cache-hit != 'true'
+        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         run: |
           set -uo pipefail
           # Lock files and the gc marker would make a restored cache look busy or kick off a
