@@ -43,9 +43,13 @@ class LocalDatabaseDataSource(
         }
     }
 
-    suspend fun getFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
+    suspend fun getFolderThumbnails(
+        connectionId: Int,
+        parentPath: String,
+        limit: Int = 4,
+    ): List<String> {
         return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(connectionId, parentPath).map { it.fullPath() }
+            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit).map { it.fullPath() }
         }
     }
 

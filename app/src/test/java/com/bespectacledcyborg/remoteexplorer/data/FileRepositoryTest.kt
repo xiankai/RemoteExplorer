@@ -514,8 +514,6 @@ class FileRepositoryTest {
 
     @Test
     fun `a folder nobody has opened is listed once to make its cover`() = runTest {
-        // #66: a cover is made from the folder's own rows, so a gallery never opened had
-        // none and its tile stayed a blank folder for good.
         val remote = FakeFileDataSource(
             listOf("c.jpg", "notes.txt", "a.jpg", "b.jpg", "e.jpg", "d.jpg").map { remoteFile(it) }
         )
@@ -528,7 +526,7 @@ class FileRepositoryTest {
         assertEquals(
             "only images, in name order, four of them",
             listOf("Photos/a.jpg", "Photos/b.jpg", "Photos/c.jpg", "Photos/d.jpg"),
-            cover,
+            cover.images,
         )
 
         repository.folderCover(1, "Photos")
@@ -537,8 +535,6 @@ class FileRepositoryTest {
 
     @Test
     fun `a folder already looked at is not re-listed for its cover`() = runTest {
-        // Even with nothing to show and the TTL long gone: staleness is for opening the
-        // folder to deal with, not for scrolling past it.
         val remote = FakeFileDataSource(listOf(remoteFile("new.jpg")))
         val dao = FakeLocalDatabaseDao(cached = emptyList())
         dao.upsertDirectorySync(DirectorySync(1, "Photos", Date(now - 10 * ttl)))
@@ -546,7 +542,7 @@ class FileRepositoryTest {
         val cover = repository(remote, dao, canHaveThumbnail = { true }).folderCover(1, "Photos")
 
         assertEquals(0, remote.listCalls)
-        assertEquals(emptyList<String>(), cover)
+        assertEquals(emptyList<String>(), cover.images)
     }
 
     @Test
@@ -563,7 +559,7 @@ class FileRepositoryTest {
 
         val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
 
-        assertEquals(listOf("Photos/c.jpg", "Photos/d.jpg"), cover)
+        assertEquals(listOf("Photos/c.jpg", "Photos/d.jpg"), cover.images)
     }
 }
 
