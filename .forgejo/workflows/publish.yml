@@ -19,34 +19,29 @@
 # reach it. The Forgejo runner is on the self-hosted and can. That is the whole reason this is a
 # second pipeline rather than a step bolted onto the existing GitHub release job.
 #
-# SECURITY MODEL: `push` to the default branch only, never `pull_request*`. This job holds
-# the signing key, so it must never execute code from an unmerged branch. It is not
-# author-gated like review.yml because only a merge can trigger it, and a merge is already
-# the gate.
+# SECURITY MODEL: never `pull_request*`. This job holds the signing key, so it must never
+# execute code from an unmerged branch: whatever starts it, the checkout refuses a commit
+# that is not on master, which keeps a merge as the gate.
 #
-# THE NDK IS UNAVOIDABLE HERE, unlike build.yml. A release APK contains libffmpeg.so, so the
-# native build genuinely has to run — -Prex.skipNative would produce an APK that installs and
-# then dies inside System.loadLibrary at the first video thumbnail. That makes this job
-# several GB heavier than the PR check; it is why this triggers on merge rather than on every
-# push to a branch.
+# THE NATIVE BUILD RUNS HERE, unlike build.yml. A release APK contains libffmpeg.so, so
+# -Prex.skipNative would produce an APK that installs and then dies inside System.loadLibrary
+# at the first video thumbnail. The NDK and cmake come from the android-ci image.
 #
-# A merge that touches only Markdown publishes nothing. versionCode is the HEAD commit's
-# timestamp, so a docs-only merge would still mint a new version that Obtainium reads as an
-# update. workflow_dispatch is unfiltered, and re-publishing a commit replaces its release.
+# ON DEMAND, NOT ON EVERY MERGE (#118). A release build costs buildhost 20-odd minutes, so it
+# runs when a `publish-*` tag is pushed or the workflow is started by hand, and three merges
+# in an hour cost one build. The pattern stays clear of the `v<versionCode>` tags this job
+# creates for its releases. Re-publishing a commit replaces its release.
 name: publish
 on:
   push:
-    branches: [master]
-    paths-ignore: ['**.md']
+    tags: ['publish-*']
   workflow_dispatch:
 
 concurrency:
   group: publish
-  # NOT cancel-in-progress, unlike review.yml. That file can cancel safely because the
-  # reviewer publishes atomically in a single request; this job streams an APK over ~100 MB
-  # into a fixed path with PUT, so a SIGKILL partway leaves a TRUNCATED file at the URL the
-  # tablet installs from — a corrupt artifact that looks like a successful publish. Queueing
-  # costs a few minutes; the alternative costs a broken install.
+  # NOT cancel-in-progress. The fileserver upload is staged and moved into place, but the release
+  # step deletes and recreates a release in several requests, and a cancel between them
+  # leaves a release without its APK.
   cancel-in-progress: false
 
 # GRADLE CACHE: RESTORE ONLY, never saved from here. This job holds the signing key, and
@@ -55,38 +50,32 @@ concurrency:
 # job saved would be readable by any PR run, since a PR can edit build.yml to restore any
 # shared key. So it only reads build.yml's shared copy (same key, same files), which covers
 # most dependencies; the release- and native-only extras are still downloaded each time.
-env:
-  # actions/cache runs inside the job container, which the gradle image ships without node.
-  NODE_VERSION: v22.23.3
-  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
-  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
 
 jobs:
   publish:
     runs-on: android
     container:
-      image: gradle:9.1.0-jdk21
+      image: android-ci:latest  # stack-reviewer-ignore: built on this host by the deployer from infra's reviewed docker/android-ci, and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job
     timeout-minutes: 45
     steps:
-      - name: Install node for the cache action
-        run: |
-          set -euo pipefail
-          # Bare `node` on the default PATH is what the runner calls. .tar.gz: no xz here.
-          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
-          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
-          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
-          tar -xzf /tmp/node.tgz -C /opt
-          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
-          node --version
-
-      - name: Checkout
+      - name: Checkout the commit that was asked for, if it is on master
         run: |
           set -euo pipefail
           test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available"; exit 1; }
           git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
-          git clone --quiet --no-tags --depth 1 --branch master \
+          git clone --quiet --no-tags --filter=blob:none --branch master \
             "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
+          git -C /tmp/repo fetch --quiet origin "+${GITHUB_REF}:refs/publish/trigger"  # stack-reviewer-ignore: the destination is refs/publish/trigger, not a branch, so git's "refusing to fetch into checked-out branch" guard does not apply; reproduced locally for refs/heads/master (dispatch) and refs/tags/publish-* (tag): clone --branch master, this fetch, checkout ^{commit} and the ancestor check all pass
           git config --global --unset-all http.extraHeader
+          cd /tmp/repo
+          git -c advice.detachedHead=false checkout --quiet 'refs/publish/trigger^{commit}'
+          commit=$(git rev-parse HEAD)
+          git merge-base --is-ancestor "$commit" origin/master || {
+            echo "::error::${GITHUB_REF} points at ${commit}, which is not on master. Merge it first, then tag the merge."
+            exit 1
+          }
+          echo "PUBLISH_SHA=${commit}" >> "$GITHUB_ENV"
+          echo "publishing ${commit} ($(git log -1 --format=%s))"
         env:
           RUN_TOKEN: ${{ github.token }}
 
@@ -132,33 +121,6 @@ jobs:
           KEYSTORE_B64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PROPS: ${{ secrets.SIDELOAD_KEYSTORE_PROPERTIES }}
 
-      - name: Install the Android SDK and NDK
-        run: |
-          set -euo pipefail
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends unzip curl jq
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          echo "downloading cmdline-tools"
-          curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
-          echo "accepting licences"
-          # `yes` dies of SIGPIPE once sdkmanager stops reading; under pipefail that would
-          # fail the step with 141 despite the licences being accepted. Same guard as build.yml.
-          set +o pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          licences=${PIPESTATUS[1]}
-          set -o pipefail
-          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
-          # ndk + cmake versions must match app/build.gradle.kts exactly.
-          echo "installing platform 37, build-tools, ndk and cmake (several GB, no layer cache)"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-37.0" "build-tools;36.0.0" \
-            "ndk;27.2.12479018" "cmake;3.22.1" >/dev/null
-          echo "sdk ready"
-        env:
-          ANDROID_HOME: /opt/android-sdk
-
       - name: Build the release APK
         run: |
           set -euo pipefail
@@ -190,18 +152,55 @@ jobs:
         env:
           ANDROID_HOME: /opt/android-sdk
 
+      - name: Read the version, and refuse to go backwards
+        run: |
+          set -euo pipefail
+          cd /tmp/repo
+          apk=app/build/outputs/apk/release/app-release.apk
+          api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
+          # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
+          # first line, so a reader that exits early kills it with SIGPIPE, the pipeline
+          # returns 141 under `set -o pipefail`, and the step fails with a signed APK already
+          # published — which is exactly how run 67 failed. Capturing the whole (few-KB) output and feeding awk a
+          # here-string leaves no pipe for an early `exit` to break.
+          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk")
+          code=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: awk matches substrings, so the leading space does not defeat the end anchor — verified against real aapt2 output
+          name=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: same substring-match reasoning as versionCode above
+          [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName from $apk"; exit 1; }
+
+          newest=$(curl -fsS -H "Authorization: token ${RUN_TOKEN}" "$api/releases?limit=50" \
+            | jq -r '[.[].tag_name | select(test("^v[0-9]+$")) | ltrimstr("v") | tonumber] | max // 0')
+          if [ "$code" -lt "$newest" ]; then
+            echo "::error::versionCode $code is older than the newest release v$newest, so it would not install over it. Publish a commit at or after that release."
+            exit 1
+          fi
+          {
+            echo "VERSION_CODE=${code}"
+            echo "VERSION_NAME=${name}"
+          } >> "$GITHUB_ENV"
+          echo "versionCode $code ($name), newest release v$newest"
+        env:
+          RUN_TOKEN: ${{ github.token }}
+          ANDROID_HOME: /opt/android-sdk
+
       - name: Upload to fileserver, replacing the previous copy
         run: |
           set -euo pipefail
           cd /tmp/repo
           apk=app/build/outputs/apk/release/app-release.apk
-          # fileserver runs with -A (all operations allowed) and no auth, reachable only on the
-          # tailnet. PUT to a fixed path overwrites in place — that IS the "one copy" rule,
-          # not a cleanup step that could fail and leave two.
-          code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$FILESERVER_URL")
+          staging="${FILESERVER_URL}.upload"
+          want=$(stat -c %s "$apk")
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$staging")
           case "$code" in
-            2*) echo "uploaded to $FILESERVER_URL (HTTP $code)" ;;
+            2*) ;;
             *)  echo "::error::fileserver upload failed with HTTP $code"; exit 1 ;;
+          esac
+          got=$(curl -sSI "$staging" | awk -F': ' 'tolower($1) == "content-length" { print $2 + 0 }')
+          [ "$got" = "$want" ] || { echo "::error::fileserver holds $got bytes of a $want-byte APK; the live copy was left alone"; exit 1; }
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X MOVE -H "Destination: ${FILESERVER_URL}" -H 'Overwrite: T' "$staging")
+          case "$code" in
+            2*) echo "uploaded to $FILESERVER_URL ($want bytes)" ;;
+            *)  echo "::error::moving the upload into place failed with HTTP $code"; exit 1 ;;
           esac
         env:
           FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
@@ -213,39 +212,25 @@ jobs:
           apk=app/build/outputs/apk/release/app-release.apk
           api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
 
-          # The tag is read back OUT OF THE APK, so it can never describe a different build
-          # than the one being attached. versionCode is the HEAD commit's timestamp
-          # (app/build.gradle.kts), so it is monotonic across merges and the same on a re-run;
-          # versionName is `yyyy-MM-dd HH:mm:ss`, whose space and colons git forbids in a ref,
-          # so that stays in the release title where it is readable.
-          # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
-          # first line, so a reader that exits early kills it with SIGPIPE, the pipeline
-          # returns 141 under `set -o pipefail`, and the step fails with a signed APK already
-          # published — which is exactly how run 67 failed. The same trap is documented above
-          # for `yes | sdkmanager`. Capturing the whole (few-KB) output and feeding awk a
-          # here-string leaves no pipe for an early `exit` to break.
-          badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk")
-          # The regexes below are ANCHORED AT THE END ONLY, on purpose: an awk regex matches a
-          # substring, so ` versionCode=` (field 3 carries aapt2's separating space) matches
-          # /versionCode=$/ while `compileSdkVersionCodename=` does not. Anchoring the end is
-          # what guarantees the NEXT field is the value rather than something further along.
-          code=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: awk matches substrings, so the leading space does not defeat the end anchor — verified against real aapt2 output
-          name=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }' <<<"$badging")  # stack-reviewer-ignore: same substring-match reasoning as versionCode above
-          [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName from $apk"; exit 1; }
-          tag="v${code}"
+          tag="v${VERSION_CODE}"
 
           existing=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token ${RUN_TOKEN}" "$api/releases/tags/${tag}")
           case "$existing" in
             200)
               echo "replacing the existing release $tag"
               curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/releases/tags/${tag}"
-              curl -fsS -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/tags/${tag}" || echo "tag $tag was already gone"
+              gone=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: token ${RUN_TOKEN}" "$api/tags/${tag}")
+              case "$gone" in
+                204) ;;
+                404) echo "tag $tag was already gone" ;;
+                *) echo "::error::deleting tag $tag returned HTTP $gone"; exit 1 ;;
+              esac
               ;;
             404) ;;
             *) echo "::error::looking up release $tag returned HTTP $existing"; exit 1 ;;
           esac
 
-          payload=$(jq -n --arg tag "$tag" --arg target "$GITHUB_SHA" --arg name "$name" \
+          payload=$(jq -n --arg tag "$tag" --arg target "$PUBLISH_SHA" --arg name "$VERSION_NAME" \
                        --arg body "$(git log -1 --pretty='%s%n%n%H')" \
                        '{tag_name: $tag, target_commitish: $target, name: $name, body: $body, draft: false, prerelease: false}')
           id=$(curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" -H 'Content-Type: application/json' --data "$payload" "$api/releases" | jq -r '.id')  # stack-reviewer-ignore: a re-run of the same commit mints the same tag, and the lookup above removes that release and tag first; the `publish` concurrency group serialises runs, so nothing recreates it in between
@@ -254,10 +239,10 @@ jobs:
           curl -fsS -X POST -H "Authorization: token ${RUN_TOKEN}" \
             -F "attachment=@${apk};type=application/vnd.android.package-archive" \
             "$api/releases/${id}/assets?name=remote-explorer.apk" >/dev/null
-          echo "released $tag ($name)"
+          echo "released $tag ($VERSION_NAME)"
 
           # Keep three. Deleting a release takes its attachment with it, which is the point:
-          # each APK is ~85 MB and this runs on every merge. The tag has to go separately, or
+          # each APK is ~85 MB. The tag has to go separately, or
           # the ref list grows without bound behind releases that no longer exist. Sorted by
           # id rather than trusting list order, because newest-first is the API's default
           # rather than a guarantee.
@@ -275,4 +260,3 @@ jobs:
               done
         env:
           RUN_TOKEN: ${{ github.token }}
-          ANDROID_HOME: /opt/android-sdk
