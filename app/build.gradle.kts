@@ -18,10 +18,9 @@ val hasReleaseSigning = keystoreProperties != null && keystoreFile.exists()
 
 val headCommitTime: Instant = providers.exec {
     commandLine("git", "log", "-1", "--format=%ct")
-    isIgnoreExitValue = true
 }.standardOutput.asText.get().trim().toLongOrNull()
     ?.let(Instant::ofEpochSecond)
-    ?: Instant.now()
+    ?: error("versionCode is the HEAD commit's timestamp, so the app builds only from a git checkout")
 
 plugins {
     id("com.android.application")
