@@ -59,12 +59,12 @@ class CoverPreferences(
         }
     }
 
-    private val mangaFolders = ConcurrentHashMap<FileIdentity, Boolean>()
+    private val mangaFolders: MutableSet<FileIdentity> = ConcurrentHashMap.newKeySet()
 
     suspend fun keepsFirstPage(connectionId: Int, path: String): Boolean {
         val canonical = pairings().canonicalize(connectionId, path)
-        mangaFolders[canonical]?.let { return it }
-        return isManga(canonical).also { mangaFolders[canonical] = it }
+        if (canonical in mangaFolders) return true
+        return isManga(canonical).also { if (it) mangaFolders += canonical }
     }
 
     private suspend fun isManga(canonical: FileIdentity): Boolean {

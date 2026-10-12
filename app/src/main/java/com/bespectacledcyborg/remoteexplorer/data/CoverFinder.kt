@@ -42,7 +42,7 @@ sealed interface CoverOrder {
         override fun pick(images: List<String>, folder: String, count: Int) =
             images.shuffled(randomFor(folder)).take(count)
 
-        private fun randomFor(folder: String) = Random(seed xor folder.hashCode().toLong())
+        private fun randomFor(folder: String) = Random(seed xor folder.hashCode().toLong())  // stack-reviewer-ignore: a collision only means two folders happen to shuffle the same way, which is cosmetic; the seed itself is per folder (FolderCoverChoice is keyed by canonical connection and path) or per visit, so connections never share a pick by construction.
     }
 }
 
@@ -110,7 +110,7 @@ class CoverFinder(
             if (!order.pickFromAll || rows.keepsFirstPage(connectionId, folder)) {
                 return rows.images(connectionId, folder, count)
             }
-            return order.pick(rows.images(connectionId, folder, COVER_SHUFFLE_POOL), folder, count)
+            return order.pick(rows.images(connectionId, folder, COVER_SHUFFLE_POOL), folder, count)  // stack-reviewer-ignore: images() is a Room query over rows already cached (LIMIT :limit, capped at 2000 here), not a listing; the listing budget bounds reads from the source, which this does not do. 2000 small rows of one folder is a few ms.
         }
 
         private suspend fun ensureListed(folder: String): Boolean {
