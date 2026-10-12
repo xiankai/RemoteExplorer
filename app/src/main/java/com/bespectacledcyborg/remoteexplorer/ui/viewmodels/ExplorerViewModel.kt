@@ -830,7 +830,8 @@ class ExplorerViewModel(
                 sortState.map(::coverOrderFor).distinctUntilChanged(),
                 visitSeed,
                 _coverChoicesChanged,
-            ) { wanted, sorted, seed, _ -> Triple(wanted, sorted, seed) }
+                settingsRepository.coverShuffle(),
+            ) { wanted, sorted, seed, _, _ -> Triple(wanted, sorted, seed) }
                 .collectLatest { (wanted, sorted, seed) ->
                     coroutineScope {
                         val now = System.currentTimeMillis()
