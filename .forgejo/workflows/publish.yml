@@ -39,11 +39,9 @@ on:
 
 concurrency:
   group: publish
-  # NOT cancel-in-progress, unlike review.yml. That file can cancel safely because the
-  # reviewer publishes atomically in a single request; this job streams an APK over ~100 MB
-  # into a fixed path with PUT, so a SIGKILL partway leaves a TRUNCATED file at the URL the
-  # tablet installs from — a corrupt artifact that looks like a successful publish. Queueing
-  # costs a few minutes; the alternative costs a broken install.
+  # NOT cancel-in-progress. The fileserver upload is staged and moved into place, but the release
+  # step deletes and recreates a release in several requests, and a cancel between them
+  # leaves a release without its APK.
   cancel-in-progress: false
 
 # GRADLE CACHE: RESTORE ONLY, never saved from here. This job holds the signing key, and
@@ -190,13 +188,19 @@ jobs:
           set -euo pipefail
           cd /tmp/repo
           apk=app/build/outputs/apk/release/app-release.apk
-          # fileserver runs with -A (all operations allowed) and no auth, reachable only on the
-          # tailnet. PUT to a fixed path overwrites in place — that IS the "one copy" rule,
-          # not a cleanup step that could fail and leave two.
-          code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$FILESERVER_URL")
+          staging="${FILESERVER_URL}.upload"
+          want=$(stat -c %s "$apk")
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$staging")
           case "$code" in
-            2*) echo "uploaded to $FILESERVER_URL (HTTP $code)" ;;
+            2*) ;;
             *)  echo "::error::fileserver upload failed with HTTP $code"; exit 1 ;;
+          esac
+          got=$(curl -sSI "$staging" | awk -F': ' 'tolower($1) == "content-length" { print $2 + 0 }')
+          [ "$got" = "$want" ] || { echo "::error::fileserver holds $got bytes of a $want-byte APK; the live copy was left alone"; exit 1; }
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X MOVE -H "Destination: ${FILESERVER_URL}" -H 'Overwrite: T' "$staging")
+          case "$code" in
+            2*) echo "uploaded to $FILESERVER_URL ($want bytes)" ;;
+            *)  echo "::error::moving the upload into place failed with HTTP $code"; exit 1 ;;
           esac
         env:
           FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
