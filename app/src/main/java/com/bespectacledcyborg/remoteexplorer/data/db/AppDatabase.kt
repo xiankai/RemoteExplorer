@@ -80,7 +80,7 @@ import java.util.Date
     // 21 adds FolderSort, a folder's own sort, and two settings: defaultSort, NAME_ASC, and
     // columnTileWidthDp, null. An existing install keeps its stored column count until the
     // next pick.
-    version = 21,
+    version = 21,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema

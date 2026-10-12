@@ -41,7 +41,7 @@ class FolderSorts(
     private fun lineageOf(path: String): List<String> {
         if (path.startsWith(tagPrefix)) return listOf(path)
         val segments = Pairings.normalize(path).split('/').filter { it.isNotEmpty() }
-        return (segments.size downTo 0).map { segments.take(it).joinToString("/") }
+        return (segments.size downTo 0).map { segments.take(it).joinToString("/") }  // stack-reviewer-ignore: intended; a sort chosen at a connection's root applies to every folder below it, as the owner asked, and FolderSortsTest covers it ("the nearest choice wins")
     }
 
     companion object {

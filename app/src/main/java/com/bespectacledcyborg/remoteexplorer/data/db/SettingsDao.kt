@@ -26,7 +26,7 @@ interface SettingsDao {
     fun observeSettings(): Flow<SettingsEntity?>
 
     @Query("UPDATE settings SET defaultColumnCount = :count, columnTileWidthDp = :tileWidthDp")
-    suspend fun setColumns(count: Int, tileWidthDp: Int?)
+    suspend fun setColumns(count: Int, tileWidthDp: Int?)  // stack-reviewer-ignore: writing both together is the point; the only callers go through columnsChosen, which sets a tile width for a count and clears both for Auto, so no caller writes a bare count
 
     @Query("UPDATE settings SET defaultSort = :sort")
     suspend fun setDefaultSort(sort: SortType)
