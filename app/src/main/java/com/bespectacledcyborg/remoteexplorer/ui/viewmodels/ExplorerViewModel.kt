@@ -63,33 +63,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
-
-/** The listing's orders, each with the label a sort menu gives it. */
-enum class SortType(
-    val label: String,
-    /** Whether the order reads what has been viewed (#76), so the totals need fetching. */
-    val usesViews: Boolean = false,
-) {
-    NAME_ASC("Name, A to Z"),
-    NAME_DESC("Name, Z to A"),
-    LAST_MODIFIED_ASC("Oldest first"),
-    LAST_MODIFIED_DESC("Newest first"),
-
-    /** Popularity: most opens first, the most recently opened breaking a tie. */
-    MOST_VIEWED("Most viewed", usesViews = true),
-
-    /** Novelty: fewest opens first, and never opened (0) before anything. */
-    LEAST_VIEWED("Least viewed", usesViews = true),
-
-    /** Most recently opened first; never opened last. */
-    RECENTLY_VIEWED("Recently viewed", usesViews = true),
-
-    /** Return frequency: opened on the most distinct viewing days first. */
-    MOST_DAYS_VIEWED("Viewed on most days", usesViews = true),
-
-    /** Most time spent playing first. */
-    MOST_WATCHED("Longest watched", usesViews = true),
-}
+import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.FileIdentity
+import com.bespectacledcyborg.remoteexplorer.data.FolderSortChoice
+import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
+import com.bespectacledcyborg.remoteexplorer.data.FolderSorts
+import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 
 /**
  * The order of anything with view totals, a file, folder or tag alike, which is what lets
@@ -206,6 +185,7 @@ class ExplorerViewModel(
     private val viewRecorder: ViewRecorder,
     private val captionRepository: CaptionRepository,
     private val coverPreferences: CoverPreferences,
+    private val folderSortRepository: FolderSortRepository,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (Int) -> String = { "unknown" },
 ) : AndroidViewModel(application) {
@@ -414,10 +394,40 @@ class ExplorerViewModel(
         _filter.update { extensions }
     }
 
-    private val _sort = MutableStateFlow(SortType.NAME_ASC)
-    val sortState: StateFlow<SortType> = _sort.asStateFlow()
+    private val folderSorts: StateFlow<FolderSorts> =
+        combine(
+            folderSortRepository.observeAll(),
+            settingsRepository.defaultSort(),
+            pairingRepository.pairings,
+        ) { rows, default, _ -> FolderSorts(rows, default, pairingRepository.current()) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, FolderSorts.NONE)
+
+    val folderSortState: StateFlow<FolderSortChoice> =
+        combine(folderSorts, _connection, _path) { sorts, connection, path ->
+            connection?.let { sorts.choiceAt(it.id, path) }
+                ?: FolderSorts.NONE.choiceAt(0, path)
+        }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, FolderSorts.NONE.choiceAt(0, ""))
+
+    val sortState: StateFlow<SortType> =
+        folderSortState.map { it.current }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, SortType.NAME_ASC)
+
     fun sort(sortType: SortType) {
-        _sort.update { sortType }
+        val folder = currentFolder() ?: return
+        viewModelScope.launch(Dispatchers.IO) { folderSortRepository.choose(folder, sortType) }
+    }
+
+    fun inheritSort() {
+        val folder = currentFolder() ?: return
+        viewModelScope.launch(Dispatchers.IO) { folderSortRepository.clear(folder) }
+    }
+
+    private fun currentFolder(): FileIdentity? {
+        val connectionId = _connection.value?.id ?: return null
+        return folderSorts.value.identityOf(connectionId, _path.value)
     }
 
     // The collector that watches path/search/refresh. Held so a second call to listFiles
@@ -738,18 +748,12 @@ class ExplorerViewModel(
         }
     }
 
-    /**
-     * The grid's column count, as stored. One value, written by both the grid's picker and
-     * Settings, and followed rather than read once: it used to be read a single time at
-     * startup, so a change in Settings did nothing until a restart, and a pick from the
-     * toolbar lasted only the session (#71).
-     */
-    val columnCountState: StateFlow<Int> =
-        settingsRepository.columnCount()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsEntity().defaultColumnCount)
+    val columnsState: StateFlow<GridColumns> =
+        settingsRepository.columns()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, GridColumns.AUTO)
 
-    fun setColumnCount(columnCount: Int) {
-        viewModelScope.launch { settingsRepository.setColumnCount(columnCount) }
+    fun setColumns(columns: GridColumns) {
+        viewModelScope.launch { settingsRepository.setColumns(columns) }
     }
 
     fun getFileSize(connectionId: Int, fullPath: String): Long {
@@ -826,7 +830,7 @@ class ExplorerViewModel(
         coverLoader = viewModelScope.launch(Dispatchers.IO) {
             combine(
                 _wantedCovers,
-                _sort.map(::coverOrderFor).distinctUntilChanged(),
+                sortState.map(::coverOrderFor).distinctUntilChanged(),
                 visitSeed,
                 _coverChoicesChanged,
             ) { wanted, sorted, seed, _ -> Triple(wanted, sorted, seed) }
@@ -942,7 +946,7 @@ class ExplorerViewModel(
      * was just opened.
      */
     val listingViewsState: StateFlow<Map<String, ViewTotals>> =
-        combine(_list, _path, _sort, viewRecorder.changes) { list, path, sort, _ ->
+        combine(_list, _path, sortState, viewRecorder.changes) { list, path, sort, _ ->
             Triple(list[path].orEmpty(), sort, browsingConnectionId)
         }
             .map { (files, sort, connectionId) ->

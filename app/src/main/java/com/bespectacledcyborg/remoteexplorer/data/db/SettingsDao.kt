@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Update
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -24,13 +25,11 @@ interface SettingsDao {
     @Query("SELECT * FROM settings LIMIT 1")
     fun observeSettings(): Flow<SettingsEntity?>
 
-    /**
-     * The column count alone. The grid's picker writes it as well as Settings, and a
-     * whole-row copy taken from either screen's last-seen settings could put back a value
-     * the other had just changed.
-     */
-    @Query("UPDATE settings SET defaultColumnCount = :count")
-    suspend fun setDefaultColumnCount(count: Int)
+    @Query("UPDATE settings SET defaultColumnCount = :count, columnTileWidthDp = :tileWidthDp")
+    suspend fun setColumns(count: Int, tileWidthDp: Int?)
+
+    @Query("UPDATE settings SET defaultSort = :sort")
+    suspend fun setDefaultSort(sort: SortType)
 
     @Query("UPDATE settings SET showCaptions = :show")
     suspend fun setShowCaptions(show: Boolean)
@@ -86,6 +85,9 @@ data class SettingsEntity(
     val showCaptions: Boolean = false,
     @ColumnInfo(defaultValue = "MARKED")
     val coverShuffle: CoverShuffle = CoverShuffle.MARKED,
+    val columnTileWidthDp: Int? = null,
+    @ColumnInfo(defaultValue = "NAME_ASC")
+    val defaultSort: SortType = SortType.NAME_ASC,
 )
 
 enum class CoverShuffle(val label: String) {

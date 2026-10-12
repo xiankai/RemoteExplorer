@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -14,14 +15,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 
-/** A sort button that opens a menu of [options], ticking [current]. */
+data class InheritedSort(
+    val label: String,
+    val active: Boolean,
+    val onSelect: () -> Unit,
+)
+
 @Composable
 fun SortMenu(
     current: SortType,
     options: List<SortType>,
     onSelect: (SortType) -> Unit,
+    inherited: InheritedSort? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -29,6 +36,17 @@ fun SortMenu(
             Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort: ${current.label}")
         })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (inherited != null) {
+                DropdownMenuItem(
+                    text = { Text(inherited.label) },
+                    onClick = {
+                        inherited.onSelect()
+                        open = false
+                    },
+                    trailingIcon = { CurrentMark(inherited.active) },
+                )
+                HorizontalDivider()
+            }
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label) },
@@ -37,12 +55,17 @@ fun SortMenu(
                         open = false
                     },
                     trailingIcon = {
-                        if (option == current) {
-                            Icon(Icons.Filled.Check, contentDescription = "Current")
-                        }
+                        CurrentMark(option == current && inherited?.active != true)
                     },
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CurrentMark(current: Boolean) {
+    if (current) {
+        Icon(Icons.Filled.Check, contentDescription = "Current")
     }
 }

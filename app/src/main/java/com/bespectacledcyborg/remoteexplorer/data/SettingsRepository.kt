@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
+import com.bespectacledcyborg.remoteexplorer.data.db.AUTO_COLUMN_COUNT
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsDao
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import kotlinx.coroutines.CoroutineScope
@@ -10,6 +11,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+
+data class GridColumns(
+    val tileWidthDp: Int?,
+    val legacyCount: Int,
+) {
+    val isAuto: Boolean get() = tileWidthDp == null && legacyCount == AUTO_COLUMN_COUNT
+
+    companion object {
+        val AUTO = GridColumns(tileWidthDp = null, legacyCount = AUTO_COLUMN_COUNT)
+    }
+}
 
 class SettingsRepository(
     private val settingsDao: SettingsDao
@@ -26,15 +38,24 @@ class SettingsRepository(
     /** One-shot read, for callers that need a value before the flow has emitted. */
     suspend fun getSettingsOnce(): SettingsEntity? = settingsDao.getSettingsOnce()
 
-    /** The grid's column count as stored, following every change from either screen. */
-    fun columnCount(): Flow<Int> =
+    fun columns(): Flow<GridColumns> =
         settingsDao.observeSettings()
             .filterNotNull()
-            .map { it.defaultColumnCount }
+            .map { GridColumns(it.columnTileWidthDp, it.defaultColumnCount) }
             .distinctUntilChanged()
 
-    suspend fun setColumnCount(count: Int) {
-        settingsDao.setDefaultColumnCount(count)
+    suspend fun setColumns(columns: GridColumns) {
+        settingsDao.setColumns(columns.legacyCount, columns.tileWidthDp)
+    }
+
+    fun defaultSort(): Flow<SortType> =
+        settingsDao.observeSettings()
+            .filterNotNull()
+            .map { it.defaultSort }
+            .distinctUntilChanged()
+
+    suspend fun setDefaultSort(sort: SortType) {
+        settingsDao.setDefaultSort(sort)
     }
 
     fun showCaptions(): Flow<Boolean> =

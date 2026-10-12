@@ -29,8 +29,11 @@ import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountLabel
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountOptions
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnsChosen
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnsLabel
+import com.bespectacledcyborg.remoteexplorer.ui.components.screenWidthDp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 
 @Composable
 fun ExplorerButtons(
@@ -45,7 +48,8 @@ fun ExplorerButtons(
     )
 
     var selectingColumnCount by remember { mutableStateOf(false) }
-    val columnCount by explorerViewModel.columnCountState.collectAsState()
+    val columns by explorerViewModel.columnsState.collectAsState()
+    val widthDp = screenWidthDp()
     Box {
         IconButton(
             onClick = { selectingColumnCount = !selectingColumnCount },
@@ -64,11 +68,11 @@ fun ExplorerButtons(
                 DropdownMenuItem(
                     text = { Text(columnCountLabel(option)) },
                     onClick = {
-                        explorerViewModel.setColumnCount(option)
+                        explorerViewModel.setColumns(columnsChosen(option, widthDp))
                         selectingColumnCount = false  // stack-reviewer-ignore: deliberate reversal requested by the owner in #84; the pick is still stored for #71, the menu just closes like the sort menu does
                     },
                     trailingIcon = {
-                        if (option == columnCount) {
+                        if (columnCountLabel(option) == columnsLabel(columns, widthDp)) {
                             Icon(Icons.Filled.Check, contentDescription = "Current")
                         }
                     },
@@ -77,14 +81,17 @@ fun ExplorerButtons(
         }
     }
 
-    // Every order the listing has, not a name-only toggle: the time orders were implemented
-    // and unreachable (#75), and the view orders (#76) sort a folder by the sum of what is
-    // directly inside it.
-    val sort by explorerViewModel.sortState.collectAsState()
+    val folderSort by explorerViewModel.folderSortState.collectAsState()
+    val inheritFrom = if (folderSort.isTopLevel) "Default" else "Same as parent"
     SortMenu(
-        current = sort,
+        current = folderSort.current,
         options = SortType.entries,
         onSelect = explorerViewModel::sort,
+        inherited = InheritedSort(
+            label = "$inheritFrom (${folderSort.inherited.label})",
+            active = !folderSort.chosenHere,
+            onSelect = explorerViewModel::inheritSort,
+        ),
     )
     IconButton(onClick = onOpenTagsScreen, content = {
         Icon(

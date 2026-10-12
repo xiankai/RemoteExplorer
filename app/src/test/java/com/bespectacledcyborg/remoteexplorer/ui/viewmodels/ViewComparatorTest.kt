@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata

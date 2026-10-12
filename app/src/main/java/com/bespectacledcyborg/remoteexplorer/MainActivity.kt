@@ -22,6 +22,7 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
@@ -299,6 +300,7 @@ class ExplorerViewModelFactory(
             viewRecorder,
             CaptionRepository(db.annotationDao(), db.localDatabaseDao(), defaultDispatcher),
             coverPreferences,
+            FolderSortRepository(db.folderSortDao()),
             metrics,
             fileDataSource::sourceKind,
         ) as T

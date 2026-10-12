@@ -9,7 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
 
 @Composable
