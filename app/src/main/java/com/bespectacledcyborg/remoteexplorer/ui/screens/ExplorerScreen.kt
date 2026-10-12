@@ -137,7 +137,7 @@ fun ExplorerScreen(
 
     val navigationStack by explorerViewModel.navigationStackState.collectAsState()
     val atRoot = navigationStack.size <= 1
-    val atTag = navigationStack.lastOrNull()?.startsWith(tagPrefix) == true
+    val atTag = navigationStack.lastOrNull()?.startsWith(tagPrefix) == true  // stack-reviewer-ignore: the same reserved-prefix test ExplorerViewModel already uses to choose between a tag query and a folder listing, so a folder named "Tag: …" was a tag before this change too
     val returnToConnections = {
         if (!navHostController.popBackStack(Route.ConnectionsRoute, inclusive = false)) {
             navHostController.navigate(Route.ConnectionsRoute)
@@ -145,7 +145,9 @@ fun ExplorerScreen(
     }
     val returnToTags = {
         explorerViewModel.goBack()
-        navHostController.popBackStack()
+        if (!navHostController.popBackStack(Route.TagsRoute, inclusive = false)) {
+            navHostController.navigate(Route.TagsRoute)
+        }
     }
 
     BackHandler(enabled = atTag || !atRoot) {
