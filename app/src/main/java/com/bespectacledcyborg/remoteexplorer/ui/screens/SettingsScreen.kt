@@ -35,10 +35,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bespectacledcyborg.remoteexplorer.data.GridColumns
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.TextFieldDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountLabel
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountOptions
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnsChosen
+import com.bespectacledcyborg.remoteexplorer.ui.components.columnsLabel
+import com.bespectacledcyborg.remoteexplorer.ui.components.screenWidthDp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -194,9 +199,11 @@ fun SettingsScreen(
 
             Box {
                 var selectingColumnCount by remember { mutableStateOf(false) }
+                val widthDp = screenWidthDp()
+                val columns = GridColumns(settings.columnTileWidthDp, settings.defaultColumnCount)
                 TextButton(
                     onClick = { selectingColumnCount = !selectingColumnCount },
-                    content = { Text("Column Count: ${columnCountLabel(settings.defaultColumnCount)}") },
+                    content = { Text("Column Count: ${columnsLabel(columns, widthDp)}") },
                 )
                 DropdownMenu(
                     expanded = selectingColumnCount,
@@ -205,7 +212,34 @@ fun SettingsScreen(
                     columnCountOptions.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(columnCountLabel(option)) },
-                            onClick = { settingsViewModel.setDefaultColumnCount(option) },
+                            onClick = {
+                                selectingColumnCount = false
+                                settingsViewModel.setColumns(columnsChosen(option, widthDp))
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box {
+                var selectingSort by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { selectingSort = !selectingSort },
+                    content = { Text("Default Sort: ${settings.defaultSort.label}") },
+                )
+                DropdownMenu(
+                    expanded = selectingSort,
+                    onDismissRequest = { selectingSort = false },
+                ) {
+                    SortType.entries.forEach { sort ->
+                        DropdownMenuItem(
+                            text = { Text(sort.label) },
+                            onClick = {
+                                selectingSort = false
+                                settingsViewModel.setDefaultSort(sort)
+                            },
                         )
                     }
                 }

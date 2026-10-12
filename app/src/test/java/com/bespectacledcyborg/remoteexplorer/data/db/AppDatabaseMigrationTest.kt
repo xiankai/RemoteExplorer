@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 20 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 21 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 20, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 21, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 20 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 21 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -386,6 +386,28 @@ class AppDatabaseMigrationTest {
             db.execSQL("PRAGMA foreign_keys = ON")
             db.execSQL("DELETE FROM Connection WHERE id = 4")
             db.query("SELECT COUNT(*) FROM FolderCoverChoice").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 21 keeping the column count, sorting by name, with no folder sorts`() {
+        helper.createDatabase(TEST_DB, 20).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode) " +
+                        "VALUES (0, 8, 5, 'DARK')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 21, true).use { db ->
+            db.query("SELECT defaultColumnCount, columnTileWidthDp, defaultSort FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(5, row.getInt(0))
+                assertTrue(row.isNull(1))
+                assertEquals("NAME_ASC", row.getString(2))
+            }
+            db.query("SELECT COUNT(*) FROM FolderSort").use { row ->
                 assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
             }
         }

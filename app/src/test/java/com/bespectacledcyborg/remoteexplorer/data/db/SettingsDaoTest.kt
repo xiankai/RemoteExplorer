@@ -2,7 +2,9 @@ package com.bespectacledcyborg.remoteexplorer.data.db
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.crypto.ReversingCipher
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -16,10 +18,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * The column count is one stored value that the grid follows (#71): it used to be read once
- * at startup, so a change made anywhere did nothing until a restart.
- */
 @RunWith(RobolectricTestRunner::class)
 class SettingsDaoTest {
 
@@ -47,12 +45,13 @@ class SettingsDaoTest {
             SettingsEntity(maxStorageCacheSize = 7, thumbnailCacheVolume = "card", themeMode = ThemeMode.DARK)
         )
 
-        repository.setColumnCount(5)
+        repository.setColumns(GridColumns(tileWidthDp = 160, legacyCount = 5))
 
         assertEquals(
             SettingsEntity(
                 maxStorageCacheSize = 7,
                 defaultColumnCount = 5,
+                columnTileWidthDp = 160,
                 thumbnailCacheVolume = "card",
                 themeMode = ThemeMode.DARK,
             ),
@@ -63,26 +62,36 @@ class SettingsDaoTest {
     @Test
     fun `a collector sees a change made after it started`() = runTest {
         db.settingsDao().insert(SettingsEntity())
-        val counts = mutableListOf<Int>()
-        val collector = launch { repository.columnCount().take(2).toList(counts) }
-        // The first emission, before the write, so the write is the second one.
-        while (counts.isEmpty()) yield()
+        val seen = mutableListOf<GridColumns>()
+        val collector = launch { repository.columns().take(2).toList(seen) }
+        while (seen.isEmpty()) yield()
 
-        repository.setColumnCount(6)
+        repository.setColumns(GridColumns(tileWidthDp = 200, legacyCount = 6))
         collector.join()
 
-        assertEquals(listOf(AUTO_COLUMN_COUNT, 6), counts)
+        assertEquals(listOf(GridColumns.AUTO, GridColumns(200, 6)), seen)
     }
 
     @Test
     fun `a collector that arrives before the default row waits for it`() = runTest {
-        val counts = mutableListOf<Int>()
-        val collector = launch { repository.columnCount().take(1).toList(counts) }
+        val seen = mutableListOf<GridColumns>()
+        val collector = launch { repository.columns().take(1).toList(seen) }
         yield()
 
         db.settingsDao().insert(SettingsEntity(defaultColumnCount = 4))
         collector.join()
 
-        assertEquals(listOf(4), counts)
+        assertEquals(listOf(GridColumns(null, 4)), seen)
+    }
+
+    @Test
+    fun `setting the default sort leaves the columns alone`() = runTest {
+        db.settingsDao().insert(SettingsEntity(defaultColumnCount = 3))
+
+        repository.setDefaultSort(SortType.LAST_MODIFIED_DESC)
+
+        val stored = db.settingsDao().getSettingsOnce()
+        assertEquals(SortType.LAST_MODIFIED_DESC, stored?.defaultSort)
+        assertEquals(3, stored?.defaultColumnCount)
     }
 }
