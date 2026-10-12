@@ -15,7 +15,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
 import io.ktor.server.response.respond
@@ -123,38 +125,10 @@ class ServerRepository(
                     }
                     head("/{path...}") {
                         val connectionId = extractConnectionId(call)
-                        val fullPath = call.parameters.getAll("path")?.joinToString("/")
+                        val fullPath = call.parameters.getAll("path")?.joinToString("/").orEmpty()
                         Log.d("ServerRepository", "Received HEAD request for $fullPath")
-                        val served =
-                            resolver.resolve(canonicalize(connectionId, fullPath.orEmpty()))
-                        // `use`, because this handler leaked an SMB handle on every call —
-                        // the GET below has always closed its own.
-                        fileDataSource.openFile(served.connectionId, served.path).use { file ->
-                            val totalLength = file.length()
-
-                            val rangeHeader = call.request.headers[HttpHeaders.Range]
-                            val range = parseRangeHeaders(rangeHeader, totalLength)
-                            if (range == null) {
-                                respondUnsatisfiableRange(call, totalLength)
-                                return@head
-                            }
-
-                            val standardHeaders = commonHeaders(
-                                fullPath.orEmpty(),
-                                range.first,
-                                range.last,
-                                totalLength,
-                                rangeHeader != null,
-                            )
-                            for (name in standardHeaders.names()) {
-                                standardHeaders.getAll(name)?.forEach { value ->
-                                    call.response.headers.append(name, value)
-                                }
-                            }
-                            if (rangeHeader != null) {
-                                call.response.status(HttpStatusCode.PartialContent)
-                            }
-                        }
+                        val served = resolver.resolve(canonicalize(connectionId, fullPath))
+                        respondHead(call, fileDataSource, served, fullPath)
                     }
                     get("/{path...}") {
                         val connectionId = extractConnectionId(call)
@@ -453,13 +427,6 @@ class ServerRepository(
         }
     }
 
-    /** 416, with the `bytes * /total` the spec asks for so the client can retry sensibly. */
-    private suspend fun respondUnsatisfiableRange(call: RoutingCall, totalLength: Long) {
-        call.response.headers.append(HttpHeaders.ContentRange, "bytes */$totalLength")
-        call.response.status(HttpStatusCode.RequestedRangeNotSatisfiable)
-        call.respondText("Requested range not satisfiable")
-    }
-
     private fun commonHeaders(
         path: String,
         start: Long,
@@ -478,6 +445,49 @@ class ServerRepository(
         }
         return headersOf(*headers.toTypedArray())
     }
+}
+
+internal suspend fun respondHead(
+    call: ApplicationCall,
+    files: FileDataSource,
+    served: FileIdentity,
+    path: String,
+) {
+    files.openFile(served.connectionId, served.path).use { file ->
+        val totalLength = file.length()
+
+        val rangeHeader = call.request.headers[HttpHeaders.Range]
+        val range = parseRangeHeaders(rangeHeader, totalLength)
+        if (range == null) {
+            respondUnsatisfiableRange(call, totalLength)
+            return
+        }
+
+        val isPartial = rangeHeader != null
+        call.respond(object : OutgoingContent.NoContent() {
+            override val status =
+                if (isPartial) HttpStatusCode.PartialContent else HttpStatusCode.OK
+            override val contentType = ContentType.parse(contentTypeOf(path))
+            override val contentLength = range.last - range.first + 1
+            override val headers = headersOf(
+                *listOfNotNull(
+                    HttpHeaders.AcceptRanges to listOf("bytes"),
+                    if (isPartial) {
+                        HttpHeaders.ContentRange to
+                            listOf("bytes ${range.first}-${range.last}/$totalLength")
+                    } else {
+                        null
+                    },
+                ).toTypedArray()
+            )
+        })
+    }
+}
+
+private suspend fun respondUnsatisfiableRange(call: ApplicationCall, totalLength: Long) {
+    call.response.headers.append(HttpHeaders.ContentRange, "bytes */$totalLength")
+    call.response.status(HttpStatusCode.RequestedRangeNotSatisfiable)
+    call.respondText("Requested range not satisfiable")
 }
 
 internal fun contentTypeOf(path: String): String =

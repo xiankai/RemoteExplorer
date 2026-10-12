@@ -214,7 +214,6 @@ dependencies {
     implementation(libs.smbj)
     implementation(libs.ktor.server.jetty.jakarta)
 //    implementation(libs.ktor.server.netty)
-    implementation(libs.ktor.server.auto.head.response)
 
     // DB
     implementation(libs.room.common)
@@ -242,6 +241,7 @@ dependencies {
     // Misc
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.server.test.host)
     // Room's MigrationTestHelper plus a JVM SQLite, so the migration chain is exercised by
     // `testDebugUnitTest` in CI rather than needing the arm64 emulator CI cannot run.
     testImplementation(libs.room.testing)
