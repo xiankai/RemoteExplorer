@@ -18,7 +18,11 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.bespectacledcyborg.remoteexplorer.data.perf.RecordingLoadMetrics
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -117,6 +121,66 @@ class FileRepositoryTest {
         repository(FakeFileDataSource(), dao, metrics = metrics).listFiles(1, "Photos").toList()
 
         assertEquals(emptyList<RecordingLoadMetrics.Recorded>(), metrics.recorded)
+    }
+
+    @Test
+    fun `two listings of the same folder at once read it from the source once`() = runBlocking {
+        val inside = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"))) {
+            inside.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val repository = FileRepository(
+            remote,
+            LocalDatabaseDataSource(dao, Dispatchers.IO),
+            Dispatchers.IO,
+            canHaveThumbnail = { false },
+            clock = { now },
+            listingTtlMillis = ttl,
+        )
+
+        val first = async(Dispatchers.IO) { repository.listFiles(1, "Photos").toList() }
+        inside.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        val second = async(Dispatchers.IO) { repository.listFiles(1, "Photos").toList() }
+        delay(200)
+        release.countDown()
+
+        assertEquals(listOf("a.jpg"), first.await().last().files.map { it.filename })
+        assertEquals(listOf("a.jpg"), second.await().last().files.map { it.filename })
+        assertEquals(1, remote.listCalls)
+    }
+
+    @Test
+    fun `a forced refresh still lists even while another listing is running`() = runBlocking {
+        val inside = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"))) {
+            inside.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val repository = FileRepository(
+            remote,
+            LocalDatabaseDataSource(dao, Dispatchers.IO),
+            Dispatchers.IO,
+            canHaveThumbnail = { false },
+            clock = { now },
+            listingTtlMillis = ttl,
+        )
+
+        val first = async(Dispatchers.IO) { repository.listFiles(1, "Photos").toList() }
+        inside.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        val forced = async(Dispatchers.IO) {
+            repository.listFiles(1, "Photos", refresh = RefreshMode.FORCE).toList()
+        }
+        delay(200)
+        release.countDown()
+        first.await()
+        forced.await()
+
+        assertEquals(2, remote.listCalls)
     }
 
     @Test
@@ -477,9 +541,10 @@ class FileRepositoryTest {
 /** Stands in for SMB. Nothing under test opens a file, so [openFile] refuses. */
 private class FakeFileDataSource(
     private val files: List<File> = emptyList(),
+    private val whileListing: () -> Unit = {},
 ) : FileDataSource {
-    var listCalls = 0
-        private set
+    private val calls = java.util.concurrent.atomic.AtomicInteger()
+    val listCalls: Int get() = calls.get()
 
     override fun connect(details: SourceDetails) = Unit
 
@@ -488,7 +553,8 @@ private class FakeFileDataSource(
         currentPath: String,
         filter: String,
     ): List<File> {
-        listCalls++
+        calls.incrementAndGet()
+        whileListing()
         return files
     }
 
