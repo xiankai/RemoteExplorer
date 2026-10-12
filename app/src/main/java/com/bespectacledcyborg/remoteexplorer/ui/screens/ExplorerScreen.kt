@@ -31,7 +31,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
-import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SortType
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
@@ -90,7 +90,7 @@ fun ExplorerScreen(
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
-    val columnCount by explorerViewModel.columnCountState.collectAsState()
+    val columns by explorerViewModel.columnsState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
     val handleItemClick = { item: Item<LocalFile> ->
@@ -237,7 +237,7 @@ fun ExplorerScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = handleLongItemClick,
                     handleRefresh = { explorerViewModel.forceRefresh() },
-                    columnCount = resolveColumnCount(columnCount),
+                    columnCount = resolveColumnCount(columns),
                     isRefreshing = isRefreshing,
                     scrollKey = pathState,
                     onVisibleItemsChanged = { visible ->

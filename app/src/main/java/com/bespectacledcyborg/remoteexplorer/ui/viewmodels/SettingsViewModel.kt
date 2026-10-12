@@ -3,7 +3,9 @@ package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailVolume
@@ -29,8 +31,12 @@ class SettingsViewModel(
         }
     }
 
-    fun setDefaultColumnCount(count: Int) {
-        viewModelScope.launch { settingsRepository.setColumnCount(count) }
+    fun setColumns(columns: GridColumns) {
+        viewModelScope.launch { settingsRepository.setColumns(columns) }
+    }
+
+    fun setDefaultSort(sort: SortType) {
+        viewModelScope.launch { settingsRepository.setDefaultSort(sort) }
     }
 
     fun setShowCaptions(show: Boolean) {
