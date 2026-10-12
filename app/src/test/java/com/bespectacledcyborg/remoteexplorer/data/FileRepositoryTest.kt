@@ -153,6 +153,35 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `a waiter takes over when the listing it joined is cancelled`() = runBlocking {
+        val inside = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"))) {
+            inside.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val repository = FileRepository(
+            remote,
+            LocalDatabaseDataSource(dao, Dispatchers.IO),
+            Dispatchers.IO,
+            canHaveThumbnail = { false },
+            clock = { now },
+            listingTtlMillis = ttl,
+        )
+
+        val abandoned = async(Dispatchers.IO) { repository.listFiles(1, "Photos").toList() }
+        inside.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        val waiter = async(Dispatchers.IO) { repository.listFiles(1, "Photos").toList() }
+        delay(200)
+        abandoned.cancel()
+        release.countDown()
+
+        assertEquals(listOf("a.jpg"), waiter.await().last().files.map { it.filename })
+        assertEquals(2, remote.listCalls)
+    }
+
+    @Test
     fun `a forced refresh still lists even while another listing is running`() = runBlocking {
         val inside = java.util.concurrent.CountDownLatch(1)
         val release = java.util.concurrent.CountDownLatch(1)

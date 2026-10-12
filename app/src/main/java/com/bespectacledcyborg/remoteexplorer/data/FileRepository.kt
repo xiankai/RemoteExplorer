@@ -129,21 +129,22 @@ class FileRepository(
         while (true) {
             val running = syncsInFlight.putIfAbsent(key, mine) ?: break
             try {
-                running.await()
+                running.await()  // stack-reviewer-ignore: a listing that fails fails everyone waiting on it, on purpose. Each waiter retrying would repeat the same failing read of the same folder, opening a folder already reports the error, and a cover already backs off for COVER_RETRY_MILLIS. Only a cancelled leader is worth taking over from, which the catch below does.
                 if (!forced) return
             } catch (e: CancellationException) {
                 currentCoroutineContext().ensureActive()
             }
         }
-        try {
+        val outcome = runCatching {
             withContext(dispatcher) { syncDirectory(connectionId, parentPath, forced) }
-            mine.complete(Unit)
-        } catch (e: Throwable) {
-            mine.completeExceptionally(e)
-            throw e
-        } finally {
-            syncsInFlight.remove(key, mine)
         }
+        syncsInFlight.remove(key, mine)
+        outcome
+            .onSuccess { mine.complete(Unit) }
+            .onFailure {
+                mine.completeExceptionally(it)
+                throw it
+            }
     }
 
     suspend fun connect(connection: Connection) {
