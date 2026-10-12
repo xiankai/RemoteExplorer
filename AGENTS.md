@@ -25,7 +25,7 @@ MainActivity ── ViewModelProvider.Factory (hand-wired DI, MainActivity.kt)
        Repositories: File / Server / Connection / Tag / Settings / ThumbnailManager
        DataSources:  RoutingFileDataSource ─┬ SambaFileDataSource (SMBJ)
                                             └ LocalFileDataSource (java.io.File)
-                     LocalDatabaseDataSource (Room v18)
+                     LocalDatabaseDataSource (Room v20)
 ```
 
 **Two kinds of connection.** A `Connection` is an SMB share or, with `type = LOCAL`, a folder

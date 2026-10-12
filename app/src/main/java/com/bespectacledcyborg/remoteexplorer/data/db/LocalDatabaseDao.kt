@@ -73,6 +73,12 @@ interface LocalDatabaseDao {
     )
     fun getDirectoriesWithTag(tag: String): List<DirTagRelation>
 
+    @Query("SELECT tag FROM DirTagRelation WHERE connectionId = :connectionId AND parentPath = :path")
+    fun getDirectoryTags(connectionId: Int, path: String): List<String>
+
+    @Query("SELECT canonical FROM TagAlias WHERE connectionId = :connectionId AND tag IN (:tags)")
+    fun getAliasCanonicals(connectionId: Int, tags: List<String>): List<String>
+
     @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun getFiles(connectionId: Int, parentPath: String): List<LocalFile>
 

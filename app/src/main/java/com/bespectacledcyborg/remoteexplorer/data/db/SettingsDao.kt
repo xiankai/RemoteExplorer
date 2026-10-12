@@ -35,6 +35,9 @@ interface SettingsDao {
     @Query("UPDATE settings SET showCaptions = :show")
     suspend fun setShowCaptions(show: Boolean)
 
+    @Query("UPDATE settings SET coverShuffle = :shuffle")
+    suspend fun setCoverShuffle(shuffle: CoverShuffle)
+
     @Update
     suspend fun update(settingsEntity: SettingsEntity)
 
@@ -81,7 +84,15 @@ data class SettingsEntity(
     val viewingDayZone: String = DEFAULT_VIEWING_DAY_ZONE,
     @ColumnInfo(defaultValue = "0")
     val showCaptions: Boolean = false,
+    @ColumnInfo(defaultValue = "MARKED")
+    val coverShuffle: CoverShuffle = CoverShuffle.MARKED,
 )
+
+enum class CoverShuffle(val label: String) {
+    OFF("Off"),
+    MARKED("Only folders set to shuffle"),
+    ALL("Shuffle all folders"),
+}
 
 const val DEFAULT_VIEWING_DAY_START_MINUTES = 12 * 60
 const val DEFAULT_VIEWING_DAY_ZONE = "Asia/Tokyo"

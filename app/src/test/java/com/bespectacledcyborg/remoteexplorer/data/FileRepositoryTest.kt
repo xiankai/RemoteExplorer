@@ -755,6 +755,10 @@ private class FakeLocalDatabaseDao(
     // a UNION would only ever agree with whatever this file thought it said.
     override fun getDirectoriesWithTag(tag: String): List<DirTagRelation> = notUsed()
 
+    override fun getDirectoryTags(connectionId: Int, path: String): List<String> = notUsed()
+
+    override fun getAliasCanonicals(connectionId: Int, tags: List<String>): List<String> = notUsed()
+
     override fun getTagIndexIngest(connectionId: Int): TagIndexIngest? = notUsed()
 
     override fun upsertTagIndexIngest(ingest: TagIndexIngest) = notUsed()

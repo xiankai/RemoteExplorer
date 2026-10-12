@@ -23,6 +23,9 @@ import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
+import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
+import kotlinx.coroutines.withContext
 import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.SourceResolver
@@ -123,12 +126,29 @@ class ExplorerViewModelFactory(
             db.localDatabaseDao(),
             defaultDispatcher
         )
+        // Which local folders are copies of which remote ones (#51). One snapshot, read by
+        // the server to name and find a file and by the view model to build its URLs, so
+        // both caches — ours and Sketch's — agree on what a file is called.
+        val pairingRepository = PairingRepository(db.pairingDao())
+        val settingsDao = db.settingsDao()
+        val coverPreferences = CoverPreferences(
+            choices = db.folderCoverChoiceDao(),
+            shuffleSetting = { settingsDao.getSettingsOnce()?.coverShuffle ?: CoverShuffle.MARKED },
+            pairings = pairingRepository::current,
+            directoryTags = { id, path ->
+                withContext(defaultDispatcher) { db.localDatabaseDao().getDirectoryTags(id, path) }
+            },
+            aliasCanonicals = { id, tags ->
+                withContext(defaultDispatcher) { db.localDatabaseDao().getAliasCanonicals(id, tags) }
+            },
+        )
         val fileRepository = FileRepository(
             fileDataSource,
             localDatabaseDataSource,
             defaultDispatcher,
             metrics = metrics,
             sourceKind = fileDataSource::sourceKind,
+            keepsFirstPage = coverPreferences::keepsFirstPage,
         )
         // Both sources for every connection, which is the union rather than a choice: the
         // rolled-up index covers the galleries gallery-dl downloaded, sidecars cover
@@ -227,10 +247,6 @@ class ExplorerViewModelFactory(
             ) = fileRepository.updateFileThumbnailStatus(connectionId, path, status)
         }
 
-        // Which local folders are copies of which remote ones (#51). One snapshot, read by
-        // the server to name and find a file and by the view model to build its URLs, so
-        // both caches — ours and Sketch's — agree on what a file is called.
-        val pairingRepository = PairingRepository(db.pairingDao())
         val thumbnailStatuses = PairedThumbnailStatuses(listingStatuses, pairingRepository::current)
         val connectionOpener = ConnectionOpener(
             files = fileDataSource,
@@ -282,6 +298,7 @@ class ExplorerViewModelFactory(
             pairingRepository,
             viewRecorder,
             CaptionRepository(db.annotationDao(), db.localDatabaseDao(), defaultDispatcher),
+            coverPreferences,
             metrics,
             fileDataSource::sourceKind,
         ) as T

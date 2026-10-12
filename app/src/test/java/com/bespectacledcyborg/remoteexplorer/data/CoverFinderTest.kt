@@ -13,7 +13,9 @@ import java.util.Date
 
 class CoverFinderTest {
 
-    private class Tree(listed: Boolean = true) : CoverRows {
+    private class Tree(listed: Boolean = true, private val manga: Set<String> = emptySet()) : CoverRows {
+        override suspend fun keepsFirstPage(connectionId: Int, folder: String) = folder in manga
+
         private val folders = mutableMapOf<String, MutableList<LocalFile>>()
         private val listedFolders = mutableSetOf<String>()
         private val listAll = listed
@@ -63,7 +65,7 @@ class CoverFinderTest {
     fun `a folder with images of its own keeps them`() = runTest {
         val tree = Tree().folder("g").image("g/2.jpg").image("g/1.jpg").folder("g/sub").image("g/sub/x.jpg")
 
-        val cover = CoverFinder(tree).cover(1, "g", CoverOrder.NAME)
+        val cover = CoverFinder(tree).cover(1, "g", CoverOrder.Name)
 
         assertEquals(listOf("g/1.jpg", "g/2.jpg"), cover.images)
         assertFalse(cover.borrowed)
@@ -74,7 +76,7 @@ class CoverFinderTest {
         val tree = Tree().folder("pixiv")
         listOf("e", "b", "a", "d", "c").forEach { tree.folder("pixiv/$it").image("pixiv/$it/0.jpg").image("pixiv/$it/1.jpg") }
 
-        val cover = CoverFinder(tree).cover(1, "pixiv", CoverOrder.NAME)
+        val cover = CoverFinder(tree).cover(1, "pixiv", CoverOrder.Name)
 
         assertEquals(listOf("pixiv/a/0.jpg", "pixiv/b/0.jpg", "pixiv/c/0.jpg", "pixiv/d/0.jpg"), cover.images)
         assertTrue(cover.borrowed)
@@ -86,7 +88,7 @@ class CoverFinderTest {
         val tree = Tree().folder("a").folder("a/b").folder("a/b/c").folder("a/b/c/d").folder("a/b/c/d/e")
             .image("a/b/c/d/e/page.jpg")
 
-        val cover = CoverFinder(tree).cover(1, "a", CoverOrder.NAME)
+        val cover = CoverFinder(tree).cover(1, "a", CoverOrder.Name)
 
         assertEquals(listOf("a/b/c/d/e/page.jpg"), cover.images)
     }
@@ -98,7 +100,7 @@ class CoverFinderTest {
         tree.folder("root/new", modified = 3).image("root/new/0.jpg")
         tree.folder("root/mid", modified = 2).image("root/mid/0.jpg")
 
-        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.NEWEST)
+        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.Newest)
 
         assertEquals(listOf("root/new/0.jpg", "root/mid/0.jpg", "root/old/0.jpg"), cover.images)
     }
@@ -108,7 +110,7 @@ class CoverFinderTest {
         val tree = Tree().folder("root").folder("root/_index").folder("root/agent-retrieved")
             .folder("root/pixiv").folder("root/pixiv/gallery").image("root/pixiv/gallery/0.jpg")
 
-        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.NAME)
+        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.Name)
 
         assertEquals(listOf("root/pixiv/gallery/0.jpg"), cover.images)
     }
@@ -118,7 +120,7 @@ class CoverFinderTest {
         val tree = Tree(listed = false).folder("root")
         listOf("a", "b").forEach { tree.folder("root/$it").image("root/$it/0.jpg") }
 
-        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.NAME)
+        val cover = CoverFinder(tree).cover(1, "root", CoverOrder.Name)
 
         assertEquals(listOf("root", "root/a", "root/b"), tree.listings)
         assertEquals(3, cover.listings)
@@ -130,11 +132,54 @@ class CoverFinderTest {
         val tree = Tree(listed = false).folder("root")
         listOf("a", "b", "c", "d").forEach { tree.folder("root/$it").image("root/$it/0.jpg") }
 
-        val cover = CoverFinder(tree, listingBudget = 3).cover(1, "root", CoverOrder.NAME)
+        val cover = CoverFinder(tree, listingBudget = 3).cover(1, "root", CoverOrder.Name)
 
         assertEquals(listOf("root/a/0.jpg", "root/b/0.jpg"), cover.images)
         assertFalse(cover.complete)
         assertEquals(3, cover.listings)
+    }
+
+    private fun gallery(pages: Int) = Tree().folder("g").also { tree ->
+        repeat(pages) { tree.image("g/%02d.jpg".format(it)) }
+    }
+
+    @Test
+    fun `a shuffled cover is the same for the same seed`() = runTest {
+        val finder = CoverFinder(gallery(12))
+
+        assertEquals(
+            finder.cover(1, "g", CoverOrder.Shuffled(1)).images,
+            finder.cover(1, "g", CoverOrder.Shuffled(1)).images,
+        )
+    }
+
+    @Test
+    fun `two seeds pick two specific covers from the whole folder`() = runTest {
+        val finder = CoverFinder(gallery(12))
+
+        assertEquals(SEED_1_COVER, finder.cover(1, "g", CoverOrder.Shuffled(1)).images)
+        assertEquals(SEED_2_COVER, finder.cover(1, "g", CoverOrder.Shuffled(2)).images)
+    }
+
+    @Test
+    fun `a manga gallery under a shuffled parent still lends its first page`() = runTest {
+        val tree = Tree(manga = setOf("root/manga")).folder("root")
+        tree.folder("root/manga")
+        repeat(10) { tree.image("root/manga/%02d.jpg".format(it)) }
+
+        val covers = (1L..20L).map { CoverFinder(tree).cover(1, "root", CoverOrder.Shuffled(it)).images }
+
+        assertEquals(setOf(listOf("root/manga/00.jpg")), covers.toSet())
+    }
+
+    @Test
+    fun `a manga folder's own pages are never shuffled`() = runTest {
+        val tree = Tree(manga = setOf("g")).folder("g")
+        repeat(12) { tree.image("g/%02d.jpg".format(it)) }
+
+        val cover = CoverFinder(tree).cover(1, "g", CoverOrder.Shuffled(1)).images
+
+        assertEquals(listOf("g/00.jpg", "g/01.jpg", "g/02.jpg", "g/03.jpg"), cover)
     }
 
     @Test
@@ -142,9 +187,14 @@ class CoverFinderTest {
         val tree = Tree().folder("root")
         repeat(50) { tree.folder("root/$it") }
 
-        val cover = CoverFinder(tree, foldersVisited = 10).cover(1, "root", CoverOrder.NAME)
+        val cover = CoverFinder(tree, foldersVisited = 10).cover(1, "root", CoverOrder.Name)
 
         assertTrue(cover.images.isEmpty())
         assertFalse(cover.complete)
+    }
+
+    private companion object {
+        val SEED_1_COVER = listOf("g/09.jpg", "g/06.jpg", "g/03.jpg", "g/04.jpg")
+        val SEED_2_COVER = listOf("g/09.jpg", "g/11.jpg", "g/08.jpg", "g/03.jpg")
     }
 }
