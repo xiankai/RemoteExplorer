@@ -101,7 +101,7 @@ jobs:
             "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
           if [ -n "${PR_NUMBER}" ]; then
             git -C /tmp/repo fetch --quiet origin "refs/pull/${PR_NUMBER}/head:refs/heads/pr-head"
-            git -C /tmp/repo fetch --quiet origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            git -C /tmp/repo fetch --quiet origin "refs/heads/${BASE_REF}:refs/heads/pr-base"
             git -C /tmp/repo -c advice.detachedHead=false checkout --quiet pr-head
           else
             # Push to master: the pushed commit.
@@ -123,7 +123,10 @@ jobs:
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          changed=$(git diff --name-only pr-base...HEAD)
+          if [ -z "$changed" ]; then
+            echo "::warning::no files differ from ${BASE_REF}; running the full checks"
+          fi
           if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '\.md$'; then
             echo "Only Markdown changed; nothing for shellcheck, unit tests or lint to read."
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
