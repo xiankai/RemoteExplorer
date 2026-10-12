@@ -22,6 +22,10 @@ val headCommitTime: Instant = providers.exec {
     ?.let(Instant::ofEpochSecond)
     ?: error("versionCode is the HEAD commit's timestamp, so the app builds only from a git checkout")
 
+val headCommitSha: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+}.standardOutput.asText.get().trim()
+
 plugins {
     id("com.android.application")
     id("com.google.devtools.ksp")
@@ -42,6 +46,7 @@ android {
         versionCode = headCommitTime.epochSecond.toInt()
         versionName = ZonedDateTime.ofInstant(headCommitTime, ZoneId.of("Asia/Tokyo"))
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        buildConfigField("String", "COMMIT_SHA", "\"$headCommitSha\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -125,6 +130,7 @@ android {
 //    }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     sourceSets {
         // Room's MigrationTestHelper reads the exported schemas through the asset manager, and
