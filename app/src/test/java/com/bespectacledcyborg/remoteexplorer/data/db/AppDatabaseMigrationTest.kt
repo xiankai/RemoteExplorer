@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 19 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 20 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 19, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 20, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -48,7 +48,7 @@ class AppDatabaseMigrationTest {
      * version bump before it reached a device, rather than after.
      */
     @Test
-    fun `migrates the full chain from 5 to 19 and matches the exported schema`() {
+    fun `migrates the full chain from 5 to 20 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
         // A future migration that nobody wires up fails here rather than on a user's device.
@@ -351,6 +351,42 @@ class AppDatabaseMigrationTest {
                 db.query("SELECT COUNT(*) FROM $table").use { row ->
                     assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 20 with settings kept, shuffling only marked folders and none marked`() {
+        helper.createDatabase(TEST_DB, 19).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode, showCaptions) " +
+                        "VALUES (0, 8, 5, 'DARK', 1)"
+            )
+            db.execSQL(
+                "INSERT INTO Connection (id, name, type, port, localRoot, lastModified) " +
+                        "VALUES (4, 'SDSync', 'LOCAL', 445, '/storage/card/syncthing', 0)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 20, true).use { db ->
+            db.query("SELECT maxStorageCacheSize, themeMode, showCaptions, coverShuffle FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(8, row.getInt(0))
+                assertEquals("DARK", row.getString(1))
+                assertEquals(1, row.getInt(2))
+                assertEquals("MARKED", row.getString(3))
+            }
+            db.query("SELECT COUNT(*) FROM FolderCoverChoice").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
+            }
+            db.execSQL(
+                "INSERT INTO FolderCoverChoice (connectionId, path, mode, seed) " +
+                        "VALUES (4, 'gallery-dl/pixiv', 'SHUFFLE', 42)"
+            )
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("DELETE FROM Connection WHERE id = 4")
+            db.query("SELECT COUNT(*) FROM FolderCoverChoice").use { row ->
+                assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
             }
         }
     }

@@ -13,6 +13,8 @@ import com.bespectacledcyborg.remoteexplorer.data.Caption
 import com.bespectacledcyborg.remoteexplorer.data.CaptionRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.CoverOrder
+import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
@@ -60,6 +62,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 /** The listing's orders, each with the label a sort menu gives it. */
 enum class SortType(
@@ -168,10 +171,10 @@ typealias ThumbnailsMap = Map<String, List<String>>
 private const val COVER_RETRY_MILLIS = 30_000L
 
 internal fun coverOrderFor(sortType: SortType): CoverOrder = when (sortType) {
-    SortType.NAME_DESC -> CoverOrder.NAME_DESC
-    SortType.LAST_MODIFIED_ASC -> CoverOrder.OLDEST
-    SortType.LAST_MODIFIED_DESC -> CoverOrder.NEWEST
-    else -> CoverOrder.NAME
+    SortType.NAME_DESC -> CoverOrder.NameDesc
+    SortType.LAST_MODIFIED_ASC -> CoverOrder.Oldest
+    SortType.LAST_MODIFIED_DESC -> CoverOrder.Newest
+    else -> CoverOrder.Name
 }
 
 internal fun listingsBucket(listings: Int): String = when {
@@ -202,6 +205,7 @@ class ExplorerViewModel(
     private val pairingRepository: PairingRepository,
     private val viewRecorder: ViewRecorder,
     private val captionRepository: CaptionRepository,
+    private val coverPreferences: CoverPreferences,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (Int) -> String = { "unknown" },
 ) : AndroidViewModel(application) {
@@ -792,11 +796,11 @@ class ExplorerViewModel(
     /** Folders the grid has on screen or about to be, most wanted first. */
     private val _wantedCovers = MutableStateFlow<List<String>>(emptyList())
 
-    /**
-     * Folders whose cover has been settled this connection, found or not, so scrolling
-     * back over them costs nothing.
-     */
-    private val coversSettled: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val coversSettled = ConcurrentHashMap<String, CoverOrder>()
+
+    private val visitSeed = _path.map { Random.nextLong() }
+
+    private val _coverChoicesChanged = MutableStateFlow(0)
 
     /** When a folder last failed to list for its cover; see [loadCover]. */
     private val coverFailedAt = ConcurrentHashMap<String, Long>()
@@ -820,23 +824,45 @@ class ExplorerViewModel(
         coverFailedAt.clear()
         coverLoader?.cancel()
         coverLoader = viewModelScope.launch(Dispatchers.IO) {
-            var settledOrder: CoverOrder? = null
-            combine(_wantedCovers, _sort.map(::coverOrderFor).distinctUntilChanged(), ::Pair)
-                .collectLatest { (wanted, order) ->
-                    if (settledOrder != null && settledOrder != order) coversSettled.clear()
-                    settledOrder = order
+            combine(
+                _wantedCovers,
+                _sort.map(::coverOrderFor).distinctUntilChanged(),
+                visitSeed,
+                _coverChoicesChanged,
+            ) { wanted, sorted, seed, _ -> Triple(wanted, sorted, seed) }
+                .collectLatest { (wanted, sorted, seed) ->
                     coroutineScope {
                         val now = System.currentTimeMillis()
                         wanted
-                            .filter { it !in coversSettled }
                             .filter { path ->
                                 coverFailedAt[path]?.let { now - it >= COVER_RETRY_MILLIS } ?: true
                             }
                             .forEach { path ->
-                                launch { loadCover(connectionId, path, order) }
+                                launch {
+                                    val order = coverPreferences.orderFor(connectionId, path, sorted, seed)
+                                    if (coversSettled[path] != order) loadCover(connectionId, path, order)
+                                }
                             }
                     }
                 }
+        }
+    }
+
+    suspend fun coverChoiceFor(path: String): CoverMode {
+        val connectionId = browsingConnectionId ?: return CoverMode.DEFAULT
+        return coverPreferences.choiceFor(connectionId, path)
+    }
+
+    suspend fun folderKeepsFirstPage(path: String): Boolean {
+        val connectionId = browsingConnectionId ?: return false
+        return coverPreferences.keepsFirstPage(connectionId, path)
+    }
+
+    fun chooseCover(path: String, mode: CoverMode) {
+        val connectionId = browsingConnectionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            coverPreferences.choose(connectionId, path, mode)
+            _coverChoicesChanged.update { it + 1 }
         }
     }
 
@@ -845,11 +871,12 @@ class ExplorerViewModel(
             val startedAt = System.currentTimeMillis()
             val cover = fileRepository.folderCover(connectionId, path, order)
             val elapsed = System.currentTimeMillis() - startedAt
-            if (cover.complete) coversSettled += path
+            if (cover.complete) coversSettled[path] = order
             Log.d(
                 "ExplorerViewModel",
                 "Cover for $path: ${cover.images.size} in ${elapsed}ms " +
-                    "(borrowed=${cover.borrowed}, listings=${cover.listings}, complete=${cover.complete})"
+                    "(order=${order.label}, borrowed=${cover.borrowed}, " +
+                    "listings=${cover.listings}, complete=${cover.complete})"
             )
             metrics.record(
                 LoadMetric.FOLDER_COVER,
@@ -860,6 +887,7 @@ class ExplorerViewModel(
                     "borrowed" to cover.borrowed.toString(),
                     "listings" to listingsBucket(cover.listings),
                     "complete" to cover.complete.toString(),
+                    "order" to order.label,
                 ),
             )
             if (cover.images.isNotEmpty()) _thumbnails.update { it.plus(path to cover.images) }

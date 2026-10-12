@@ -25,6 +25,7 @@ import java.util.Date
         DirAnnotationKind::class,
         DirAnnotation::class,
         AnnotationIngest::class,
+        FolderCoverChoice::class,
     ],
     exportSchema = true,
     // 9 carries no schema change: Connection.password is still one TEXT column. The bump
@@ -70,7 +71,11 @@ import java.util.Date
     // DirAnnotation and AnnotationIngest from the annotation store, and settings.showCaptions,
     // off. New tables and a defaulted column, so it auto-migrates, and an existing install
     // shows no captions until it turns them on.
-    version = 19,
+    //
+    // 20 adds FolderCoverChoice, the cover each folder was set to (#103), and
+    // settings.coverShuffle, defaulted to MARKED. A new table and a defaulted column, so it
+    // auto-migrates, and an existing install keeps every cover as it was.
+    version = 20,
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -93,6 +98,7 @@ import java.util.Date
         AutoMigration(from = 16, to = 17),
         AutoMigration(from = 17, to = 18),
         AutoMigration(from = 18, to = 19),
+        AutoMigration(from = 19, to = 20),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -103,6 +109,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pairingDao(): PairingDao
     abstract fun fileViewDao(): FileViewDao
     abstract fun annotationDao(): AnnotationDao
+    abstract fun folderCoverChoiceDao(): FolderCoverChoiceDao
 }
 
 class Converters {

@@ -117,6 +117,7 @@ class FileRepository(
     private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
+    private val keepsFirstPage: suspend (ConnectionId, String) -> Boolean = { _, _ -> false },
 ) {
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
@@ -336,6 +337,9 @@ class FileRepository(
         override suspend fun subfolders(connectionId: Int, folder: String) =
             localDatabaseDataSource.getFiles(connectionId, folder, "")
                 .filter { it.type == FileType.FOLDER }
+
+        override suspend fun keepsFirstPage(connectionId: Int, folder: String) =
+            this@FileRepository.keepsFirstPage(connectionId, folder)
     }
 
     private val coverFinder = CoverFinder(coverRows)
@@ -343,7 +347,7 @@ class FileRepository(
     suspend fun folderCover(
         connectionId: Int,
         folderPath: String,
-        order: CoverOrder = CoverOrder.NAME,
+        order: CoverOrder = CoverOrder.Name,
     ): FolderCover = coverFinder.cover(connectionId, folderPath, order)
 
     suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
