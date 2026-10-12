@@ -68,10 +68,9 @@ apk="$(find "$root/app/build/outputs/apk/$variant" -name '*.apk' -print -quit)"
 [ -n "$apk" ] || { echo "no apk under app/build/outputs/apk/$variant — build first" >&2; exit 1; }
 
 echo "==> installing $(basename "$apk")"
-# -d allows a version DOWNGRADE. versionCode is Instant.now().epochSecond captured at
-# configuration time, so the number tracks when a build was configured, not which code it
-# contains — and with several worktrees in play the APK you just built is routinely "older"
-# than whatever was installed from another branch minutes ago. Without -d that fails with
+# -d allows a version DOWNGRADE. versionCode is the HEAD commit's timestamp, so with several
+# worktrees in play the APK you just built is routinely "older" than whatever was installed
+# from another branch minutes ago. Without -d that fails with
 # INSTALL_FAILED_VERSION_DOWNGRADE, which reads like a real problem and is not one. -r keeps
 # app data either way, so a saved connection survives the swap.
 "$adb" -s "$device" install -r -d "$apk" >/dev/null

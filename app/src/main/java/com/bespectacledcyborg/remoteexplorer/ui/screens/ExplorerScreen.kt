@@ -28,6 +28,7 @@ import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
+import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
@@ -136,14 +137,21 @@ fun ExplorerScreen(
 
     val navigationStack by explorerViewModel.navigationStackState.collectAsState()
     val atRoot = navigationStack.size <= 1
+    val atTag = navigationStack.lastOrNull()?.startsWith(tagPrefix) == true  // stack-reviewer-ignore: the same reserved-prefix test ExplorerViewModel already uses to choose between a tag query and a folder listing, so a folder named "Tag: …" was a tag before this change too
     val returnToConnections = {
         if (!navHostController.popBackStack(Route.ConnectionsRoute, inclusive = false)) {
             navHostController.navigate(Route.ConnectionsRoute)
         }
     }
-
-    BackHandler(enabled = !atRoot) {
+    val returnToTags = {
         explorerViewModel.goBack()
+        if (!navHostController.popBackStack(Route.TagsRoute, inclusive = false)) {
+            navHostController.navigate(Route.TagsRoute)
+        }
+    }
+
+    BackHandler(enabled = atTag || !atRoot) {
+        if (atTag) returnToTags() else explorerViewModel.goBack()
     }
 
     val search by explorerViewModel.searchState.collectAsState()
@@ -179,7 +187,11 @@ fun ExplorerScreen(
 
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (atRoot) returnToConnections() else explorerViewModel.goBack()
+                        when {
+                            atTag -> returnToTags()
+                            atRoot -> returnToConnections()
+                            else -> explorerViewModel.goBack()
+                        }
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,

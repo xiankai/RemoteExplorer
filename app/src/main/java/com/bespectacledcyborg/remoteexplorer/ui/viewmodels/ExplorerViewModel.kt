@@ -742,10 +742,7 @@ class ExplorerViewModel(
     val tagIndexIsPartialState: StateFlow<Boolean> = _tagIndexIsPartial.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
-        viewModelScope.launch {
-            abandonRefreshRequest()
-            _path.update { "${tagPrefix}${tag.tag}" }
-        }
+        changePath("${tagPrefix}${tag.tag}")
     }
 
     val columnsState: StateFlow<GridColumns> =
