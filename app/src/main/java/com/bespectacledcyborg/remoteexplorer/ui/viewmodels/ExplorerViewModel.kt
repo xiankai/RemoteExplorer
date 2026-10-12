@@ -799,6 +799,9 @@ class ExplorerViewModel(
 
     private val _coverChoicesChanged = MutableStateFlow(0)
 
+    private val _appliedCovers = MutableStateFlow<Map<String, CoverMode>>(emptyMap())
+    val appliedCoversState = _appliedCovers.asStateFlow()
+
     /** When a folder last failed to list for its cover; see [loadCover]. */
     private val coverFailedAt = ConcurrentHashMap<String, Long>()
 
@@ -818,6 +821,7 @@ class ExplorerViewModel(
 
     private fun followWantedCovers(connectionId: Int) {
         coversSettled.clear()
+        _appliedCovers.update { emptyMap() }
         coverFailedAt.clear()
         coverLoader?.cancel()
         coverLoader = viewModelScope.launch(Dispatchers.IO) {
@@ -836,8 +840,9 @@ class ExplorerViewModel(
                             }
                             .forEach { path ->
                                 launch {
-                                    val order = coverPreferences.orderFor(connectionId, path, sorted, seed)
-                                    if (coversSettled[path] != order) loadCover(connectionId, path, order)
+                                    val chosen = coverPreferences.coverFor(connectionId, path, sorted, seed)
+                                    _appliedCovers.update { it + (path to chosen.applied) }
+                                    if (coversSettled[path] != chosen.order) loadCover(connectionId, path, chosen.order)
                                 }
                             }
                     }

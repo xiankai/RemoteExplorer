@@ -8,6 +8,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import androidx.compose.material3.Text
 import com.bespectacledcyborg.remoteexplorer.ui.components.ExplorerItemIcon
@@ -22,6 +23,7 @@ fun ListViewItem(
     handleItemClick: () -> Unit,
     handleLongItemClick: () -> Unit,
     getImageUrl: GetImageUrl,
+    cover: CoverMode = CoverMode.DEFAULT,
 ) {
     ListItem(
         modifier = Modifier
@@ -37,6 +39,7 @@ fun ListViewItem(
                 name,
                 type,
                 thumbnails,
+                cover,
                 Modifier
                     .fillMaxHeight()
                     .aspectRatio(1f)

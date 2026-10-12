@@ -16,6 +16,8 @@ internal fun isMangaPath(path: String): Boolean =
 internal fun isMangaTag(tag: String): Boolean =
     tag.split('/', ':').last().trim().lowercase() in MANGA_TAGS
 
+data class ChosenCover(val applied: CoverMode, val order: CoverOrder)
+
 class CoverPreferences(
     private val choices: FolderCoverChoiceDao,
     private val shuffleSetting: suspend () -> CoverShuffle,
@@ -24,24 +26,34 @@ class CoverPreferences(
     private val aliasCanonicals: suspend (connectionId: Int, tags: List<String>) -> List<String>,
     private val newSeed: () -> Long = { Random.nextLong() },
 ) {
-    suspend fun orderFor(
+    suspend fun coverFor(
         connectionId: Int,
         path: String,
         sorted: CoverOrder,
         visitSeed: Long,
-    ): CoverOrder {
-        if (keepsFirstPage(connectionId, path)) return sorted
+    ): ChosenCover {
+        val applied = appliedChoice(connectionId, path)
+        val order = when (applied.mode) {
+            CoverMode.DEFAULT -> sorted
+            CoverMode.NEWEST -> CoverOrder.Newest
+            CoverMode.SHUFFLE -> CoverOrder.Shuffled(applied.seed)
+            CoverMode.SHUFFLE_EVERY_VISIT -> CoverOrder.Shuffled(visitSeed)
+        }
+        return ChosenCover(applied.mode, order)
+    }
+
+    private suspend fun appliedChoice(connectionId: Int, path: String): FolderCoverChoice {
         val canonical = pairings().canonicalize(connectionId, path)
-        val saved = choices.get(canonical.connectionId, canonical.path)
-        val choice = saved?.mode ?: CoverMode.DEFAULT
+        val unchosen = FolderCoverChoice(canonical.connectionId, canonical.path, CoverMode.DEFAULT, 0L)
+        if (keepsFirstPage(connectionId, path)) return unchosen
+        val saved = choices.get(canonical.connectionId, canonical.path) ?: unchosen
         val shuffle = shuffleSetting()
         return when {
-            choice == CoverMode.NEWEST -> CoverOrder.Newest
-            shuffle == CoverShuffle.OFF -> sorted
-            choice == CoverMode.SHUFFLE -> CoverOrder.Shuffled(saved?.seed ?: 0L)
-            choice == CoverMode.SHUFFLE_EVERY_VISIT -> CoverOrder.Shuffled(visitSeed)
-            shuffle == CoverShuffle.ALL -> CoverOrder.Shuffled(visitSeed)
-            else -> sorted
+            saved.mode == CoverMode.NEWEST -> saved
+            shuffle == CoverShuffle.OFF -> unchosen
+            saved.mode != CoverMode.DEFAULT -> saved
+            shuffle == CoverShuffle.ALL -> saved.copy(mode = CoverMode.SHUFFLE_EVERY_VISIT)
+            else -> unchosen
         }
     }
 

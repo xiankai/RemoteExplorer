@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.navigation.NavHostController
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
@@ -88,6 +89,7 @@ fun ExplorerScreen(
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
+    val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columnCount by explorerViewModel.columnCountState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
@@ -229,6 +231,7 @@ fun ExplorerScreen(
                             ),
                             item = it,
                             captioned = it.fullPath() in captionedFolders,
+                            cover = appliedCovers[it.fullPath()] ?: CoverMode.DEFAULT,
                         )
                     },
                     handleItemClick = handleItemClick,
