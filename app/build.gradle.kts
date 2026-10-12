@@ -16,6 +16,12 @@ val keystoreProperties = Properties().takeIf { keystorePropertiesFile.exists() }
 }
 val hasReleaseSigning = keystoreProperties != null && keystoreFile.exists()
 
+val headCommitTime: Instant = providers.exec {
+    commandLine("git", "log", "-1", "--format=%ct")
+}.standardOutput.asText.get().trim().toLongOrNull()
+    ?.let(Instant::ofEpochSecond)
+    ?: error("versionCode is the HEAD commit's timestamp, so the app builds only from a git checkout")
+
 plugins {
     id("com.android.application")
     id("com.google.devtools.ksp")
@@ -33,8 +39,8 @@ android {
         applicationId = "com.bespectacledcyborg.remoteexplorer"
         minSdk = 34
         targetSdk = 36
-        versionCode = Instant.now().epochSecond.toInt()
-        versionName = ZonedDateTime.now(ZoneId.of("Asia/Tokyo"))
+        versionCode = headCommitTime.epochSecond.toInt()
+        versionName = ZonedDateTime.ofInstant(headCommitTime, ZoneId.of("Asia/Tokyo"))
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
