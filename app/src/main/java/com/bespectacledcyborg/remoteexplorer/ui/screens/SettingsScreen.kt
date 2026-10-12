@@ -1,7 +1,15 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens
 
+import android.content.ClipData
 import java.time.DateTimeException
 import java.time.ZoneId
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import com.bespectacledcyborg.remoteexplorer.ui.components.appVersionLabel
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -261,8 +269,32 @@ fun SettingsScreen(
                 Text("Show author captions", modifier = Modifier.weight(1f))
                 Switch(checked = settings.showCaptions, onCheckedChange = null)
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            AppVersionRow()
         }
     }
+}
+
+@Composable
+private fun AppVersionRow() {
+    val version = remember { appVersionLabel() }
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    Text(
+        text = "Version $version",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "Copy version") {
+                scope.launch {
+                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Remote Explorer version", version)))
+                }
+            }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
 }
 
 private fun clockTime(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
