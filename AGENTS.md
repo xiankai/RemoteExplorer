@@ -211,9 +211,13 @@ source has no token field.
 `origin` is Forgejo; the release pipeline lives on GitHub and holds the only copy of the
 release keystore (as Actions secrets, which cannot be read back).
 
-**CI deliberately skips the native build and the APK.** The NDK is several GB on a runner
-with no layer cache, and the arm64-only prebuilts mean CI could not run the result anyway.
-`assembleDebug` is covered on a developer machine by `tools/dev-run.sh`.
+**Both workflows run in `android-ci:latest`**, an image infra builds locally on
+buildhost (infra#399) with the SDK, NDK, cmake, shellcheck and Node already in it.
+Nothing is installed per run. It isn't in a registry, so it only exists on that host.
+
+**The PR checks skip the native build and the APK.** The arm64-only prebuilts mean CI could
+not run the result anyway. `assembleDebug` is covered on a developer machine by
+`tools/dev-run.sh`.
 
 `-Prex.skipNative` is what achieves that, and it is load-bearing. Inspecting the task graph
 is **not** sufficient to conclude the NDK is unused: no CMake task enters the graph for

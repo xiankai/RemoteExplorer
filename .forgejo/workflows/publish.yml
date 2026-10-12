@@ -24,11 +24,9 @@
 # author-gated like review.yml because only a merge can trigger it, and a merge is already
 # the gate.
 #
-# THE NDK IS UNAVOIDABLE HERE, unlike build.yml. A release APK contains libffmpeg.so, so the
-# native build genuinely has to run — -Prex.skipNative would produce an APK that installs and
-# then dies inside System.loadLibrary at the first video thumbnail. That makes this job
-# several GB heavier than the PR check; it is why this triggers on merge rather than on every
-# push to a branch.
+# THE NATIVE BUILD RUNS HERE, unlike build.yml. A release APK contains libffmpeg.so, so
+# -Prex.skipNative would produce an APK that installs and then dies inside System.loadLibrary
+# at the first video thumbnail. The NDK and cmake come from the android-ci image.
 #
 # A merge that touches only Markdown publishes nothing. versionCode is the HEAD commit's
 # timestamp, so a docs-only merge would still mint a new version that Obtainium reads as an
@@ -55,30 +53,14 @@ concurrency:
 # job saved would be readable by any PR run, since a PR can edit build.yml to restore any
 # shared key. So it only reads build.yml's shared copy (same key, same files), which covers
 # most dependencies; the release- and native-only extras are still downloaded each time.
-env:
-  # actions/cache runs inside the job container, which the gradle image ships without node.
-  NODE_VERSION: v22.23.3
-  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
-  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
 
 jobs:
   publish:
     runs-on: android
     container:
-      image: gradle:9.1.0-jdk21
+      image: android-ci:latest
     timeout-minutes: 45
     steps:
-      - name: Install node for the cache action
-        run: |
-          set -euo pipefail
-          # Bare `node` on the default PATH is what the runner calls. .tar.gz: no xz here.
-          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
-          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
-          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
-          tar -xzf /tmp/node.tgz -C /opt
-          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
-          node --version
-
       - name: Checkout
         run: |
           set -euo pipefail
@@ -131,33 +113,6 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
           KEYSTORE_PROPS: ${{ secrets.SIDELOAD_KEYSTORE_PROPERTIES }}
-
-      - name: Install the Android SDK and NDK
-        run: |
-          set -euo pipefail
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends unzip curl jq
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          echo "downloading cmdline-tools"
-          curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
-          echo "accepting licences"
-          # `yes` dies of SIGPIPE once sdkmanager stops reading; under pipefail that would
-          # fail the step with 141 despite the licences being accepted. Same guard as build.yml.
-          set +o pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          licences=${PIPESTATUS[1]}
-          set -o pipefail
-          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
-          # ndk + cmake versions must match app/build.gradle.kts exactly.
-          echo "installing platform 37, build-tools, ndk and cmake (several GB, no layer cache)"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-37.0" "build-tools;36.0.0" \
-            "ndk;27.2.12479018" "cmake;3.22.1" >/dev/null
-          echo "sdk ready"
-        env:
-          ANDROID_HOME: /opt/android-sdk
 
       - name: Build the release APK
         run: |
@@ -221,8 +176,7 @@ jobs:
           # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
           # first line, so a reader that exits early kills it with SIGPIPE, the pipeline
           # returns 141 under `set -o pipefail`, and the step fails with a signed APK already
-          # published — which is exactly how run 67 failed. The same trap is documented above
-          # for `yes | sdkmanager`. Capturing the whole (few-KB) output and feeding awk a
+          # published — which is exactly how run 67 failed. Capturing the whole (few-KB) output and feeding awk a
           # here-string leaves no pipe for an early `exit` to break.
           badging=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk")
           # The regexes below are ANCHORED AT THE END ONLY, on purpose: an awk regex matches a
