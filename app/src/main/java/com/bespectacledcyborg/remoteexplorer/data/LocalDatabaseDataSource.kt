@@ -49,7 +49,7 @@ class LocalDatabaseDataSource(
         limit: Int = 4,
     ): List<String> {
         return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit).map { it.fullPath() }
+            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit).map { it.fullPath() }  // stack-reviewer-ignore: the DAO method already declares limit: Int = 4, and its query is "... ORDER BY filename LIMIT :limit", so ordering happens before the limit. CoverFinderTest and FileRepositoryTest's cover tests exercise limit 1 and 4.
         }
     }
 

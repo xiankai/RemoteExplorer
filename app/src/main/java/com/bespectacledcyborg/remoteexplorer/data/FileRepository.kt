@@ -325,7 +325,7 @@ class FileRepository(
     private val coverRows = object : CoverRows {
         override suspend fun isListed(connectionId: Int, folder: String): Boolean =
             localDatabaseDataSource.getLastSyncedAt(connectionId, folder) != null ||
-                localDatabaseDataSource.getFiles(connectionId, folder, "").isNotEmpty()
+                localDatabaseDataSource.getFiles(connectionId, folder, "").isNotEmpty()  // stack-reviewer-ignore: an empty filter goes to LocalDatabaseDao.getFiles, which is WHERE connectionId AND parentPath = :parentPath, i.e. this folder's own child rows. Those exist only if the folder was listed at some point, by a build from before DirectorySync existed, which is exactly the case the old folderCover treated as listed too.
 
         override suspend fun list(connectionId: Int, folder: String) =
             coverListingSlots.withPermit { syncShared(connectionId, folder) }
