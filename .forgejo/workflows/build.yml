@@ -236,20 +236,11 @@ jobs:
           ./gradlew --no-daemon --continue -Prex.skipNative "${tasks[@]}" || failed=1
           echo "::endgroup::"
 
-          echo "::group::gc"
-          for log in /tmp/gc-*.log; do
-            awk '/Pause/ { n++; ms += $NF + 0 } END { printf "%s: %d pauses, %.1f s paused\n", FILENAME, n, ms / 1000 }' "$log"
-            tail -1 "$log"
-          done
-          echo "::endgroup::"
-
           exit "$failed"
         env:
           ANDROID_HOME: /opt/android-sdk
           EVENT: ${{ github.event_name }}
-          GRADLE_OPTS: >-
-            -Dorg.gradle.configuration-cache=false
-            "-Dorg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8 -Xlog:gc:file=/tmp/gc-%p.log"
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
 
       - name: Tidy the Gradle cache before it is saved
         # Runs before the cache action's post step, which is what saves. That post step only
