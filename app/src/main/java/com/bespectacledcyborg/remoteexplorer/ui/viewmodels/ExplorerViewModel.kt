@@ -12,6 +12,7 @@ import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.Caption
 import com.bespectacledcyborg.remoteexplorer.data.CaptionRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
+import com.bespectacledcyborg.remoteexplorer.data.CoverOrder
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
@@ -165,6 +166,19 @@ typealias ThumbnailsMap = Map<String, List<String>>
 
 /** How long a folder that failed to list for its cover waits before it is tried again. */
 private const val COVER_RETRY_MILLIS = 30_000L
+
+internal fun coverOrderFor(sortType: SortType): CoverOrder = when (sortType) {
+    SortType.NAME_DESC -> CoverOrder.NAME_DESC
+    SortType.LAST_MODIFIED_ASC -> CoverOrder.OLDEST
+    SortType.LAST_MODIFIED_DESC -> CoverOrder.NEWEST
+    else -> CoverOrder.NAME
+}
+
+internal fun listingsBucket(listings: Int): String = when {
+    listings == 0 -> "0"
+    listings <= 3 -> "1-3"
+    else -> "4+"
+}
 
 internal fun depthOf(path: String): String =
     when (val depth = path.split('/').count { it.isNotEmpty() }) {
@@ -806,35 +820,49 @@ class ExplorerViewModel(
         coverFailedAt.clear()
         coverLoader?.cancel()
         coverLoader = viewModelScope.launch(Dispatchers.IO) {
-            _wantedCovers.collectLatest { wanted ->
-                coroutineScope {
-                    val now = System.currentTimeMillis()
-                    wanted
-                        .filter { it !in coversSettled }
-                        .filter { path ->
-                            coverFailedAt[path]?.let { now - it >= COVER_RETRY_MILLIS } ?: true
-                        }
-                        .forEach { path ->
-                            launch { loadCover(connectionId, path) }
-                        }
+            var settledOrder: CoverOrder? = null
+            combine(_wantedCovers, _sort.map(::coverOrderFor).distinctUntilChanged(), ::Pair)
+                .collectLatest { (wanted, order) ->
+                    if (settledOrder != null && settledOrder != order) coversSettled.clear()
+                    settledOrder = order
+                    coroutineScope {
+                        val now = System.currentTimeMillis()
+                        wanted
+                            .filter { it !in coversSettled }
+                            .filter { path ->
+                                coverFailedAt[path]?.let { now - it >= COVER_RETRY_MILLIS } ?: true
+                            }
+                            .forEach { path ->
+                                launch { loadCover(connectionId, path, order) }
+                            }
+                    }
                 }
-            }
         }
     }
 
-    private suspend fun loadCover(connectionId: Int, path: String) {
+    private suspend fun loadCover(connectionId: Int, path: String, order: CoverOrder) {
         try {
             val startedAt = System.currentTimeMillis()
-            val cover = fileRepository.folderCover(connectionId, path)
+            val cover = fileRepository.folderCover(connectionId, path, order)
             val elapsed = System.currentTimeMillis() - startedAt
-            coversSettled += path
-            Log.d("ExplorerViewModel", "Cover for $path: ${cover.size} in ${elapsed}ms")
+            if (cover.complete) coversSettled += path
+            Log.d(
+                "ExplorerViewModel",
+                "Cover for $path: ${cover.images.size} in ${elapsed}ms " +
+                    "(borrowed=${cover.borrowed}, listings=${cover.listings}, complete=${cover.complete})"
+            )
             metrics.record(
                 LoadMetric.FOLDER_COVER,
                 elapsed,
-                mapOf("source" to sourceKind(connectionId), "empty" to cover.isEmpty().toString()),
+                mapOf(
+                    "source" to sourceKind(connectionId),
+                    "empty" to cover.images.isEmpty().toString(),
+                    "borrowed" to cover.borrowed.toString(),
+                    "listings" to listingsBucket(cover.listings),
+                    "complete" to cover.complete.toString(),
+                ),
             )
-            if (cover.isNotEmpty()) _thumbnails.update { it.plus(path to cover) }
+            if (cover.images.isNotEmpty()) _thumbnails.update { it.plus(path to cover.images) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

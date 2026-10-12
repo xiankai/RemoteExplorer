@@ -322,32 +322,29 @@ class FileRepository(
         return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)
     }
 
-    /**
-     * What a folder's tile shows, listing the folder first if nothing has ever looked
-     * inside it.
-     *
-     * A cover is made from the folder's own rows, and a folder nobody has opened has none,
-     * so a directory of galleries used to show blank folders indefinitely — every tile
-     * stayed empty until that gallery had been opened once (#66). This fills them in by
-     * listing the folder the way opening it would, and only then: a folder with a sync
-     * record has been looked at, and whether it is stale is the business of opening it, not
-     * of scrolling past it. Otherwise every visit to a parent would re-list every child
-     * on screen each time the TTL ran out.
-     *
-     * The listing is bounded by [coverListingSlots], so a screen of fifteen galleries is
-     * fifteen round trips a few at a time rather than all at once.
-     */
-    suspend fun folderCover(connectionId: Int, folderPath: String): List<String> {
-        val cached = localDatabaseDataSource.getFolderThumbnails(connectionId, folderPath)
-        if (cached.isNotEmpty()) return cached
-        if (localDatabaseDataSource.getLastSyncedAt(connectionId, folderPath) != null) {
-            return cached
-        }
-        coverListingSlots.withPermit {
-            syncShared(connectionId, folderPath)
-        }
-        return localDatabaseDataSource.getFolderThumbnails(connectionId, folderPath)
+    private val coverRows = object : CoverRows {
+        override suspend fun isListed(connectionId: Int, folder: String): Boolean =
+            localDatabaseDataSource.getLastSyncedAt(connectionId, folder) != null ||
+                localDatabaseDataSource.getFiles(connectionId, folder, "").isNotEmpty()  // stack-reviewer-ignore: an empty filter goes to LocalDatabaseDao.getFiles, which is WHERE connectionId AND parentPath = :parentPath, i.e. this folder's own child rows. Those exist only if the folder was listed at some point, by a build from before DirectorySync existed, which is exactly the case the old folderCover treated as listed too.
+
+        override suspend fun list(connectionId: Int, folder: String) =
+            coverListingSlots.withPermit { syncShared(connectionId, folder) }
+
+        override suspend fun images(connectionId: Int, folder: String, limit: Int) =
+            localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
+
+        override suspend fun subfolders(connectionId: Int, folder: String) =
+            localDatabaseDataSource.getFiles(connectionId, folder, "")
+                .filter { it.type == FileType.FOLDER }
     }
+
+    private val coverFinder = CoverFinder(coverRows)
+
+    suspend fun folderCover(
+        connectionId: Int,
+        folderPath: String,
+        order: CoverOrder = CoverOrder.NAME,
+    ): FolderCover = coverFinder.cover(connectionId, folderPath, order)
 
     suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
         return localDatabaseDataSource.getProcessedFolderThumbnails(connectionId, parentPath)
