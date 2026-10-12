@@ -32,6 +32,7 @@ class HeadResponseTest {
         override fun openFile(connectionId: ConnectionId, path: String) = object : SourceFile {
             override fun length() = bytes.size.toLong()
             override fun read(buffer: ByteArray, position: Long, offset: Int, length: Int): Int {
+                if (position >= bytes.size) return -1
                 val count = minOf(length.toLong(), bytes.size - position).toInt()
                 bytes.copyInto(buffer, offset, position.toInt(), position.toInt() + count)
                 return count

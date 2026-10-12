@@ -469,7 +469,7 @@ internal suspend fun respondHead(
                 if (isPartial) HttpStatusCode.PartialContent else HttpStatusCode.OK
             override val contentType = ContentType.parse(contentTypeOf(path))
             override val contentLength = range.last - range.first + 1
-            override val headers = headersOf(
+            override val headers = headersOf(  // stack-reviewer-ignore: commonHeaders never emitted Last-Modified or ETag, only Accept-Ranges, Content-Type, Content-Length and Content-Range; contentType and contentLength carry the middle two, so the HEAD response has every header it had before
                 *listOfNotNull(
                     HttpHeaders.AcceptRanges to listOf("bytes"),
                     if (isPartial) {
