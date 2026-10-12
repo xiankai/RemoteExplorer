@@ -12,11 +12,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 
@@ -32,8 +35,10 @@ fun ExpandableSearchBar(
     initialValue: String = "",
 ) {
     var isSearching by remember { mutableStateOf(initialValue.isNotEmpty()) }
+    var openedByTap by remember { mutableStateOf(false) }
     var value by remember { mutableStateOf(initialValue) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
 
     Crossfade(
         modifier = Modifier.animateContentSize(),
@@ -42,7 +47,10 @@ fun ExpandableSearchBar(
     ) { target ->
         if (!target) {
             IconButton(
-                onClick = { isSearching = !isSearching },
+                onClick = {
+                    openedByTap = true
+                    isSearching = true
+                },
                 content = {
                     Icon(
                         Icons.Filled.Search,
@@ -51,25 +59,30 @@ fun ExpandableSearchBar(
                 }
             )
         } else {
+            LaunchedEffect(openedByTap) {
+                if (openedByTap) {
+                    focusRequester.requestFocus()
+                    keyboardController?.show()
+                    openedByTap = false
+                }
+            }
             TextField(
                 value = value,
-                modifier = Modifier.fillMaxWidth(),
-                // Otherwise a hardware Enter inserts a newline into the query instead of acting
-                // as Done.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
                 singleLine = true,
                 placeholder = { Text("Search within $currentContext") },
                 onValueChange = {
                     value = it
                     if (searchAsYouType) onSearch(it)
                 },
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Done // Shows Done button on soft keyboard
-                ),
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         isSearching = !isSearching
                         onSearch(value)
-                        keyboardController?.hide() // Hide keyboard after submission
+                        keyboardController?.hide()
                     }
                 ),
                 leadingIcon = {
