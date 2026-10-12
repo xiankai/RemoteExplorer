@@ -196,11 +196,22 @@ Two systems, deliberately:
 |---|---|---|---|
 | Pre-merge checks | Forgejo, `.forgejo/workflows/build.yml` | `pull_request` | shellcheck, unit tests, lint |
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
-| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | push to `master` | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
+| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
 
-A change that touches only Markdown skips the checks, the sideload publish and the release.
-The reviewer still runs.
+A change that touches only Markdown skips the checks and the release. The reviewer still
+runs.
+
+**The sideload build is on demand** (#118): merging no longer publishes, because each release
+build costs buildhost 20-odd minutes. To ship what is on master:
+
+```bash
+t=publish-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master && git push origin "$t"
+```
+
+The job builds the tagged commit, refuses one that isn't on master or would install as a
+downgrade, then overwrites the fileserver APK and makes the `v<versionCode>` release. Obtainium
+sees the new file at the same URL.
 
 The sideload job is the one that pays for the NDK, holds a signing key of its own
 (`SIDELOAD_KEYSTORE_*`, generated 2026-09-19, alias `sideload`) and cannot be moved to GitHub,
