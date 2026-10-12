@@ -11,7 +11,11 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetrics
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -19,6 +23,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 
 data class File(
     val filename: String,
@@ -116,6 +121,32 @@ class FileRepository(
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
 
+    private val syncsInFlight = ConcurrentHashMap<Pair<Int, String>, CompletableDeferred<Unit>>()
+
+    private suspend fun syncShared(connectionId: Int, parentPath: String, forced: Boolean = false) {
+        val key = connectionId to parentPath
+        val mine = CompletableDeferred<Unit>()
+        while (true) {
+            val running = syncsInFlight.putIfAbsent(key, mine) ?: break
+            try {
+                running.await()  // stack-reviewer-ignore: a listing that fails fails everyone waiting on it, on purpose. Each waiter retrying would repeat the same failing read of the same folder, opening a folder already reports the error, and a cover already backs off for COVER_RETRY_MILLIS. Only a cancelled leader is worth taking over from, which the catch below does.
+                if (!forced) return
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+            }
+        }
+        val outcome = runCatching {
+            withContext(dispatcher) { syncDirectory(connectionId, parentPath, forced) }
+        }
+        syncsInFlight.remove(key, mine)
+        outcome
+            .onSuccess { mine.complete(Unit) }
+            .onFailure {
+                mine.completeExceptionally(it)
+                throw it
+            }
+    }
+
     suspend fun connect(connection: Connection) {
         return withContext(dispatcher) {
             fileDataSource.connect(sourceDetailsOf(connection))
@@ -197,7 +228,7 @@ class FileRepository(
             emit(DirectoryListing(cached, syncing = true))
         }
 
-        syncDirectory(connectionId, currentPath, forced = refresh == RefreshMode.FORCE)
+        syncShared(connectionId, currentPath, forced = refresh == RefreshMode.FORCE)
 
         // Re-read rather than emitting what the share returned: the reconcile preserved the
         // thumbnail and tag status of everything it recognised, and those are not in the
@@ -313,7 +344,7 @@ class FileRepository(
             return cached
         }
         coverListingSlots.withPermit {
-            withContext(dispatcher) { syncDirectory(connectionId, folderPath) }
+            syncShared(connectionId, folderPath)
         }
         return localDatabaseDataSource.getFolderThumbnails(connectionId, folderPath)
     }
