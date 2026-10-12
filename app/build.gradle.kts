@@ -223,6 +223,7 @@ dependencies {
 
     // Image Fetching
     implementation(libs.sketch.compose)
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.sketch.extensions.compose)
     implementation(libs.sketch.compose.resources)
     implementation(libs.sketch.animated.gif)
