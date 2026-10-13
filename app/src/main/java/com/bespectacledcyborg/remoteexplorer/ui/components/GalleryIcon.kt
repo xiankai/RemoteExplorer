@@ -39,15 +39,13 @@ fun GalleryIcon(
                 .clipToBounds(),
         ) {
             CoverCollage(getImageUrl, covers)
-            coverModeGlyph(cover)?.let { glyph ->
-                CoverModeBadge(
-                    glyph,
-                    cover.label,
-                    Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(side * 0.28f)
-                )
-            }
+            CoverModeBadge(
+                coverModeGlyph(cover),
+                cover.label,
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(side * 0.28f)
+            )
         }
     }
 }
@@ -62,10 +60,10 @@ private fun coverModeGlyph(cover: CoverMode): ImageVector? = when (cover) {
 }
 
 @Composable
-private fun CoverModeBadge(glyph: ImageVector, description: String, modifier: Modifier) {
+private fun CoverModeBadge(glyph: ImageVector?, description: String, modifier: Modifier) {
     BoxWithConstraints(modifier) {
         SystemIcon(IconType.FOLDER, Modifier.fillMaxSize())
-        Icon(
+        if (glyph != null) Icon(
             glyph,
             contentDescription = description,
             tint = BADGE_GLYPH,
