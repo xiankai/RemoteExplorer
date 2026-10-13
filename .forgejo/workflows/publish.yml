@@ -38,7 +38,7 @@ on:
   push:
     tags: ['publish-*']
   schedule:
-    - cron: 'CRON_TZ=Asia/Tokyo 0 12 * * *'
+    - cron: 'CRON_TZ=Asia/Tokyo 0 12 * * *'  # stack-reviewer-ignore: Forgejo v16.0.5 (this instance) honours a TZ=/CRON_TZ= prefix in ActionScheduleSpec.Parse (models/actions/schedule_spec.go) and defaults to UTC without one
   workflow_dispatch:
 
 concurrency:
