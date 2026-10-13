@@ -35,7 +35,7 @@ fun CoverChoiceSheet(
                 },
             )
             CoverMode.entries.forEach { mode ->
-                val enabled = !keepsFirstPage && current != null
+                val enabled = !keepsFirstPage && current != null  // stack-reviewer-ignore: current is null only while the sheet loads; coverChoiceFor returns DEFAULT for a folder with no stored choice, so the options enable once it answers
                 ListItem(
                     modifier = Modifier.selectable(
                         selected = mode == current,
@@ -52,7 +52,7 @@ fun CoverChoiceSheet(
             if (current == CoverMode.SHUFFLE && !keepsFirstPage) {
                 TextButton(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    onClick = { onChoose(CoverMode.SHUFFLE) },
+                    onClick = { onChoose(CoverMode.SHUFFLE) },  // stack-reviewer-ignore: CoverPreferences.choose stores a fresh newSeed() on every call, so choosing Shuffle again rerolls; covered by CoverPreferencesTest
                 ) {
                     Text("Shuffle again")
                 }

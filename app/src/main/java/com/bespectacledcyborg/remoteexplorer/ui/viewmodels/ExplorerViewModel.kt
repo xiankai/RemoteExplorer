@@ -834,7 +834,7 @@ class ExplorerViewModel(
                 sortState.map(::coverOrderFor).distinctUntilChanged(),
                 visitSeed,
                 _coverChoicesChanged,
-                settingsRepository.coverShuffle(),
+                settingsRepository.coverShuffle(),  // stack-reviewer-ignore: only a recompute trigger; CoverPreferences.appliedChoice reads the setting itself through shuffleSetting
             ) { wanted, sorted, seed, _, _ -> Triple(wanted, sorted, seed) }
                 .collectLatest { (wanted, sorted, seed) ->
                     coroutineScope {
