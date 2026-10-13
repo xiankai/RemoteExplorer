@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailVolume
@@ -41,6 +42,10 @@ class SettingsViewModel(
 
     fun setShowCaptions(show: Boolean) {
         viewModelScope.launch { settingsRepository.setShowCaptions(show) }
+    }
+
+    fun setCoverShuffle(shuffle: CoverShuffle) {
+        viewModelScope.launch { settingsRepository.setCoverShuffle(shuffle) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

@@ -18,14 +18,19 @@ import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
+import com.bespectacledcyborg.remoteexplorer.ui.components.CoverChoiceSheet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.navigation.NavHostController
-import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
@@ -129,10 +134,35 @@ fun ExplorerScreen(
         }
     }
 
+    var coverFolder by remember { mutableStateOf<LocalFile?>(null) }
     val handleLongItemClick = { item: Item<LocalFile> ->
         {
-            Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
+            if (item.type == FileType.FOLDER) {
+                coverFolder = item.item
+            } else {
+                Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
+            }
         }
+    }
+
+    coverFolder?.let { folder ->
+        val path = folder.fullPath()
+        var current by remember(path) { mutableStateOf<CoverMode?>(null) }
+        var keepsFirstPage by remember(path) { mutableStateOf(false) }
+        LaunchedEffect(path) {
+            keepsFirstPage = explorerViewModel.folderKeepsFirstPage(path)
+            current = explorerViewModel.coverChoiceFor(path)
+        }
+        CoverChoiceSheet(
+            folderName = folder.filename,
+            current = current,
+            keepsFirstPage = keepsFirstPage,
+            onChoose = { mode ->
+                explorerViewModel.chooseCover(path, mode)
+                coverFolder = null
+            },
+            onDismiss = { coverFolder = null },
+        )
     }
 
     val onOpenTagsScreen = { navHostController.navigate(Route.TagsRoute) }

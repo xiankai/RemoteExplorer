@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import com.bespectacledcyborg.remoteexplorer.data.db.AUTO_COLUMN_COUNT
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsDao
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +67,16 @@ class SettingsRepository(
 
     suspend fun setShowCaptions(show: Boolean) {
         settingsDao.setShowCaptions(show)
+    }
+
+    fun coverShuffle(): Flow<CoverShuffle> =
+        settingsDao.observeSettings()
+            .filterNotNull()
+            .map { it.coverShuffle }
+            .distinctUntilChanged()
+
+    suspend fun setCoverShuffle(shuffle: CoverShuffle) {
+        settingsDao.setCoverShuffle(shuffle)
     }
 
     suspend fun update(settings: SettingsEntity) {

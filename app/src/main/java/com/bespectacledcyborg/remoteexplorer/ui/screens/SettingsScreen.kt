@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.TextFieldDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnCountLabel
@@ -97,6 +98,28 @@ fun SettingsScreen(
                             onClick = {
                                 selectingTheme = false
                                 settingsViewModel.setThemeMode(mode)
+                            },
+                        )
+                    }
+                }
+            }
+
+            Box {
+                var selectingShuffle by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { selectingShuffle = !selectingShuffle },
+                    content = { Text("Shuffle folder covers: ${settings.coverShuffle.label}") },
+                )
+                DropdownMenu(
+                    expanded = selectingShuffle,
+                    onDismissRequest = { selectingShuffle = false },
+                ) {
+                    CoverShuffle.entries.forEach { shuffle ->
+                        DropdownMenuItem(
+                            text = { Text(shuffle.label) },
+                            onClick = {
+                                selectingShuffle = false
+                                settingsViewModel.setCoverShuffle(shuffle)
                             },
                         )
                     }
