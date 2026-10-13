@@ -23,13 +23,9 @@
 # the shared copy on the exact key and never save. The runner keeps only the newest entry
 # per key and drops anything unused for 7 days.
 #
-# WHAT IS DELIBERATELY NOT CHECKED HERE: the native build and the APK.
-# externalNativeBuild needs NDK 27.2.12479018 plus cmake, which is several GB to install on
-# a runner that has no layer cache between runs, on a pool of capacity 2. `assembleDebug` is
+# WHAT IS DELIBERATELY NOT CHECKED HERE: the native build and the APK. `assembleDebug` is
 # already covered on a developer machine by tools/dev-run.sh before anything is pushed, and
-# the arm64-only prebuilts mean CI could not run the result anyway. If the APK ever needs to
-# be built here, give it its own runner label rather than putting a ten-minute job on the
-# shared pool.
+# the arm64-only prebuilts mean CI could not run the result anyway.
 #
 # -Prex.skipNative is what actually achieves that, and it is NOT optional. Checking the task
 # graph is not enough: no CMake task enters the graph for lint or unit tests, but simply
@@ -54,12 +50,6 @@ concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  # actions/cache runs inside the job container, which the gradle image ships without node.
-  NODE_VERSION: v22.23.3
-  # From https://nodejs.org/dist/v22.23.3/SHASUMS256.txt, checked against the download.
-  NODE_SHA256: 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af
-
 jobs:
   checks:
     # The DEDICATED Android runner (capacity 1), not the shared ubuntu-latest pool. This job
@@ -74,23 +64,11 @@ jobs:
     # See stacks/act-runner.yml in infra for the runner itself.
     runs-on: android
     container:
-      image: gradle:9.1.0-jdk21
+      image: android-ci:latest
     # 40, not 25: a cold run was already ~20 min at worst, and one that misses the cache also
     # pays for compressing and saving it afterwards.
     timeout-minutes: 40
     steps:
-      - name: Install node for the cache action
-        run: |
-          set -euo pipefail
-          # The runner starts a JavaScript action with a bare `node` inside this container, so
-          # a symlink on the default PATH is all it needs. .tar.gz because the image has no xz.
-          curl -fsSL -o /tmp/node.tgz "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.gz"
-          # Pinned checksum, so a swapped tarball fails here instead of running in this job.
-          echo "${NODE_SHA256}  /tmp/node.tgz" | sha256sum -c -
-          tar -xzf /tmp/node.tgz -C /opt
-          ln -sf "/opt/node-${NODE_VERSION}-linux-x64/bin/node" /usr/local/bin/node
-          node --version
-
       - name: Checkout
         run: |
           set -euo pipefail
@@ -179,43 +157,6 @@ jobs:
           # A dependency bump still starts from the previous set rather than from nothing.
           restore-keys: |
             gradle-build-
-
-      - name: Install shellcheck
-        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
-        run: |
-          set -euo pipefail
-          apt-get update -qq
-          apt-get install -y -qq --no-install-recommends shellcheck unzip curl
-
-      - name: Install the Android SDK
-        if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
-        run: |
-          set -euo pipefail
-          # Only what a non-native Gradle run needs. No NDK, no cmake — see the header.
-          # Each substep announces itself: the first failure here was a bare exit 141 with
-          # no output, because everything was redirected to /dev/null.
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          echo "downloading cmdline-tools"
-          curl -fsSL -o /tmp/tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          echo "unpacking"
-          unzip -q /tmp/tools.zip -d "$ANDROID_HOME/cmdline-tools"
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
-          echo "accepting licences"
-          # `yes` is killed by SIGPIPE the moment sdkmanager stops reading, and under
-          # pipefail that surfaces as the step failing with exit 141 even though the
-          # licences were accepted. Check sdkmanager's own status instead of the pipeline's.
-          set +o pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
-          licences=${PIPESTATUS[1]}
-          set -o pipefail
-          [ "$licences" -eq 0 ] || { echo "::error::sdkmanager --licenses exited $licences"; exit 1; }
-
-          echo "installing platform 37 + build-tools"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "platform-tools" "platforms;android-37.0" "build-tools;36.0.0" >/dev/null  # stack-reviewer-ignore: 36.0.0 is AGP 9.4.1's own default build-tools (ToolsRevisionUtils in builder-9.4.1.jar), and compileSdk 37 builds with it — checked locally with only 36.0.0 installed. Build-tools does not track compileSdk.
-          echo "sdk ready"
-        env:
-          ANDROID_HOME: /opt/android-sdk
 
       - name: Checks
         if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'

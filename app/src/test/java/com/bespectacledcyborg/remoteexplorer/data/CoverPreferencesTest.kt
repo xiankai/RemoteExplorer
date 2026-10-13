@@ -41,8 +41,12 @@ class CoverPreferencesTest {
         newSeed = { seeds.next() },
     )
 
-    private suspend fun order(path: String, connectionId: Int = 1) =
-        preferences.orderFor(connectionId, path, CoverOrder.Name, visitSeed = 7)
+    private suspend fun cover(path: String, connectionId: Int = 1, sorted: CoverOrder = CoverOrder.Name) =
+        preferences.coverFor(connectionId, path, sorted, visitSeed = 7)
+
+    private suspend fun order(path: String, connectionId: Int = 1) = cover(path, connectionId).order
+
+    private suspend fun applied(path: String) = cover(path).applied
 
     @Test
     fun `a folder left on default follows the screen's sort`() = runTest {
@@ -87,6 +91,36 @@ class CoverPreferencesTest {
         assertEquals(CoverOrder.Name, order("kept"))
         assertEquals(CoverOrder.Newest, order("newest"))
         assertEquals(CoverMode.SHUFFLE, preferences.choiceFor(1, "kept"))
+    }
+
+    @Test
+    fun `the applied mode names what the cover follows, not what was stored`() = runTest {
+        preferences.choose(1, "newest", CoverMode.NEWEST)
+        preferences.choose(1, "kept", CoverMode.SHUFFLE)
+        preferences.choose(1, "every", CoverMode.SHUFFLE_EVERY_VISIT)
+        preferences.choose(1, "gallery-dl/examplebooru/[1] work", CoverMode.NEWEST)
+
+        assertEquals(CoverMode.NEWEST, applied("newest"))
+        assertEquals(CoverMode.SHUFFLE, applied("kept"))
+        assertEquals(CoverMode.SHUFFLE_EVERY_VISIT, applied("every"))
+        assertEquals(CoverMode.DEFAULT, applied("left-on-default"))
+        assertEquals(CoverMode.DEFAULT, applied("gallery-dl/examplebooru/[1] work"))
+
+        shuffle = CoverShuffle.ALL
+        assertEquals(CoverMode.SHUFFLE_EVERY_VISIT, applied("left-on-default"))
+        assertEquals(CoverMode.SHUFFLE, applied("kept"))
+
+        shuffle = CoverShuffle.OFF
+        assertEquals(CoverMode.DEFAULT, applied("kept"))
+        assertEquals(CoverMode.DEFAULT, applied("every"))
+        assertEquals(CoverMode.NEWEST, applied("newest"))
+    }
+
+    @Test
+    fun `a folder left on default under a newest-first screen is not marked newest`() = runTest {
+        val chosen = cover("left-on-default", sorted = CoverOrder.Newest)
+        assertEquals(CoverOrder.Newest, chosen.order)
+        assertEquals(CoverMode.DEFAULT, chosen.applied)
     }
 
     @Test

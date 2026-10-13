@@ -94,6 +94,7 @@ fun ExplorerScreen(
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
+    val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
 
@@ -260,6 +261,7 @@ fun ExplorerScreen(
                             ),
                             item = it,
                             captioned = it.fullPath() in captionedFolders,
+                            cover = appliedCovers[it.fullPath()] ?: CoverMode.DEFAULT,
                         )
                     },
                     handleItemClick = handleItemClick,

@@ -17,6 +17,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
 
@@ -26,6 +27,7 @@ data class Item<T> (
     val thumbnails: List<String>,
     val item: T,
     val captioned: Boolean = false,
+    val cover: CoverMode = CoverMode.DEFAULT,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +78,7 @@ fun <T>Explorer(
                     handleItemClick(item),
                     handleLongItemClick(item),
                     getImageUrl,
+                    item.cover,
                 ) }
             }
         } else if (viewType == ViewType.GRID) {
@@ -93,6 +96,7 @@ fun <T>Explorer(
                             handleLongItemClick(item),
                             getImageUrl,
                             item.captioned,
+                            item.cover,
                         )
                     }
                 }

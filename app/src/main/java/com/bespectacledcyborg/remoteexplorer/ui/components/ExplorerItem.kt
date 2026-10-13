@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 
 private val GLYPH_INSET = 8.dp
@@ -50,6 +51,7 @@ fun ExplorerItem(
     handleLongItemClick: () -> Unit,
     getImageUrl: GetImageUrl,
     captioned: Boolean = false,
+    cover: CoverMode = CoverMode.DEFAULT,
     ) {
     val inset = if (drawsPicture(type, thumbnails)) 0.dp else GLYPH_INSET
     Column(
@@ -70,6 +72,7 @@ fun ExplorerItem(
                 name,
                 type,
                 thumbnails,
+                cover,
                 Modifier
                     .fillMaxSize()
                     .padding(inset)
