@@ -27,14 +27,18 @@
 # -Prex.skipNative would produce an APK that installs and then dies inside System.loadLibrary
 # at the first video thumbnail. The NDK and cmake come from the android-ci image.
 #
-# ON DEMAND, NOT ON EVERY MERGE (#118). A release build costs buildhost 20-odd minutes, so it
-# runs when a `publish-*` tag is pushed or the workflow is started by hand, and three merges
-# in an hour cost one build. The pattern stays clear of the `v<versionCode>` tags this job
-# creates for its releases. Re-publishing a commit replaces its release.
+# DAILY AT NOON, NOT ON EVERY MERGE (#118, #123). A release build costs buildhost 20-odd
+# minutes, so it runs once a day at 12:00 Asia/Tokyo, and a day whose master is already the
+# newest release stops before the build. A `publish-*` tag or a manual run still publishes
+# straight away, whether or not anything changed. The pattern stays clear of the
+# `v<versionCode>` tags this job creates for its releases. Re-publishing a commit replaces
+# its release.
 name: publish
 on:
   push:
     tags: ['publish-*']
+  schedule:
+    - cron: 'CRON_TZ=Asia/Tokyo 0 12 * * *'  # stack-reviewer-ignore: Forgejo v16.0.5 (this instance) honours a TZ=/CRON_TZ= prefix in ActionScheduleSpec.Parse (models/actions/schedule_spec.go) and defaults to UTC without one
   workflow_dispatch:
 
 concurrency:
@@ -59,6 +63,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout the commit that was asked for, if it is on master
+        id: checkout
         run: |
           set -euo pipefail
           test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available"; exit 1; }
@@ -75,11 +80,23 @@ jobs:
             exit 1
           }
           echo "PUBLISH_SHA=${commit}" >> "$GITHUB_ENV"
+          if [ "${GITHUB_EVENT_NAME}" = schedule ]; then
+            released=$(curl -fsS -H "Authorization: token ${RUN_TOKEN}" \
+              "https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}/releases?limit=50" \
+              | jq -r 'sort_by(.id) | last | .target_commitish // ""')
+            if [ "$released" = "$commit" ]; then
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "master is still ${commit}, the newest release; nothing to publish today"
+              exit 0
+            fi
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
           echo "publishing ${commit} ($(git log -1 --format=%s))"
         env:
           RUN_TOKEN: ${{ github.token }}
 
       - name: Gradle cache key
+        if: steps.checkout.outputs.publish == 'true'
         id: key
         run: |
           set -euo pipefail
@@ -95,6 +112,7 @@ jobs:
           echo "gradle-build-${h}"
 
       - name: Restore the Gradle cache
+        if: steps.checkout.outputs.publish == 'true'
         # restore/ has no post step, so nothing from this job is ever saved (see header).
         uses: https://data.forgejo.org/actions/cache/restore@v4
         with:
@@ -106,6 +124,7 @@ jobs:
             gradle-build-
 
       - name: Restore the signing material
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           # Fail here, loudly, rather than later and quietly. Release signing is OPTIONAL in
@@ -122,6 +141,7 @@ jobs:
           KEYSTORE_PROPS: ${{ secrets.SIDELOAD_KEYSTORE_PROPERTIES }}
 
       - name: Build the release APK
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           cd /tmp/repo
@@ -132,6 +152,7 @@ jobs:
 
 
       - name: Verify the APK is actually signed
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           cd /tmp/repo
@@ -153,6 +174,7 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
 
       - name: Read the version, and refuse to go backwards
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           cd /tmp/repo
@@ -184,6 +206,7 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
 
       - name: Upload to fileserver, replacing the previous copy
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           cd /tmp/repo
@@ -206,6 +229,7 @@ jobs:
           FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
 
       - name: Publish a release, keeping only the latest three
+        if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
           cd /tmp/repo

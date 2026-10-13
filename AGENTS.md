@@ -196,14 +196,15 @@ Two systems, deliberately:
 |---|---|---|---|
 | Pre-merge checks | Forgejo, `.forgejo/workflows/build.yml` | `pull_request` | shellcheck, unit tests, lint |
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
-| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
+| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
 
 A change that touches only Markdown skips the checks and the release. The reviewer still
 runs.
 
-**The sideload build is on demand** (#118): merging no longer publishes, because each release
-build costs buildhost 20-odd minutes. To ship what is on master:
+**The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
+release build costs buildhost 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
+the newest release already is master, in which case it stops before the build. To ship sooner:
 
 ```bash
 t=publish-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master && git push origin "$t"
