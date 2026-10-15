@@ -268,8 +268,10 @@ Not yet fixed, roughly by user-visible impact:
    root rather than the whole of shared storage.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
    `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and
-   their queries have DAO tests against a real Room database; the Ktor range server and the
-   JNI decoder are still untested, and there is no `androidTest/` source set at all.
+   their queries have DAO tests against a real Room database. `LoopbackServerTest` drives the
+   Ktor range server's own routes (GET, ranges, HEAD, 404s, thumbnails) in-process and once
+   through real Jetty. The JNI decoder is still untested, and there is no `androidTest/`
+   source set at all.
 
    The migration tests run under **Robolectric as JVM unit tests**, not on a device, because
    `MigrationTestHelper` needs an `Instrumentation` but CI has no emulator — so they sit

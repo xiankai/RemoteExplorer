@@ -52,7 +52,7 @@ class SambaFileDataSource : FileDataSource {
 
     private fun accessDiskShare(connectionId: ConnectionId): DiskShare {
         val diskShareEntry = this.diskShares[connectionId]
-            ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
+            ?: throw UnknownConnectionException(connectionId, "not initialized")
 
         if (diskShareEntry.share == null || !diskShareEntry.share.isConnected) {
             return openShare(diskShareEntry.details)

@@ -32,6 +32,9 @@ interface FileDataSource {
     fun openFile(connectionId: ConnectionId, path: String): SourceFile
 }
 
+class UnknownConnectionException(connectionId: ConnectionId, state: String) :
+    IllegalStateException("Connection ID: $connectionId $state")
+
 /**
  * What a source needs to open one connection: [ConnectionDetails] for a share, or
  * [LocalRootDetails] for a folder on the device.
