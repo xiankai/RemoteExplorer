@@ -334,7 +334,7 @@ class FileRepository(
 
         override suspend fun images(connectionId: Int, folder: String, limit: Int): List<String> {
             val page = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
-            val visible = HiddenFiles.visiblePaths(connectionId, page, canonicalize)
+            val visible = HiddenFiles.visiblePaths(connectionId, page, canonicalize)  // stack-reviewer-ignore: covers skip hidden entries whatever the switch says, on purpose (#128's plan hides them "from listings and from cover picking"). The switch exists so nothing becomes unreachable, and a cover is decoration, not a way to reach a file; an AppleDouble ._x.jpg as a gallery's cover is the bug this fixes. The PR description states it.
             if (visible.size == page.size || page.size < limit || limit >= COVER_SHUFFLE_POOL) {
                 return visible
             }
