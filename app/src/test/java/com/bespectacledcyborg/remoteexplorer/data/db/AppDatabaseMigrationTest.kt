@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 21 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 22 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 21, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 22, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -409,6 +409,25 @@ class AppDatabaseMigrationTest {
             }
             db.query("SELECT COUNT(*) FROM FolderSort").use { row ->
                 assertTrue(row.moveToFirst()); assertEquals(0, row.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 22 hiding clutter and keeping every other setting`() {
+        helper.createDatabase(TEST_DB, 21).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode, showCaptions) " +
+                        "VALUES (0, 8, 5, 'DARK', 1)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 22, true).use { db ->
+            db.query("SELECT maxStorageCacheSize, showCaptions, showHiddenFiles FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(8, row.getInt(0))
+                assertEquals(1, row.getInt(1))
+                assertEquals(0, row.getInt(2))
             }
         }
     }

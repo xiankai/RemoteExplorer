@@ -69,6 +69,16 @@ class SettingsRepository(
         settingsDao.setShowCaptions(show)
     }
 
+    fun showHiddenFiles(): Flow<Boolean> =
+        settingsDao.observeSettings()
+            .filterNotNull()
+            .map { it.showHiddenFiles }
+            .distinctUntilChanged()
+
+    suspend fun setShowHiddenFiles(show: Boolean) {
+        settingsDao.setShowHiddenFiles(show)
+    }
+
     fun coverShuffle(): Flow<CoverShuffle> =
         settingsDao.observeSettings()
             .filterNotNull()

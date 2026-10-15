@@ -80,7 +80,10 @@ import java.util.Date
     // 21 adds FolderSort, a folder's own sort, and two settings: defaultSort, NAME_ASC, and
     // columnTileWidthDp, null. An existing install keeps its stored column count until the
     // next pick.
-    version = 21,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
+    //
+    // 22 adds settings.showHiddenFiles, off (#128). A defaulted column, so it auto-migrates,
+    // and an existing install starts hiding clutter.
+    version = 22,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -105,6 +108,7 @@ import java.util.Date
         AutoMigration(from = 18, to = 19),
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
+        AutoMigration(from = 21, to = 22),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)

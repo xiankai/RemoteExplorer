@@ -34,6 +34,9 @@ interface SettingsDao {
     @Query("UPDATE settings SET showCaptions = :show")
     suspend fun setShowCaptions(show: Boolean)
 
+    @Query("UPDATE settings SET showHiddenFiles = :show")
+    suspend fun setShowHiddenFiles(show: Boolean)
+
     @Query("UPDATE settings SET coverShuffle = :shuffle")
     suspend fun setCoverShuffle(shuffle: CoverShuffle)
 
@@ -88,6 +91,8 @@ data class SettingsEntity(
     val columnTileWidthDp: Int? = null,
     @ColumnInfo(defaultValue = "NAME_ASC")
     val defaultSort: SortType = SortType.NAME_ASC,
+    @ColumnInfo(defaultValue = "0")
+    val showHiddenFiles: Boolean = false,
 )
 
 enum class CoverShuffle(val label: String) {

@@ -13,6 +13,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFileStamp
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
+import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
@@ -560,6 +561,85 @@ class FileRepositoryTest {
         val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
 
         assertEquals(listOf("Photos/c.jpg", "Photos/d.jpg"), cover.images)
+    }
+
+    @Test
+    fun `a listing leaves out clutter unless hidden files are shown`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile(".DS_Store"),
+                cachedFile("download-archive.sqlite3-journal"),
+                cachedFile("beach.jpg"),
+            )
+        )
+        freshlySynced(dao)
+        val repository = repository(FakeFileDataSource(), dao)
+
+        val hidden = repository.listFiles(1, "Photos").toList().last().files
+        val shown = repository.listFiles(1, "Photos", showHidden = true).toList().last().files
+
+        assertEquals(listOf("beach.jpg"), hidden.map { it.filename })
+        assertEquals(3, shown.size)
+    }
+
+    @Test
+    fun `a paired copy of the tag index folder is hidden by its canonical path`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile("_index").copy(connectionId = 2, parentPath = "", type = FileType.FOLDER),
+                cachedFile("pixiv").copy(connectionId = 2, parentPath = "", type = FileType.FOLDER),
+            )
+        )
+        dao.upsertDirectorySync(DirectorySync(2, "", Date(now)))
+        val pairings = Pairings(
+            listOf(Pairing(
+                localConnectionId = 2, localSubPath = "",
+                remoteConnectionId = 1, remoteSubPath = "gallery-dl",
+            ))
+        )
+        val dispatcher = UnconfinedTestDispatcher()
+        val repository = FileRepository(
+            FakeFileDataSource(),
+            LocalDatabaseDataSource(dao, dispatcher),
+            dispatcher,
+            canHaveThumbnail = { false },
+            clock = { now },
+            listingTtlMillis = ttl,
+            canonicalize = pairings::canonicalize,
+        )
+
+        val files = repository.listFiles(2, "").toList().last().files
+
+        assertEquals(listOf("pixiv"), files.map { it.filename })
+    }
+
+    @Test
+    fun `a cover looks past AppleDouble files that sort ahead of the real images`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf("._a.jpg", "._b.jpg", "._c.jpg", "._d.jpg", "a.jpg", "b.jpg")
+                .map { cachedFile(it) }
+        )
+        freshlySynced(dao)
+
+        val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
+
+        assertEquals(listOf("Photos/a.jpg", "Photos/b.jpg"), cover.images)
+    }
+
+    @Test
+    fun `a hidden folder lends no cover to its parent`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf(
+                cachedFile(".samples").copy(type = FileType.FOLDER),
+                cachedFile("x.jpg").copy(parentPath = "Photos/.samples"),
+            )
+        )
+        freshlySynced(dao)
+        dao.upsertDirectorySync(DirectorySync(1, "Photos/.samples", Date(now)))
+
+        val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
+
+        assertEquals(emptyList<String>(), cover.images)
     }
 }
 

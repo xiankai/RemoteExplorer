@@ -44,6 +44,10 @@ class SettingsViewModel(
         viewModelScope.launch { settingsRepository.setShowCaptions(show) }
     }
 
+    fun setShowHiddenFiles(show: Boolean) {
+        viewModelScope.launch { settingsRepository.setShowHiddenFiles(show) }
+    }
+
     fun setCoverShuffle(shuffle: CoverShuffle) {
         viewModelScope.launch { settingsRepository.setCoverShuffle(shuffle) }
     }
