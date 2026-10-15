@@ -356,11 +356,10 @@ class ExplorerViewModel(
                 ?: throw IllegalStateException(
                     "Constructing a URL when connectionId is null"
                 )
-        // Canonical before it becomes a URL, because the URL is Sketch's cache key: a local
-        // copy has to ask for its remote twin's URL to share its cache entry. The server
-        // reads the local copy anyway, when there is one.
         val canonical = pairingRepository.current().canonicalize(connectionId, path)
-        return constructUrl(canonical.connectionId, canonical.path, thumbnail)
+        return constructUrl(
+            canonical.connectionId, canonical.path, serverRepository.urlToken, thumbnail,
+        )
     }
 
     private val _search: MutableStateFlow<String> = MutableStateFlow("")

@@ -54,7 +54,10 @@ edited from the local root's connection screen and shown, read-only, on the shar
 localhost that re-serves SMB files over HTTP with `Range` support. Everything downstream
 then consumes plain URLs — Sketch loads thumbnails, `ACTION_VIEW` hands video to external
 players — without downloading files first. URLs look like
-`http://127.0.0.1:<port>/<path>?connectionId=N[&thumbnail=true]`.
+`http://127.0.0.1:<port>/<path>?connectionId=N&token=T[&thumbnail=true]`. `T` is
+`LoopbackToken`, 256 random bits made once per install and kept in the `loopback_server`
+shared preferences; the server answers 403 to any request without it, HEAD and OPTIONS
+included. It must stay stable across launches, because the URL is Sketch's cache key.
 
 **Room is a mirror, not just preferences.** `LocalFile` caches the remote listing with
 per-file `tagStatus` / `thumbnailStatus` state machines. `listFiles` serves from the DB and
@@ -260,16 +263,17 @@ pass; the second pass is incremental and cheap.
 
 Not yet fixed, roughly by user-visible impact:
 
-1. **The HTTP server treats `connectionId` as the only thing resembling auth.** It binds
-   loopback now, so the exposure is other apps on the device rather than the whole LAN.
-   Passwords in Room are encrypted as of v9 — see below. A local root widens it: with
-   all-files access, another app can read anything under a configured root through this
-   server. `LocalFileDataSource` confining every path to its root is what keeps that to the
-   root rather than the whole of shared storage.
+1. **Any app handed a loopback URL can read every connection through it.** Each request
+   needs the per-install token as well as a `connectionId` (#127), so an app that only
+   knows the port gets 403. But the token is in every URL given to an external player by
+   `ACTION_VIEW`, and it is one token for every connection and every path, kept for the
+   install. A local root widens what such an app can reach: with all-files access, anything
+   under a configured root. `LocalFileDataSource` confining every path to its root is what
+   keeps that to the root rather than the whole of shared storage.
 2. **Tests are thin.** `FileRepositoryTest` covers the cached-and-filtered path and
    `AppDatabaseMigrationTest` covers the v5→v13 chain, and the tag index, alias layer and
    their queries have DAO tests against a real Room database. `LoopbackServerTest` drives the
-   Ktor range server's own routes (GET, ranges, HEAD, 404s, thumbnails) in-process and once
+   Ktor range server's own routes (GET, ranges, HEAD, 403/404s, thumbnails) in-process and once
    through real Jetty. The JNI decoder is still untested, and there is no `androidTest/`
    source set at all.
 

@@ -21,6 +21,7 @@ import com.hierynomus.mserref.NtStatus
 import com.hierynomus.mssmb2.SMBApiException
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.application.hooks.CallFailed
 import io.ktor.server.application.install
@@ -80,7 +81,10 @@ class ServerRepository(
     private val opens: OpenListener = OpenListener.NONE,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
+    private val token: LoopbackToken,
 ) {
+    val urlToken: String get() = token.value
+
     private val renderSlots = NewestFirstPermits(MAX_CONCURRENT_RENDERS)
 
     private fun extractConnectionId(call: RoutingCall): Int {
@@ -93,15 +97,20 @@ class ServerRepository(
         return connectionId
     }
 
-    suspend fun startup() {
+    suspend fun startup() = withContext(dispatcher) {
+        token.ensureStored()
         val port = findAvailablePort()
         Log.i("ServerRepository", "Serving SMB over HTTP on 127.0.0.1:$port")
-        return withContext(dispatcher) {
-            embeddedServer(Jetty, port, host = "127.0.0.1") { serveFiles() }.start(wait = true)
-        }
+        embeddedServer(Jetty, port, host = "127.0.0.1") { serveFiles() }.start(wait = true)
     }
 
     internal fun Application.serveFiles() {
+        intercept(ApplicationCallPipeline.Plugins) {
+            if (!token.matches(context.request.queryParameters[LOOPBACK_TOKEN_PARAMETER])) {
+                context.respondText("Forbidden", status = HttpStatusCode.Forbidden)
+                finish()
+            }
+        }
         install(MissingFilesAreNotFound)
         routing {
             options("/{path...}") {

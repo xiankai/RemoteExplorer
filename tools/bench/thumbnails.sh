@@ -162,6 +162,16 @@ local_port="$port"
 "$adb" -s "$device" forward "tcp:$local_port" "tcp:$port" >/dev/null
 echo "==> server on device port $port"
 
+token=""
+for _ in $(seq 1 10); do
+  token="$("$adb" -s "$device" exec-out run-as "$appid" cat shared_prefs/loopback_server.xml 2>/dev/null |
+    sed -n 's/.*name="token">\([^<]*\)<.*/\1/p')"
+  [ -n "$token" ] && break
+  sleep 1
+done
+[ -n "$token" ] || { echo "the app never stored a loopback token" >&2; exit 1; }
+dq="&token=$token$dq"
+
 # ---- open the connection -----------------------------------------------------------------
 
 # The HTTP server comes up with the ViewModel, but the SMB session does not: it is
