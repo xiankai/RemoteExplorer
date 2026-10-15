@@ -19,11 +19,6 @@ class IndexFileTagSource(
     private val localDatabaseDataSource: LocalDatabaseDataSource,
 ) : TagSource {
 
-    override val capabilities = TagSourceCapabilities(
-        indexesUnvisitedDirectories = true,
-        supportsWrites = false,
-    )
-
     /**
      * Pulls whatever the index has that this connection has not seen.
      *

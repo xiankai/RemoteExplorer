@@ -37,13 +37,6 @@ class AliasFileTagSource(
     private val localDatabaseDataSource: LocalDatabaseDataSource,
 ) : TagSource {
 
-    // Adds no tags, so it can reach nothing — false is the neutral answer under
-    // CombinedTagSource's any().
-    override val capabilities = TagSourceCapabilities(
-        indexesUnvisitedDirectories = false,
-        supportsWrites = false,
-    )
-
     /**
      * Replaces this connection's aliases if the share has a generation it has not seen.
      *

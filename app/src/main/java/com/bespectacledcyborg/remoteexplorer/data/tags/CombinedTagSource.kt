@@ -14,20 +14,6 @@ class CombinedTagSource(
 ) : TagSource {
 
     /**
-     * The union of what the sources can do.
-     *
-     * [TagSourceCapabilities.indexesUnvisitedDirectories] is true if *any* source can,
-     * because the question it answers for the UI is whether the tag list might be missing
-     * directories nobody has opened — and one source covering them is enough for it not to
-     * be. Writes are false until something can write, and then it will be the source's
-     * answer rather than this one's.
-     */
-    override val capabilities = TagSourceCapabilities(
-        indexesUnvisitedDirectories = sources.any { it.capabilities.indexesUnvisitedDirectories },
-        supportsWrites = sources.any { it.capabilities.supportsWrites },
-    )
-
-    /**
      * Indexes with every source, and reports the total.
      *
      * A source that throws stops the pass rather than being skipped: both of these reach the

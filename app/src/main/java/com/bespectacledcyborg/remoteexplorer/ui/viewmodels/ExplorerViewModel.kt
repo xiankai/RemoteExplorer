@@ -266,9 +266,6 @@ class ExplorerViewModel(
                 _connection.update { connection }
                 _list.update { emptyMap() }
                 _thumbnails.update { emptyMap() }
-                _tagIndexIsPartial.update {
-                    !tagRepository.capabilitiesFor(connection.id).indexesUnvisitedDirectories
-                }
 
                 fileRepository.connect(connection)
 
@@ -716,8 +713,6 @@ class ExplorerViewModel(
             tags.firstOrNull { it.tag == tag }?.label ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val _tagIndexIsPartial = MutableStateFlow(false)
-    val tagIndexIsPartialState: StateFlow<Boolean> = _tagIndexIsPartial.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
         changePath("${tagPrefix}${tag.tag}")

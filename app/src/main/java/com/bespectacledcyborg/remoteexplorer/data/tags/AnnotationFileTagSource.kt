@@ -12,11 +12,6 @@ class AnnotationFileTagSource(
     private val dispatcher: CoroutineDispatcher,
 ) : TagSource {
 
-    override val capabilities = TagSourceCapabilities(
-        indexesUnvisitedDirectories = false,
-        supportsWrites = false,
-    )
-
     override suspend fun index(
         connectionId: Int,
         reindexAll: Boolean,

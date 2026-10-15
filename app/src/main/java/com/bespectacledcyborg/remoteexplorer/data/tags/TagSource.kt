@@ -12,8 +12,6 @@ package com.bespectacledcyborg.remoteexplorer.data.tags
  * index reports zero and says nothing.
  */
 interface TagSource {
-    val capabilities: TagSourceCapabilities
-
     /**
      * Advances the tag index for [connectionId], doing at most [limit] files' worth of work
      * where the work divides into files at all.
@@ -44,22 +42,6 @@ data class TagIndexProgress(
         val NOTHING = TagIndexProgress(indexed = 0, mayHaveMore = false)
     }
 }
-
-/**
- * What a source can do. Read by the UI so it can distinguish "this share has no tags" from
- * "this source has only seen part of the share" — a difference the app used to hide.
- */
-data class TagSourceCapabilities(
-    /**
-     * Whether the source can find tags in directories the app has never browsed to.
-     *
-     * False for a source that adds no tags of its own, such as the alias layer.
-     */
-    val indexesUnvisitedDirectories: Boolean,
-
-    /** Whether a tag can be written back. Nothing does yet; see #29. */
-    val supportsWrites: Boolean,
-)
 
 /**
  * Chooses the source for a connection.

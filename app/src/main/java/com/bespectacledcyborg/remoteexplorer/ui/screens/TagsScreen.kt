@@ -42,7 +42,6 @@ fun TagsScreen(
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
-    val tagIndexIsPartial by explorerViewModel.tagIndexIsPartialState.collectAsState()
 
     val handleItemClick = { item: Item<LocalTagWithMetadata> ->
         {
@@ -87,17 +86,6 @@ fun TagsScreen(
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (tagIndexIsPartial) {
-                    Text(
-                        text = "From folders you have opened",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .align(Alignment.Start)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-
                 if (tagQuery.isNotBlank() && tags.value.isEmpty()) {
                     Text(
                         text = "No tags match \"${tagQuery.trim()}\"",
