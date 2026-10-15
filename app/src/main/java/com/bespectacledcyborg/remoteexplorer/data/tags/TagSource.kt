@@ -12,8 +12,6 @@ package com.bespectacledcyborg.remoteexplorer.data.tags
  * index reports zero and says nothing.
  */
 interface TagSource {
-    val capabilities: TagSourceCapabilities
-
     /**
      * Advances the tag index for [connectionId], doing at most [limit] files' worth of work
      * where the work divides into files at all.
@@ -46,27 +44,10 @@ data class TagIndexProgress(
 }
 
 /**
- * What a source can do. Read by the UI so it can distinguish "this share has no tags" from
- * "this source has only seen part of the share" — a difference the app used to hide.
- */
-data class TagSourceCapabilities(
-    /**
-     * Whether the source can find tags in directories the app has never browsed to.
-     *
-     * False for sidecars, which are only discovered by listing the directory holding them,
-     * so the tag list covers visited folders and nothing else.
-     */
-    val indexesUnvisitedDirectories: Boolean,
-
-    /** Whether a tag can be written back. Nothing does yet; see #29. */
-    val supportsWrites: Boolean,
-)
-
-/**
  * Chooses the source for a connection.
  *
  * Every connection resolves to the same [CombinedTagSource] today — index, aliases and
- * sidecars, each finding nothing on a share that lacks it. The seam exists because the
+ * annotations, each finding nothing on a share that lacks it. The seam exists because the
  * choice becomes per-connection once a remote tag database can be configured, and that
  * wants somewhere to live that is not a call site.
  */

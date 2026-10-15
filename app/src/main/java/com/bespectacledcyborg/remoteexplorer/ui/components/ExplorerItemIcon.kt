@@ -33,6 +33,6 @@ fun drawsPicture(type: FileType, thumbnails: List<String>): Boolean = when {
 }
 
 enum class IconType {
-    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER, TAG, SVG,
+    IMAGE, VIDEO, AUDIO, TEXT, FILE, FOLDER, SVG,
     CONNECTION, ADD_CONNECTION
 }

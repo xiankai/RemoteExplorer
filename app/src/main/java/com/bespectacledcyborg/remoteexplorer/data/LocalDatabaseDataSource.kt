@@ -8,7 +8,6 @@ import com.bespectacledcyborg.remoteexplorer.data.db.TagIndexIngest
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
-import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -110,28 +109,6 @@ class LocalDatabaseDataSource(
         }
     }
 
-    suspend fun updateFileTags(
-        connectionId: Int,
-        tagFile: LocalFile,
-        correspondingFilename: String?,
-        tags: List<String>,
-    ) {
-        withContext(dispatcher) {
-            localDatabaseDao.updateFileTags(connectionId, tagFile, correspondingFilename, tags)
-        }
-    }
-
-    suspend fun updateTagStatus(
-        connectionId: Int,
-        parentPath: String,
-        filename: String,
-        status: TagStatus,
-    ) {
-        withContext(dispatcher) {
-            localDatabaseDao.updateTagStatus(connectionId, parentPath, filename, status)
-        }
-    }
-
     fun updateThumbnailStatus(
         connectionId: Int,
         parentPath: String,
@@ -151,15 +128,5 @@ class LocalDatabaseDataSource(
 
     fun clearFailedThumbnails(connectionId: Int, parentPath: String) {
         localDatabaseDao.clearFailedThumbnails(connectionId, parentPath)
-    }
-
-    suspend fun getTagFiles(connectionId: Int, forceRemote: Boolean, limit: Int): List<LocalFile> {
-        return withContext(dispatcher) {
-            if (forceRemote) {
-                localDatabaseDao.getAllTagFiles(connectionId, limit)
-            } else {
-                localDatabaseDao.getUnprocessedTagFiles(connectionId, limit)
-            }
-        }
     }
 }

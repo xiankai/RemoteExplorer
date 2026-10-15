@@ -47,7 +47,6 @@ import com.bespectacledcyborg.remoteexplorer.data.tags.IndexFileTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.SharesOnlyTagSource
 import com.bespectacledcyborg.remoteexplorer.data.tags.SmbTagIndexFiles
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexReader
-import com.bespectacledcyborg.remoteexplorer.data.tags.XmpSidecarTagSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.FallbackThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.LocalImageThumbnailSource
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.PairedThumbnailStatuses
@@ -151,14 +150,6 @@ class ExplorerViewModelFactory(
             sourceKind = fileDataSource::sourceKind,
             keepsFirstPage = coverPreferences::keepsFirstPage,
         )
-        // Both sources for every connection, which is the union rather than a choice: the
-        // rolled-up index covers the galleries gallery-dl downloaded, sidecars cover
-        // whatever a photo tool wrote beside the files, and a share can have either, both
-        // or neither. A share with no index reports nothing and costs one small read to
-        // find that out. The alias layer rides alongside: it adds no tags, only which ones
-        // mean the same thing, and has to run whether or not the index changed.
-        //
-        // Shares only: a local root takes its tags from the share it is paired with.
         val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
         val connectionDao = db.connectionDao()
         val tagRepository = TagRepository(
@@ -176,7 +167,6 @@ class ExplorerViewModelFactory(
                                 db.annotationDao(),
                                 defaultDispatcher,
                             ),
-                            XmpSidecarTagSource(fileRepository, localDatabaseDataSource),
                         )
                     ),
                     isLocal = { id ->

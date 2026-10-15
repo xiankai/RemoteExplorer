@@ -9,10 +9,7 @@ import java.io.File
 /**
  * Fills the tag index from the rolled-up log gallery-dl writes to the share.
  *
- * One transfer instead of a sidecar per file, and — the part that matters more — it covers
- * the whole share rather than only directories that have been browsed. The sidecar scanner
- * can only find a sidecar once its directory has been listed, so "browse by tag" has always
- * silently meant "browse by tags in folders I have already opened".
+ * One transfer that covers the whole share, browsed or not.
  *
  * A share with no index reports zero and says nothing. This is one library's convention, not
  * something shares are expected to have.
@@ -21,11 +18,6 @@ class IndexFileTagSource(
     private val reader: TagIndexReader,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
 ) : TagSource {
-
-    override val capabilities = TagSourceCapabilities(
-        indexesUnvisitedDirectories = true,
-        supportsWrites = false,
-    )
 
     /**
      * Pulls whatever the index has that this connection has not seen.

@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderShared
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -32,7 +31,6 @@ fun SystemIcon(iconType: IconType, modifier: Modifier = Modifier) {
         IconType.VIDEO -> Icons.Default.VideoFile
         IconType.AUDIO -> Icons.Default.AudioFile
         IconType.TEXT -> Icons.Default.Description
-        IconType.TAG -> Icons.Default.Sell
         else -> Icons.AutoMirrored.Default.InsertDriveFile
     }
 

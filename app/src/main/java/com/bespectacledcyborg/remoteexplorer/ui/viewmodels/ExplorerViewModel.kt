@@ -232,24 +232,8 @@ class ExplorerViewModel(
                 _connections.update { connections }
             }
         }
-        // Tags used to be read exactly once here and never again, so a tag discovered by
-        // ScanTagsWorker stayed invisible for the rest of the session — browse a folder of
-        // .xmp sidecars, open Tags, see nothing, restart the app, see everything. Following
-        // the worker instead means the one read covers both the initial load and every
-        // later scan: the flow emits the current state as soon as it is collected, so there
-        // is no separate startup fetch to keep in step.
         viewModelScope.launch {
             workManager.getWorkInfosForUniqueWorkFlow(SCAN_TAGS_WORK)
-                // Any TERMINAL state, not just SUCCEEDED. TagRepository.scanTags writes each
-                // file's tags as it walks the batch, so a scan that throws partway — a
-                // malformed sidecar, the share going away mid-walk — has already committed
-                // rows before returning Result.failure(). Counting only SUCCEEDED would
-                // leave those invisible until the next successful scan, which is precisely
-                // the staleness this observer exists to remove. Same for CANCELLED.
-                //
-                // The distinct is what keeps this cheap: without it every intermediate
-                // transition (ENQUEUED, RUNNING) would re-read the tags and re-fetch every
-                // tag thumbnail for nothing.
                 .map { infos -> infos.count { it.state.isFinished } }
                 .distinctUntilChanged()
                 .collect { refreshTags() }
@@ -282,9 +266,6 @@ class ExplorerViewModel(
                 _connection.update { connection }
                 _list.update { emptyMap() }
                 _thumbnails.update { emptyMap() }
-                _tagIndexIsPartial.update {
-                    !tagRepository.capabilitiesFor(connection.id).indexesUnvisitedDirectories
-                }
 
                 fileRepository.connect(connection)
 
@@ -732,14 +713,6 @@ class ExplorerViewModel(
             tags.firstOrNull { it.tag == tag }?.label ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /**
-     * Whether the tag list covers only what has been browsed.
-     *
-     * True for sidecars, which are discovered by listing the directory holding them — so the
-     * Tags screen has always under-reported, with nothing on screen admitting it.
-     */
-    private val _tagIndexIsPartial = MutableStateFlow(false)
-    val tagIndexIsPartialState: StateFlow<Boolean> = _tagIndexIsPartial.asStateFlow()
 
     fun getFilesWithTag(tag: LocalTag) {
         changePath("${tagPrefix}${tag.tag}")

@@ -8,11 +8,6 @@ class SharesOnlyTagSourceTest {
 
     private var indexed = mutableListOf<Int>()
     private val delegate = object : TagSource {
-        override val capabilities = TagSourceCapabilities(
-            indexesUnvisitedDirectories = true,
-            supportsWrites = false,
-        )
-
         override suspend fun index(connectionId: Int, reindexAll: Boolean, limit: Int) =
             TagIndexProgress(indexed = 3, mayHaveMore = true).also { indexed += connectionId }
     }

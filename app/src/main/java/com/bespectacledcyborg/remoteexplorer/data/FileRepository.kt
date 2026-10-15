@@ -173,11 +173,7 @@ class FileRepository(
                 connectionId = connectionId,
                 filename = it.filename,
                 parentPath = parentPath,
-                type = when {
-                    Utils.isDirectory(it.fileAttributes) -> FileType.FOLDER
-                    it.filename.endsWith(".xmp", true) -> FileType.TAG
-                    else -> FileType.FILE
-                },
+                type = if (Utils.isDirectory(it.fileAttributes)) FileType.FOLDER else FileType.FILE,
                 thumbnailStatus = if (canHaveThumbnail(it.filename)) {
                     ThumbnailStatus.UNPROCESSED
                 } else {
@@ -252,8 +248,8 @@ class FileRepository(
     /**
      * What to show for a tag: the galleries carrying it, then the files carrying it.
      *
-     * Two shapes because the two sources have two shapes. A sidecar tags a file, so it comes
-     * back as a file. The rolled-up index tags a whole gallery, and the gallery is what the
+     * Two shapes because the index has two scopes. A file record tags a file, so it comes
+     * back as a file. A directory record tags a whole gallery, and the gallery is what the
      * user opens — its contents are listed from the share on the way in, like any other
      * folder.
      *
@@ -261,7 +257,7 @@ class FileRepository(
      * browsed into has no rows in the listing cache at all, so returning only files would
      * show nothing for a tag that had just announced itself in the list.
      *
-     * Nothing is de-duplicated between the two. A file whose sidecar repeats its gallery's
+     * Nothing is de-duplicated between the two. A file whose record repeats its gallery's
      * tag is two facts, and each gets a row — which is also what keeps the number beside the
      * tag equal to the number of rows behind it.
      */

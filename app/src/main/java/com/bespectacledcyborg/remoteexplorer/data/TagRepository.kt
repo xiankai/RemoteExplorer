@@ -3,7 +3,6 @@ package com.bespectacledcyborg.remoteexplorer.data
 import LocalDatabaseDataSource
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexProgress
-import com.bespectacledcyborg.remoteexplorer.data.tags.TagSourceCapabilities
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagSources
 
 const val tagPrefix = "Tag: "
@@ -26,8 +25,4 @@ class TagRepository(
 
     /** Each tag's alias-group siblings, for [TagSearch]. */
     suspend fun getTagSearch(): TagSearch = TagSearch(localDatabaseDataSource.getTagAliasPairs())
-
-    /** What the connection's source can reach, so the UI can be honest about coverage. */
-    fun capabilitiesFor(connectionId: Int): TagSourceCapabilities =
-        tagSources.forConnection(connectionId).capabilities
 }

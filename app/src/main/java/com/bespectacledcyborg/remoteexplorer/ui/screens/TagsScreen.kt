@@ -42,7 +42,6 @@ fun TagsScreen(
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
-    val tagIndexIsPartial by explorerViewModel.tagIndexIsPartialState.collectAsState()
 
     val handleItemClick = { item: Item<LocalTagWithMetadata> ->
         {
@@ -87,20 +86,6 @@ fun TagsScreen(
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Sidecars are only found by listing the folder they sit in, so this list is
-                // as complete as the browsing has been. Saying so beats letting a missing tag
-                // read as "not tagged".
-                if (tagIndexIsPartial) {
-                    Text(
-                        text = "From folders you have opened",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .align(Alignment.Start)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-
                 if (tagQuery.isNotBlank() && tags.value.isEmpty()) {
                     Text(
                         text = "No tags match \"${tagQuery.trim()}\"",
@@ -128,9 +113,6 @@ fun TagsScreen(
                     handleItemClick = handleItemClick,
                     handleLongItemClick = { {} },
                     handleRefresh = { explorerViewModel.forceRefresh() },
-                    // Refreshing here re-syncs the directory last browsed, which is what
-                    // discovers new .xmp sidecars and so what makes new tags appear. The
-                    // spinner follows that sync rather than a fixed delay.
                     isRefreshing = isRefreshing,
                     columnCount = 4,
                     viewType = viewType

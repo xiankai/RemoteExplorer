@@ -103,7 +103,7 @@ fun ExplorerButtons(
     val selectedFilters by explorerViewModel.filterState.collectAsState()
     var selectingFilters by remember { mutableStateOf(false) }
     val filters = listOf(
-        IconType.IMAGE, IconType.VIDEO, IconType.AUDIO, IconType.TEXT, IconType.TAG
+        IconType.IMAGE, IconType.VIDEO, IconType.AUDIO, IconType.TEXT
     )
     Box {
         IconButton(onClick = { selectingFilters = !selectingFilters }, content = {

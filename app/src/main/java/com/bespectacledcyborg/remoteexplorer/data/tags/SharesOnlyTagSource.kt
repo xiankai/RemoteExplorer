@@ -16,8 +16,6 @@ class SharesOnlyTagSource(
     private val delegate: TagSource,
     private val isLocal: suspend (connectionId: Int) -> Boolean,
 ) : TagSource {
-    override val capabilities: TagSourceCapabilities get() = delegate.capabilities
-
     override suspend fun index(
         connectionId: Int,
         reindexAll: Boolean,
