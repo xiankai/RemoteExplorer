@@ -420,6 +420,16 @@ class ExplorerViewModel(
     // _refreshRequest instead.
     private var listFilesCollector: Job? = null
 
+    private data class ListingRequest(
+        val path: String,
+        val search: String,
+        val refresh: RefreshRequest?,
+        val showHidden: Boolean,
+    )
+
+    private val showHiddenFilesState: StateFlow<Boolean> =
+        settingsRepository.showHiddenFiles().stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /**
      * A pull-to-refresh, addressed to the directory it was made in.
      *
@@ -447,9 +457,9 @@ class ExplorerViewModel(
         browsingConnectionId = connectionId
         listFilesCollector?.cancel()
         listFilesCollector = viewModelScope.launch(Dispatchers.IO) {
-            combine(pathState, searchState, _refreshRequest) { path, search, request ->
-                Triple(path, search, request)
-            }.collectLatest { (path, search, request) ->
+            combine(pathState, searchState, _refreshRequest, showHiddenFilesState) { path, search, request, showHidden ->
+                ListingRequest(path, search, request, showHidden)
+            }.collectLatest { (path, search, request, showHidden) ->
                 // collectLatest cancels the previous body when a new value arrives, which is
                 // what the hand-rolled job juggling here was approximating.
                 //
@@ -492,7 +502,7 @@ class ExplorerViewModel(
                     var painted = false
 
                     metrics.traced("folder.listing", refresh.name.lowercase()) {
-                        fileRepository.listFiles(connectionId, path, search, refresh)
+                        fileRepository.listFiles(connectionId, path, search, refresh, showHidden)
                             .collect { listing ->
                                 _list.update {
                                     it.plus(path to listing.files.withThumbnailEligibility())

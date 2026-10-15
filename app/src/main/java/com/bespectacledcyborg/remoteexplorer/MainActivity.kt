@@ -149,6 +149,7 @@ class ExplorerViewModelFactory(
             metrics = metrics,
             sourceKind = fileDataSource::sourceKind,
             keepsFirstPage = coverPreferences::keepsFirstPage,
+            canonicalize = { id, path -> pairingRepository.current().canonicalize(id, path) },
         )
         val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
         val connectionDao = db.connectionDao()

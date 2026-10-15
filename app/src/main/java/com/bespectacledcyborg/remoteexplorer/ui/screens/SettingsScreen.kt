@@ -293,6 +293,21 @@ fun SettingsScreen(
                 Switch(checked = settings.showCaptions, onCheckedChange = null)
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = settings.showHiddenFiles,
+                        role = Role.Switch,
+                        onValueChange = settingsViewModel::setShowHiddenFiles,
+                    )
+                    .padding(horizontal = 12.dp),
+            ) {
+                Text("Show hidden files", modifier = Modifier.weight(1f))
+                Switch(checked = settings.showHiddenFiles, onCheckedChange = null)
+            }
+
             Spacer(modifier = Modifier.weight(1f))
 
             AppVersionRow()

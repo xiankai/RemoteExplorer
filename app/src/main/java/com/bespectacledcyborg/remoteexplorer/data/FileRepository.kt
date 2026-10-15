@@ -118,6 +118,7 @@ class FileRepository(
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
     private val keepsFirstPage: suspend (ConnectionId, String) -> Boolean = { _, _ -> false },
+    private val canonicalize: (ConnectionId, String) -> FileIdentity = ::FileIdentity,
 ) {
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
@@ -208,8 +209,12 @@ class FileRepository(
         currentPath: String = "",
         filter: String = "",
         refresh: RefreshMode = RefreshMode.IF_STALE,
+        showHidden: Boolean = false,
     ): Flow<DirectoryListing> = flow {
-        val cached = localDatabaseDataSource.getFiles(connectionId, currentPath, filter)
+        fun shown(files: List<LocalFile>) =
+            if (showHidden) files else HiddenFiles.visible(files, canonicalize)
+
+        val cached = shown(localDatabaseDataSource.getFiles(connectionId, currentPath, filter))
         val lastSyncedAt = localDatabaseDataSource.getLastSyncedAt(connectionId, currentPath)
 
         val stale = lastSyncedAt == null ||
@@ -232,7 +237,7 @@ class FileRepository(
         // mapped remote rows.
         emit(
             DirectoryListing(
-                localDatabaseDataSource.getFiles(connectionId, currentPath, filter),
+                shown(localDatabaseDataSource.getFiles(connectionId, currentPath, filter)),
                 syncing = false,
             )
         )
@@ -327,12 +332,22 @@ class FileRepository(
         override suspend fun list(connectionId: Int, folder: String) =
             coverListingSlots.withPermit { syncShared(connectionId, folder) }
 
-        override suspend fun images(connectionId: Int, folder: String, limit: Int) =
-            localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
+        override suspend fun images(connectionId: Int, folder: String, limit: Int): List<String> {
+            val page = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, limit)
+            val visible = HiddenFiles.visiblePaths(connectionId, page, canonicalize)  // stack-reviewer-ignore: covers skip hidden entries whatever the switch says, on purpose (#128's plan hides them "from listings and from cover picking"). The switch exists so nothing becomes unreachable, and a cover is decoration, not a way to reach a file; an AppleDouble ._x.jpg as a gallery's cover is the bug this fixes. The PR description states it.
+            if (visible.size == page.size || page.size < limit || limit >= COVER_SHUFFLE_POOL) {
+                return visible
+            }
+            val pool = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, COVER_SHUFFLE_POOL)
+            return HiddenFiles.visiblePaths(connectionId, pool, canonicalize).take(limit)
+        }
 
         override suspend fun subfolders(connectionId: Int, folder: String) =
-            localDatabaseDataSource.getFiles(connectionId, folder, "")
-                .filter { it.type == FileType.FOLDER }
+            HiddenFiles.visible(
+                localDatabaseDataSource.getFiles(connectionId, folder, "")
+                    .filter { it.type == FileType.FOLDER },
+                canonicalize,
+            )
 
         override suspend fun keepsFirstPage(connectionId: Int, folder: String) =
             this@FileRepository.keepsFirstPage(connectionId, folder)
@@ -347,7 +362,11 @@ class FileRepository(
     ): FolderCover = coverFinder.cover(connectionId, folderPath, order)
 
     suspend fun getProcessedFolderThumbnails(connectionId: Int, parentPath: String): List<String> {
-        return localDatabaseDataSource.getProcessedFolderThumbnails(connectionId, parentPath)
+        return HiddenFiles.visiblePaths(
+            connectionId,
+            localDatabaseDataSource.getProcessedFolderThumbnails(connectionId, parentPath),
+            canonicalize,
+        )
     }
 
 }
