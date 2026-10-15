@@ -77,7 +77,7 @@ class LocalFileDataSource(
      */
     private fun resolve(connectionId: ConnectionId, path: String): java.io.File {
         val root = roots[connectionId]
-            ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
+            ?: throw UnknownConnectionException(connectionId, "not initialized")
         // Every segment, not just the leaf: `.stversions/photo.jpg` is a real file, and
         // it is exactly the one that must not be served under a shared thumbnail key.
         if (path.split('/').any { isSyncthingInternal(it) }) throw FileNotFoundException(path)

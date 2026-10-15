@@ -41,7 +41,7 @@ class ThumbnailManager(
     private val volumeId: suspend () -> String?,
 ) {
     private val pendingThumbnails = ConcurrentHashMap<String, Boolean>()
-    private val workManager = WorkManager.getInstance(context)
+    private val workManager by lazy { WorkManager.getInstance(context) }
 
     // Resolving touches the filesystem — a mount-state check and an mkdirs — so the
     // directory is kept rather than recomputed from scratch per thumbnail.

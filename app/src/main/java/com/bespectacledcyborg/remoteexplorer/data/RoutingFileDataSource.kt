@@ -46,5 +46,5 @@ class RoutingFileDataSource(
 
     private fun route(connectionId: ConnectionId): FileDataSource =
         routes[connectionId]
-            ?: throw IllegalStateException("Connection ID: $connectionId not initialized")
+            ?: throw UnknownConnectionException(connectionId, "not initialized")
 }

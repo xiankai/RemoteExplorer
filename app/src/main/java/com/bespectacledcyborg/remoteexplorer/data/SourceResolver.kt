@@ -80,7 +80,7 @@ class ConnectionOpener(
         lock.withLock {
             if (files.isConnected(connectionId)) return
             val connection = lookUp(connectionId)
-                ?: throw IllegalStateException("Connection ID: $connectionId does not exist")
+                ?: throw UnknownConnectionException(connectionId, "does not exist")
             open(connection)
         }
     }
