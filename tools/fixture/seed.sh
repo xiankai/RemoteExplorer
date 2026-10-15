@@ -7,8 +7,6 @@
 #   - an mp4 with faststart         -> the JNI/ffmpeg thumbnail decoder reads from the
 #                                      START of the stream, so a trailing moov atom would
 #                                      never be found within its 2 MB read window
-#   - .xmp sidecars next to images  -> a sidecar binds to its image by name, in both
-#                                      conventions: beach.xmp and city.jpg.xmp
 #   - a non-previewable file        -> exercises the ACTION_VIEW handoff path
 set -euo pipefail
 
@@ -65,42 +63,13 @@ ffmpeg -loglevel error -y \
   -pix_fmt yuv420p -movflags +faststart \
   "$media/Videos/clip.mp4"
 
-sidecar() {
-  cat > "$media/Photos/$1.xmp" <<XMP
-<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
- <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
-   <dc:subject>
-    <rdf:Bag>
-$(for tag in "${@:2}"; do echo "     <rdf:li>$tag</rdf:li>"; done)
-    </rdf:Bag>
-   </dc:subject>
-  </rdf:Description>
- </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>
-XMP
-}
-
-# Overlapping tags on purpose: "holiday" should end up with a count of 2.
-sidecar beach  holiday beach
-sidecar forest holiday nature
-sidecar sunset beach
-
-# Both sidecar naming conventions are in the wild, and only the first three above use the
-# one that replaces the extension (Lightroom, Bridge). darktable and digiKam keep the whole
-# filename and append .xmp, so this writes city.jpg.xmp next to city.jpg. That convention
-# used to bind to nothing at all and be discarded silently, so it stays covered here.
-sidecar city.jpg cityscape
-
 printf 'Opened through ACTION_VIEW rather than the in-app browser.\n' \
   > "$media/Documents/notes.txt"
 
 # ---- the rolled-up tag index --------------------------------------------------------------
 #
 # gallery-dl writes one append-only log plus a meta file describing it, and the app reads
-# tags from that instead of walking a sidecar per file. Everything below matches the real
+# its tags from that. Everything below matches the real
 # record shape, including the parts that are awkward on purpose:
 #
 #   - a directory name with a space, brackets and non-ASCII, because the real library is

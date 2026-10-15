@@ -32,8 +32,8 @@ private const val TAG_AND_ALIASES =
 @Dao
 interface LocalDatabaseDao {
     /**
-     * Files carrying [tag] or one of its aliases directly, which means the ones a sidecar
-     * named.
+     * Files carrying [tag] or one of its aliases directly, which means the ones a file-scoped
+     * index record named.
      *
      * Deliberately not extended to the contents of a tagged gallery. A directory-scoped tag
      * belongs to the gallery, and [getDirectoriesWithTag] is what surfaces it: expanding it
@@ -194,8 +194,6 @@ interface LocalDatabaseDao {
     @Insert(entity = FileTagRelation::class, onConflict = OnConflictStrategy.IGNORE)
     fun addFileTagRelation(relation: FileTagRelation)
 
-    @Query("UPDATE LocalFile SET tagStatus = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
-    fun updateTagStatus(connectionId: Int, parentPath: String, filename: String, status: TagStatus)
 
     @Query("UPDATE LocalFile SET thumbnailStatus = :status WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename = :filename")
     fun updateThumbnailStatus(
@@ -234,8 +232,7 @@ interface LocalDatabaseDao {
     // A refresh used to be a single @Upsert of the whole remote listing, which wrote every
     // column — including tagStatus and thumbnailStatus, rebuilt as UNPROCESSED by
     // FileRepository.updateRemoteMapping. So one pull-to-refresh discarded the derived state
-    // of every file in the directory, and the app re-generated every thumbnail and re-read
-    // every .xmp sidecar for a listing that had usually not changed at all. Upsert also has
+    // of every file in the directory, and the app re-generated every thumbnail for a listing that had usually not changed at all. Upsert also has
     // no way to notice a deletion, so files removed on the server stayed in the cache
     // forever.
     //
@@ -321,60 +318,13 @@ interface LocalDatabaseDao {
         // single statement may carry. A directory can hold more files than that cap.
         //
         // An empty `remote` deletes the directory's cached rows, and that is intended.
-        // stack-reviewer-ignore: reaching here at all means SMB answered successfully — smbj throws on a failed or missing directory (STATUS_OBJECT_NAME_NOT_FOUND was a hard crash here until it was caught in ExplorerViewModel), so an empty listing is the server saying the directory is empty, not a transient blip. Guarding the delete on `remote.isEmpty()` would trade a speculative failure mode for a certain one: a directory genuinely emptied on the share would keep its stale rows forever, which is the exact staleness this reconcile exists to remove. The loss is also recoverable — rows re-insert on the next listing and sidecars come back UNPROCESSED, so tags re-index.
+        // stack-reviewer-ignore: reaching here at all means SMB answered successfully — smbj throws on a failed or missing directory (STATUS_OBJECT_NAME_NOT_FOUND was a hard crash here until it was caught in ExplorerViewModel), so an empty listing is the server saying the directory is empty, not a transient blip. Guarding the delete on `remote.isEmpty()` would trade a speculative failure mode for a certain one: a directory genuinely emptied on the share would keep its stale rows forever, which is the exact staleness this reconcile exists to remove. The loss is also recoverable — rows re-insert on the next listing with their thumbnails UNPROCESSED, so those regenerate.
         (cached.keys - listed).chunked(DELETE_CHUNK).forEach { removed ->
             deleteFileTagRelations(connectionId, parentPath, removed)
             deleteFiles(connectionId, parentPath, removed)
         }
 
         upsertDirectorySync(DirectorySync(connectionId, parentPath, syncedAt))
-    }
-
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type AND tagStatus = :status LIMIT :limit")
-    fun getUnprocessedTagFiles(
-        connectionId: Int,
-        limit: Int,
-        type: FileType = FileType.TAG,
-        status: TagStatus = TagStatus.UNPROCESSED
-    ): List<LocalFile>
-
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND type = :type LIMIT :limit")
-    fun getAllTagFiles(
-        connectionId: Int,
-        limit: Int,
-        type: FileType = FileType.TAG
-    ): List<LocalFile>
-
-    /**
-     * Records one sidecar's tags against the file it describes.
-     *
-     * Which file that is used to be decided here, by a `LIKE` query against the directory.
-     * That belonged to the source rather than to the DAO — see
-     * `com.bespectacledcyborg.remoteexplorer.data.tags.pairSidecarWithMedia`, which also
-     * documents the two ways the query got it wrong. [correspondingFilename] is null when the
-     * sidecar describes nothing in its directory, which marks it REMOVED.
-     */
-    @Transaction
-    fun updateFileTags(
-        connectionId: Int,
-        tagFile: LocalFile,
-        correspondingFilename: String?,
-        tags: List<String>,
-    ) {
-        val parentPath = tagFile.parentPath
-
-        if (correspondingFilename == null) {
-            updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.REMOVED)
-            return
-        }
-
-        tags.forEach {
-            addTag(LocalTag(it))
-            addFileTagRelation(
-                FileTagRelation(connectionId, parentPath, correspondingFilename, it)
-            )
-        }
-        updateTagStatus(connectionId, parentPath, tagFile.filename, TagStatus.SUCCESS)
     }
 
     // ---- the rolled-up tag index ------------------------------------------------------
@@ -619,7 +569,7 @@ data class TagAliasPair(
 )
 
 /**
- * A tag on one file, from a sidecar.
+ * A tag on one file, from a file-scoped index record.
  *
  * Indexed by tag because every read of it is by tag, and the primary key leads with the
  * path. Without the index the tag list scanned both relations once per tag — four seconds

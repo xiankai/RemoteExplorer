@@ -710,13 +710,6 @@ private class FakeLocalDatabaseDao(
     override fun addFileTagRelation(relation: com.bespectacledcyborg.remoteexplorer.data.db.FileTagRelation) =
         notUsed()
 
-    override fun updateTagStatus(
-        connectionId: Int,
-        parentPath: String,
-        filename: String,
-        status: TagStatus,
-    ) = notUsed()
-
     override fun updateThumbnailStatus(
         connectionId: Int,
         parentPath: String,
@@ -739,16 +732,6 @@ private class FakeLocalDatabaseDao(
             }
         }
     }
-
-    override fun getUnprocessedTagFiles(
-        connectionId: Int,
-        limit: Int,
-        type: FileType,
-        status: TagStatus,
-    ): List<LocalFile> = notUsed()
-
-    override fun getAllTagFiles(connectionId: Int, limit: Int, type: FileType): List<LocalFile> =
-        notUsed()
 
     // The rolled-up tag index. None of it is reachable from FileRepository, and the real
     // queries are covered against a real database in TagIndexDaoTest — a fake reimplementing

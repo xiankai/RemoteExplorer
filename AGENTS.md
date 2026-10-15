@@ -2,14 +2,18 @@
 
 An Android SMB/CIFS browser aimed at media: save Samba connections, browse folders as a
 gallery, get thumbnails for images and video, swipe through images, hand other file types to
-external apps, and browse by tags — from gallery-dl's rolled-up index on the share and from
-XMP sidecars.
+external apps, and browse by tags from gallery-dl's rolled-up index on the share.
 
 Tags come from a `TagSource`. Every connection runs the same `CombinedTagSource`: the index
-(`IndexFileTagSource`), the alias layer (`AliasFileTagSource`) and sidecars
-(`XmpSidecarTagSource`). It is a union, not a fallback chain — they describe different parts of
-a share, and a share can have any of them or none. Whichever fills the tables, reads always
+(`IndexFileTagSource`), the alias layer (`AliasFileTagSource`) and author captions
+(`AnnotationFileTagSource`). It is a union, not a fallback chain — each reads its own part of
+the index, and a share can have any of them or none. Whichever fills the tables, reads always
 come back out of Room, so browsing by tag stays offline.
+
+XMP sidecars are not read any more (#112). Their tags, the per-file ones in SDSync's
+`Download` included, reach the app through the index's `scope: file` records
+(infra#412). `FileType.TAG` and `LocalFile.tagStatus` stay in the schema only so rows
+cached before the change still load; nothing writes them.
 
 Written pre-agentically between Nov 2024 and Apr 2025, dormant until Mar 2026. Treat older
 code as deliberate but undocumented — several oddities below turned out to be load-bearing.

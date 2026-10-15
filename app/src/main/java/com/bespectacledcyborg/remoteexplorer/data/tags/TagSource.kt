@@ -53,8 +53,7 @@ data class TagSourceCapabilities(
     /**
      * Whether the source can find tags in directories the app has never browsed to.
      *
-     * False for sidecars, which are only discovered by listing the directory holding them,
-     * so the tag list covers visited folders and nothing else.
+     * False for a source that adds no tags of its own, such as the alias layer.
      */
     val indexesUnvisitedDirectories: Boolean,
 
@@ -66,7 +65,7 @@ data class TagSourceCapabilities(
  * Chooses the source for a connection.
  *
  * Every connection resolves to the same [CombinedTagSource] today — index, aliases and
- * sidecars, each finding nothing on a share that lacks it. The seam exists because the
+ * annotations, each finding nothing on a share that lacks it. The seam exists because the
  * choice becomes per-connection once a remote tag database can be configured, and that
  * wants somewhere to live that is not a call site.
  */

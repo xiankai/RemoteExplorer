@@ -5,14 +5,9 @@ import android.util.Log
 /**
  * Runs each source in turn and adds up what they indexed.
  *
- * Not a fallback chain. The sources are not alternatives — they describe different parts
- * of a share, and a share can have both: gallery-dl's index covers the galleries it
- * downloaded, and sidecars cover whatever a photo tool wrote next to the files. Both write
- * into the same tables, so running both is the union rather than a conflict. The alias
- * layer runs here too, though it adds no tags — only which of them mean the same thing.
- *
- * Order is cheapest-first, which also puts the one that can see unbrowsed directories first,
- * so a fresh connection has whole-library tags before the sidecar walk has got anywhere.
+ * Not a fallback chain. The sources are not alternatives — each reads its own part of the
+ * index, and a share can have any of them or none. The alias layer adds no tags, only which
+ * of them mean the same thing.
  */
 class CombinedTagSource(
     private val sources: List<TagSource>,
