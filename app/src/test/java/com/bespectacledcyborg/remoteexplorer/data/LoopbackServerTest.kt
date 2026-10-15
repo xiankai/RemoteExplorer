@@ -8,6 +8,7 @@ import com.bespectacledcyborg.remoteexplorer.data.thumbnails.ThumbnailStatusStor
 import com.bespectacledcyborg.remoteexplorer.data.views.OpenListener
 import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackListener
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.encodeUrlPath
 import com.hierynomus.mserref.NtStatus
 import com.hierynomus.mssmb2.SMB2MessageCommandCode
@@ -15,6 +16,7 @@ import com.hierynomus.mssmb2.SMBApiException
 import io.ktor.client.request.get
 import io.ktor.client.request.head
 import io.ktor.client.request.header
+import io.ktor.client.request.options
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
@@ -60,6 +62,7 @@ class LoopbackServerTest {
     private val opened = mutableListOf<FileIdentity>()
     private val renders = mutableListOf<String>()
     private var renderSucceeds = true
+    private var filesOpened = 0
 
     private val files = object : FileDataSource {
         override fun connect(details: SourceDetails) = Unit
@@ -67,6 +70,7 @@ class LoopbackServerTest {
             emptyList<com.bespectacledcyborg.remoteexplorer.data.File>()
 
         override fun openFile(connectionId: ConnectionId, path: String): SourceFile {
+            filesOpened++
             if (connectionId !in knownConnections) {
                 throw UnknownConnectionException(connectionId, "not initialized")
             }
@@ -81,6 +85,9 @@ class LoopbackServerTest {
             return InMemoryFile(shareFiles[path] ?: throw FileNotFoundException(path))
         }
     }
+
+    private val token = LoopbackToken.of(ApplicationProvider.getApplicationContext())
+    private val auth get() = "token=${token.value}"
 
     private val thumbnailManager =
         ThumbnailManager(ApplicationProvider.getApplicationContext()) { null }
@@ -111,6 +118,7 @@ class LoopbackServerTest {
         ),
         playback = PlaybackListener { _, _, first, last, _ -> played += first..last },
         opens = OpenListener { opened += it },
+        token = token,
     )
 
     private fun loopback(
@@ -123,7 +131,7 @@ class LoopbackServerTest {
 
     @Test
     fun `a whole-file GET answers 200 with every byte`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1")
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth")
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("10000", response.headers[HttpHeaders.ContentLength])
@@ -135,7 +143,7 @@ class LoopbackServerTest {
 
     @Test
     fun `a bounded range answers 206 with exactly that slice`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1") {
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=1000-1999")
         }
 
@@ -147,7 +155,7 @@ class LoopbackServerTest {
 
     @Test
     fun `an open-ended range runs to the end of the file`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1") {
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=9000-")
         }
 
@@ -158,7 +166,7 @@ class LoopbackServerTest {
 
     @Test
     fun `a suffix range is the tail of the file, not the head`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1") {
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=-500")
         }
 
@@ -179,10 +187,11 @@ class LoopbackServerTest {
             { _, _ -> null }, statuses,
             canonicalize = { id, path -> FileIdentity(id, path) },
             resolver = SourceResolver(bigFiles, { Pairings.NONE }, {}),
+            token = token,
         )
 
         loopback(bigServer) {
-            val response = client.get("/Movies/long.mp4?connectionId=1") {
+            val response = client.get("/Movies/long.mp4?connectionId=1&$auth") {
                 header(HttpHeaders.Range, "bytes=1-150000")
             }
 
@@ -193,7 +202,7 @@ class LoopbackServerTest {
 
     @Test
     fun `a range past the end answers 416 and names the real length`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1") {
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=20000-")
         }
 
@@ -203,7 +212,7 @@ class LoopbackServerTest {
 
     @Test
     fun `any range of an empty file is unsatisfiable`() = loopback {
-        val response = client.get("/Photos/empty.jpg?connectionId=1") {
+        val response = client.get("/Photos/empty.jpg?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=0-")
         }
 
@@ -213,7 +222,7 @@ class LoopbackServerTest {
 
     @Test
     fun `HEAD answers with the GET headers and no body`() = loopback {
-        val response = client.head("/Movies/film.mp4?connectionId=1")
+        val response = client.head("/Movies/film.mp4?connectionId=1&$auth")
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("10000", response.headers[HttpHeaders.ContentLength])
@@ -224,7 +233,7 @@ class LoopbackServerTest {
 
     @Test
     fun `a ranged HEAD answers 206 with the slice a GET would send`() = loopback {
-        val response = client.head("/Movies/film.mp4?connectionId=1") {
+        val response = client.head("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=-500")
         }
 
@@ -245,10 +254,11 @@ class LoopbackServerTest {
             { _, _ -> null }, statuses,
             canonicalize = { id, path -> FileIdentity(id, path) },
             resolver = SourceResolver(namedFiles, { Pairings.NONE }, {}),
+            token = token,
         )
 
         loopback(namedServer) {
-            val response = client.get("/${encodeUrlPath(named)}?connectionId=1")
+            val response = client.get("/${encodeUrlPath(named)}?connectionId=1&$auth")
 
             assertEquals(HttpStatusCode.OK, response.status)
             assertArrayEquals(photo, response.bodyAsBytes())
@@ -259,11 +269,11 @@ class LoopbackServerTest {
     fun `a file that is not there is 404`() = loopback {
         assertEquals(
             HttpStatusCode.NotFound,
-            client.get("/Movies/missing.mp4?connectionId=1").status,
+            client.get("/Movies/missing.mp4?connectionId=1&$auth").status,
         )
         assertEquals(
             HttpStatusCode.NotFound,
-            client.head("/Movies/missing.mp4?connectionId=1").status,
+            client.head("/Movies/missing.mp4?connectionId=1&$auth").status,
         )
     }
 
@@ -271,7 +281,7 @@ class LoopbackServerTest {
     fun `a file the share says is not there is 404`() = loopback {
         assertEquals(
             HttpStatusCode.NotFound,
-            client.get("/Gone/on-the-share.mp4?connectionId=1").status,
+            client.get("/Gone/on-the-share.mp4?connectionId=1&$auth").status,
         )
     }
 
@@ -279,11 +289,11 @@ class LoopbackServerTest {
     fun `any other failure is still a 500`() = loopback {
         assertEquals(
             HttpStatusCode.InternalServerError,
-            client.get("/Broken/disk.mp4?connectionId=1").status,
+            client.get("/Broken/disk.mp4?connectionId=1&$auth").status,
         )
         assertEquals(
             HttpStatusCode.InternalServerError,
-            client.head("/Broken/disk.mp4?connectionId=1").status,
+            client.head("/Broken/disk.mp4?connectionId=1&$auth").status,
         )
     }
 
@@ -291,36 +301,36 @@ class LoopbackServerTest {
     fun `an unknown connection is 404`() = loopback {
         assertEquals(
             HttpStatusCode.NotFound,
-            client.get("/Movies/film.mp4?connectionId=9").status,
+            client.get("/Movies/film.mp4?connectionId=9&$auth").status,
         )
         assertEquals(
             HttpStatusCode.NotFound,
-            client.head("/Movies/film.mp4?connectionId=9").status,
+            client.head("/Movies/film.mp4?connectionId=9&$auth").status,
         )
     }
 
     @Test
     fun `video bytes sent are reported as played, images are not`() = loopback {
-        client.get("/Movies/film.mp4?connectionId=1") {
+        client.get("/Movies/film.mp4?connectionId=1&$auth") {
             header(HttpHeaders.Range, "bytes=100-199")
         }
-        client.get("/Photos/beach.jpg?connectionId=1")
+        client.get("/Photos/beach.jpg?connectionId=1&$auth")
 
         assertEquals(listOf(100L..199L), played)
     }
 
     @Test
     fun `serving a video counts as an open, serving an image does not`() = loopback {
-        client.get("/Photos/beach.jpg?connectionId=1")
-        client.get("/Movies/film.mp4?connectionId=1")
+        client.get("/Photos/beach.jpg?connectionId=1&$auth")
+        client.get("/Movies/film.mp4?connectionId=1&$auth")
 
         assertEquals(listOf(FileIdentity(1, "Movies/film.mp4")), opened)
     }
 
     @Test
     fun `a thumbnail is rendered once, recorded, then served from the cache`() = loopback {
-        val first = client.get("/Photos/beach.jpg?connectionId=1&thumbnail=true")
-        val second = client.get("/Photos/beach.jpg?connectionId=1&thumbnail=true")
+        val first = client.get("/Photos/beach.jpg?connectionId=1&$auth&thumbnail=true")
+        val second = client.get("/Photos/beach.jpg?connectionId=1&$auth&thumbnail=true")
 
         assertEquals(HttpStatusCode.OK, first.status)
         assertArrayEquals(thumbnail, first.bodyAsBytes())
@@ -334,8 +344,8 @@ class LoopbackServerTest {
     fun `a failed render is 404 and is not tried again`() = loopback {
         renderSucceeds = false
 
-        val first = client.get("/Photos/beach.jpg?connectionId=1&thumbnail=true")
-        val second = client.get("/Photos/beach.jpg?connectionId=1&thumbnail=true")
+        val first = client.get("/Photos/beach.jpg?connectionId=1&$auth&thumbnail=true")
+        val second = client.get("/Photos/beach.jpg?connectionId=1&$auth&thumbnail=true")
 
         assertEquals(HttpStatusCode.NotFound, first.status)
         assertEquals(HttpStatusCode.NotFound, second.status)
@@ -346,11 +356,97 @@ class LoopbackServerTest {
 
     @Test
     fun `a type nothing can render is 404 and recorded unsupported`() = loopback {
-        val response = client.get("/Movies/film.mp4?connectionId=1&thumbnail=true")
+        val response = client.get("/Movies/film.mp4?connectionId=1&$auth&thumbnail=true")
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals(ThumbnailStatus.UNSUPPORTED, statuses.recorded[1 to "Movies/film.mp4"])
         assertEquals(emptyList<String>(), renders)
+    }
+
+    @Test
+    fun `no token is 403 for every method, and nothing is read`() = loopback {
+        assertEquals(HttpStatusCode.Forbidden, client.get("/Movies/film.mp4?connectionId=1").status)
+        assertEquals(HttpStatusCode.Forbidden, client.head("/Movies/film.mp4?connectionId=1").status)
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            client.options("/Movies/film.mp4?connectionId=1").status,
+        )
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            client.get("/Photos/beach.jpg?connectionId=1&thumbnail=true").status,
+        )
+
+        assertEquals(0, filesOpened)
+        assertEquals(emptyList<String>(), renders)
+        assertEquals(emptyList<LongRange>(), played)
+        assertEquals(emptyList<FileIdentity>(), opened)
+    }
+
+    @Test
+    fun `a wrong token is 403`() = loopback {
+        val wrong = "${token.value.dropLast(1)}x".takeIf { it != token.value } ?: "nope"
+
+        val response = client.get("/Movies/film.mp4?connectionId=1&token=$wrong")
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals(0, filesOpened)
+    }
+
+    @Test
+    fun `an empty token is 403`() = loopback {
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            client.get("/Movies/film.mp4?connectionId=1&token=").status,
+        )
+    }
+
+    @Test
+    fun `the right token is 200`() = loopback {
+        assertEquals(
+            HttpStatusCode.OK,
+            client.get("/Movies/film.mp4?connectionId=1&token=${token.value}").status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            client.head("/Movies/film.mp4?connectionId=1&token=${token.value}").status,
+        )
+    }
+
+    @Test
+    fun `the token is kept for the install and differs between installs`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val first = LoopbackToken.of(context).value
+        val again = LoopbackToken.of(context).value
+        val elsewhere = LoopbackToken(
+            context.getSharedPreferences("another_install", android.content.Context.MODE_PRIVATE)
+        ).value
+
+        assertEquals(first, again)
+        assertTrue(first != elsewhere)
+        assertTrue(first.length >= 43)
+        assertTrue(first.all { it.isLetterOrDigit() || it == '-' || it == '_' })
+    }
+
+    @Test
+    fun `a URL the app builds is served through Jetty`() {
+        val jetty = embeddedServer(Jetty, port = 0, host = "127.0.0.1") {
+            with(server) { serveFiles() }
+        }.start(wait = false)
+        try {
+            val port = runBlocking { jetty.engine.resolvedConnectors().single().port }
+            val built = URI(Utils.constructUrl(1, "Movies/film.mp4", server.urlToken))
+            val connection = URI("http://127.0.0.1:$port${built.rawPath}?${built.rawQuery}")
+                .toURL().openConnection() as HttpURLConnection
+
+            assertEquals(200, connection.responseCode)
+
+            val bare = URI("http://127.0.0.1:$port${built.rawPath}?connectionId=1")
+                .toURL().openConnection() as HttpURLConnection
+            bare.requestMethod = "HEAD"
+            assertEquals(403, bare.responseCode)
+        } finally {
+            jetty.stop(0, 0)
+        }
     }
 
     @Test
@@ -360,7 +456,7 @@ class LoopbackServerTest {
         }.start(wait = false)
         try {
             val port = runBlocking { jetty.engine.resolvedConnectors().single().port }
-            val connection = URI("http://127.0.0.1:$port/Movies/film.mp4?connectionId=1")
+            val connection = URI("http://127.0.0.1:$port/Movies/film.mp4?connectionId=1&$auth")
                 .toURL().openConnection() as HttpURLConnection
             connection.setRequestProperty(HttpHeaders.Range, "bytes=-500")
 

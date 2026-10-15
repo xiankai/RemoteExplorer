@@ -32,6 +32,7 @@ import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.SourceResolver
 import com.bespectacledcyborg.remoteexplorer.data.RoutingFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
+import com.bespectacledcyborg.remoteexplorer.data.LoopbackToken
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
@@ -276,6 +277,7 @@ class ExplorerViewModelFactory(
             ),
             metrics = metrics,
             sourceKind = fileDataSource::sourceKind,
+            token = LoopbackToken.of(application),
         )
 
         @Suppress("UNCHECKED_CAST")

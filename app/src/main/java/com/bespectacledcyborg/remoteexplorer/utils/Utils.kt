@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.utils
 
 import com.bespectacledcyborg.remoteexplorer.data.ENCODING
+import com.bespectacledcyborg.remoteexplorer.data.LOOPBACK_TOKEN_PARAMETER
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.github.panpf.sketch.util.MimeTypeMap
@@ -84,11 +85,14 @@ object Utils {
         return port
     }
 
-    fun constructUrl(connectionId: Int, path: String, thumbnail: Boolean = false): String {
-        val baseUrl = "http://127.0.0.1:${port}/${encodeUrlPath(path)}?connectionId=${connectionId}"
-        // The size is for Sketch, which keys its own caches by URL: without it a cell that
-        // had loaded a 128 px thumbnail would keep showing those bytes after THUMBNAIL_SIZE
-        // went up (#73). The server does not read it.
+    fun constructUrl(
+        connectionId: Int,
+        path: String,
+        token: String,
+        thumbnail: Boolean = false,
+    ): String {
+        val baseUrl = "http://127.0.0.1:${port}/${encodeUrlPath(path)}" +
+            "?connectionId=${connectionId}&$LOOPBACK_TOKEN_PARAMETER=$token"
         return if (thumbnail) "$baseUrl&thumbnail=true&size=$THUMBNAIL_SIZE" else baseUrl
     }
 }
