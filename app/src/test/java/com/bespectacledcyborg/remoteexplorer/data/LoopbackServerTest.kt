@@ -70,6 +70,7 @@ class LoopbackServerTest {
             if (connectionId !in knownConnections) {
                 throw UnknownConnectionException(connectionId, "not initialized")
             }
+            if (path == "Broken/disk.mp4") throw java.io.IOException("read failed")
             if (path == "Gone/on-the-share.mp4") {
                 throw SMBApiException(
                     NtStatus.STATUS_OBJECT_NAME_NOT_FOUND.value,
@@ -271,6 +272,18 @@ class LoopbackServerTest {
         assertEquals(
             HttpStatusCode.NotFound,
             client.get("/Gone/on-the-share.mp4?connectionId=1").status,
+        )
+    }
+
+    @Test
+    fun `any other failure is still a 500`() = loopback {
+        assertEquals(
+            HttpStatusCode.InternalServerError,
+            client.get("/Broken/disk.mp4?connectionId=1").status,
+        )
+        assertEquals(
+            HttpStatusCode.InternalServerError,
+            client.head("/Broken/disk.mp4?connectionId=1").status,
         )
     }
 

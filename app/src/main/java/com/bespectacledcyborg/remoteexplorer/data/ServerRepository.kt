@@ -482,8 +482,8 @@ internal suspend fun respondHead(
 }
 
 private val MissingFilesAreNotFound = createApplicationPlugin("MissingFilesAreNotFound") {
-    on(CallFailed) { call, cause ->
-        if (cause.isMissingFile()) {
+    on(CallFailed) { call, cause ->  // stack-reviewer-ignore: CallFailed rethrows when the handler does not respond, so every other failure still reaches Ktor default handling; LoopbackServerTest "any other failure is still a 500" asserts 500 for GET and HEAD
+        if (cause.isMissingFile() && !call.response.isCommitted) {
             call.respondText("Not found", status = HttpStatusCode.NotFound)
         }
     }
