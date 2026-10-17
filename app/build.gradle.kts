@@ -91,11 +91,13 @@ android {
             }
             manifestPlaceholders["sentryEnvironment"] = "production"
             manifestPlaceholders["sentryDebug"] = "false"
+            manifestPlaceholders["sentryAttachScreen"] = "false"
         }
         debug {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["sentryEnvironment"] = "debug"
             manifestPlaceholders["sentryDebug"] = "true"
+            manifestPlaceholders["sentryAttachScreen"] = "true"
         }
 
         // Runs the release configuration on a dev machine, side by side with debug. It is
