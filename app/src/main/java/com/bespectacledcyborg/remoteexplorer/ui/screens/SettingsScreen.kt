@@ -4,6 +4,8 @@ import android.content.ClipData
 import java.time.DateTimeException
 import java.time.ZoneId
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ClipEntry
@@ -79,6 +81,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -307,8 +310,6 @@ fun SettingsScreen(
                 Text("Show hidden files", modifier = Modifier.weight(1f))
                 Switch(checked = settings.showHiddenFiles, onCheckedChange = null)
             }
-
-            Spacer(modifier = Modifier.weight(1f))
 
             AppVersionRow()
         }
