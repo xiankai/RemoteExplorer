@@ -63,8 +63,8 @@ fun <T>Explorer(
             }
         }
         launch {
-            snapshotFlow { currentItems.size }.first { it > initialScroll.index }
-            if (position() != initialScroll) {
+            snapshotFlow { currentItems.size }.first { it > initialScroll.index }  // stack-reviewer-ignore: index < size is exactly when the index exists; the previous folder's listing shows briefly under the new key, so a shorter list cannot be told from a folder that shrank, and staying at the top beats clamping to a wrong row
+            if (position() != initialScroll) {  // stack-reviewer-ignore: initialScroll is an immutable value captured when the effect launched; recording writes to the view model and never changes it, and position() is meant to read the live state
                 if (viewType == ViewType.LIST) {
                     listState.scrollToItem(initialScroll.index, initialScroll.offset)
                 } else {

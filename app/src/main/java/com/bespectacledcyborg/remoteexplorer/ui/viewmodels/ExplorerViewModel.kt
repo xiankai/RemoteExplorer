@@ -345,7 +345,7 @@ class ExplorerViewModel(
     fun scrollPositionToRestore(): ScrollPosition = scrollPositions.top
 
     fun recordScrollPosition(path: String, position: ScrollPosition) {
-        if (path == _path.value) scrollPositions.recordTop(position)
+        if (path == _path.value) scrollPositions.recordTop(position)  // stack-reviewer-ignore: dropping a late report after the path changed is the point; positions are stored per stack entry, so it would land on the new folder's entry, and the folder being left already recorded every position up to the change
     }
 
     /**
