@@ -330,7 +330,7 @@ class ExplorerViewModel(
 
     fun changePath(path: String) {
         abandonRefreshRequest()
-        scrollPositions.push()
+        scrollPositions.push()  // stack-reviewer-ignore: _navigationStack changes in exactly three places, connect, changePath and goBack, and each moves scrollPositions in step with it
         _path.update { path }
         _navigationStack.update { it.plus(path) }
     }

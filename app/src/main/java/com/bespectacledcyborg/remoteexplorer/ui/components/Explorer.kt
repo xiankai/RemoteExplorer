@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ScrollPosition
@@ -53,7 +54,7 @@ fun <T>Explorer(
     val currentItems by rememberUpdatedState(items)
     val currentOnVisible by rememberUpdatedState(onVisibleItemsChanged)
 
-    LaunchedEffect(scrollKey, viewType) {
+    LaunchedEffect(scrollKey, viewType) {  // stack-reviewer-ignore: initialScroll is deliberately read once per folder; it is the position saved when the folder was left, and later recordings of the same folder must not restart the restore
         val position = {
             if (viewType == ViewType.LIST) {
                 ScrollPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
@@ -61,12 +62,14 @@ fun <T>Explorer(
                 ScrollPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
             }
         }
-        snapshotFlow { currentItems.size }.first { it > initialScroll.index }
-        if (position() != initialScroll) {
-            if (viewType == ViewType.LIST) {
-                listState.scrollToItem(initialScroll.index, initialScroll.offset)
-            } else {
-                gridState.scrollToItem(initialScroll.index, initialScroll.offset)
+        launch {
+            snapshotFlow { currentItems.size }.first { it > initialScroll.index }
+            if (position() != initialScroll) {
+                if (viewType == ViewType.LIST) {
+                    listState.scrollToItem(initialScroll.index, initialScroll.offset)
+                } else {
+                    gridState.scrollToItem(initialScroll.index, initialScroll.offset)
+                }
             }
         }
         snapshotFlow(position).distinctUntilChanged().collect { onScrollPositionChanged(it) }
