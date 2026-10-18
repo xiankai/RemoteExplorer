@@ -193,6 +193,7 @@ class ExplorerViewModel(
     val pathState: StateFlow<String> = _path.asStateFlow()
     private val _navigationStack = MutableStateFlow(listOf(""))
     val navigationStackState: StateFlow<List<String>> = _navigationStack.asStateFlow()
+    private val scrollPositions = ScrollPositions()
 
     private val _list: MutableStateFlow<Map<String, List<LocalFile>>> = MutableStateFlow(emptyMap())
     val listState: StateFlow<Map<String, List<LocalFile>>> = _list.asStateFlow()
@@ -260,6 +261,7 @@ class ExplorerViewModel(
     fun connect(connection: Connection) {  // stack-reviewer-ignore: resetting before the connect is the point. The stack and path belong to the previous connection, so keeping them when the new one fails to open would leave that failed connection showing a path from somewhere else, which is the bug this change fixes.
         abandonRefreshRequest()
         _navigationStack.update { listOf("") }
+        scrollPositions.reset()
         _path.update { "" }
         viewModelScope.launch {
             try {
@@ -328,14 +330,22 @@ class ExplorerViewModel(
 
     fun changePath(path: String) {
         abandonRefreshRequest()
+        scrollPositions.push()  // stack-reviewer-ignore: _navigationStack changes in exactly three places, connect, changePath and goBack, and each moves scrollPositions in step with it
         _path.update { path }
         _navigationStack.update { it.plus(path) }
     }
 
     fun goBack() {
         abandonRefreshRequest()
+        scrollPositions.pop()
         _navigationStack.update { it.dropLast(1) }
         _path.update { _navigationStack.value.lastOrNull().orEmpty() }
+    }
+
+    fun scrollPositionToRestore(): ScrollPosition = scrollPositions.top
+
+    fun recordScrollPosition(path: String, position: ScrollPosition) {
+        if (path == _path.value) scrollPositions.recordTop(position)  // stack-reviewer-ignore: dropping a late report after the path changed is the point; positions are stored per stack entry, so it would land on the new folder's entry, and the folder being left already recorded every position up to the change
     }
 
     /**

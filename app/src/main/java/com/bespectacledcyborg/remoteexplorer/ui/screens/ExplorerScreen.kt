@@ -270,6 +270,8 @@ fun ExplorerScreen(
                     columnCount = resolveColumnCount(columns),
                     isRefreshing = isRefreshing,
                     scrollKey = pathState,
+                    initialScroll = explorerViewModel.scrollPositionToRestore(),
+                    onScrollPositionChanged = { explorerViewModel.recordScrollPosition(pathState, it) },
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible

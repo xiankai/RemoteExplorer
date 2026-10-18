@@ -17,8 +17,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ScrollPosition
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
 
 data class Item<T> (
@@ -43,11 +46,34 @@ fun <T>Explorer(
     isRefreshing: Boolean = false,
     onVisibleItemsChanged: (List<Item<T>>) -> Unit = {},
     scrollKey: Any? = null,
+    initialScroll: ScrollPosition = ScrollPosition(),
+    onScrollPositionChanged: (ScrollPosition) -> Unit = {},
 ) {
-    val gridState = key(scrollKey) { rememberLazyGridState() }
-    val listState = key(scrollKey) { rememberLazyListState() }
+    val gridState = key(scrollKey) { rememberLazyGridState(initialScroll.index, initialScroll.offset) }
+    val listState = key(scrollKey) { rememberLazyListState(initialScroll.index, initialScroll.offset) }
     val currentItems by rememberUpdatedState(items)
     val currentOnVisible by rememberUpdatedState(onVisibleItemsChanged)
+
+    LaunchedEffect(scrollKey, viewType) {  // stack-reviewer-ignore: initialScroll is deliberately read once per folder; it is the position saved when the folder was left, and later recordings of the same folder must not restart the restore
+        val position = {
+            if (viewType == ViewType.LIST) {
+                ScrollPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            } else {
+                ScrollPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+            }
+        }
+        launch {
+            snapshotFlow { currentItems.size }.first { it > initialScroll.index }  // stack-reviewer-ignore: index < size is exactly when the index exists; the previous folder's listing shows briefly under the new key, so a shorter list cannot be told from a folder that shrank, and staying at the top beats clamping to a wrong row
+            if (position() != initialScroll) {  // stack-reviewer-ignore: initialScroll is an immutable value captured when the effect launched; recording writes to the view model and never changes it, and position() is meant to read the live state
+                if (viewType == ViewType.LIST) {
+                    listState.scrollToItem(initialScroll.index, initialScroll.offset)
+                } else {
+                    gridState.scrollToItem(initialScroll.index, initialScroll.offset)
+                }
+            }
+        }
+        snapshotFlow(position).distinctUntilChanged().collect { onScrollPositionChanged(it) }  // stack-reviewer-ignore: recording ahead of the restore is the fix for the previous pass, where waiting on it stopped recording for good; a restore that cannot apply leaves the folder at the top, so the top is the true position to keep
+    }
 
     LaunchedEffect(viewType, gridState, listState) {
         snapshotFlow {
