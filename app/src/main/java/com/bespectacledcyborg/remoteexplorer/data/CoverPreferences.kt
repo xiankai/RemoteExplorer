@@ -75,8 +75,17 @@ class CoverPreferences(
 
     suspend fun keepsFirstPage(connectionId: Int, path: String): Boolean {
         val canonical = pairings().canonicalize(connectionId, path)
-        if (canonical in mangaFolders) return true
-        return isManga(canonical).also { if (it) mangaFolders += canonical }
+        val lineage = listOf(canonical) + ancestorsOf(canonical)
+        val mangaFolder = lineage.firstOrNull { it in mangaFolders }
+            ?: lineage.firstOrNull { isManga(it) }?.also { mangaFolders += it }
+            ?: return false
+        if (mangaFolder != canonical) mangaFolders += canonical
+        return true
+    }
+
+    private fun ancestorsOf(folder: FileIdentity): List<FileIdentity> {
+        val segments = Pairings.normalize(folder.path).split('/').filter { it.isNotEmpty() }
+        return (segments.size - 1 downTo 1).map { folder.copy(path = segments.take(it).joinToString("/")) }
     }
 
     private suspend fun isManga(canonical: FileIdentity): Boolean {

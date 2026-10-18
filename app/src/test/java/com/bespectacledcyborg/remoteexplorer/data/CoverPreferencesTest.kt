@@ -154,6 +154,39 @@ class CoverPreferencesTest {
     }
 
     @Test
+    fun `every folder beneath a manga folder keeps its first page too`() = runTest {
+        shuffle = CoverShuffle.ALL
+        tags[1 to "g/series"] = listOf("manga")
+        preferences.choose(1, "g/series/vol 1", CoverMode.SHUFFLE)
+
+        listOf("g/series/vol 1", "g/series/vol 1/chapter 3", "/g/series/vol 2/").forEach {
+            assertTrue(it, preferences.keepsFirstPage(1, it))
+            assertEquals(it, CoverOrder.Name, order(it))
+            assertEquals(it, CoverMode.DEFAULT, applied(it))
+        }
+        assertFalse(preferences.keepsFirstPage(1, "g"))
+        assertFalse(preferences.keepsFirstPage(1, "g/other/vol 1"))
+        assertFalse(preferences.keepsFirstPage(1, "g/series-extra/vol 1"))
+    }
+
+    @Test
+    fun `a manga folder tagged later still reaches folders already asked about`() = runTest {
+        assertFalse(preferences.keepsFirstPage(1, "g/series/vol 1"))
+
+        tags[1 to "g/series"] = listOf("manga")
+
+        assertTrue(preferences.keepsFirstPage(1, "g/series/vol 1"))
+    }
+
+    @Test
+    fun `a paired local copy inherits manga from its share's ancestor`() = runTest {
+        pairings = Pairings(listOf(Pairing(2, "", 1, "")))
+        tags[1 to "gallery-dl/pixiv/[9] manga work"] = listOf("manga")
+
+        assertTrue(preferences.keepsFirstPage(2, "gallery-dl/pixiv/[9] manga work/part 2"))
+    }
+
+    @Test
     fun `a paired local copy shares its share's choice and its manga tags`() = runTest {
         pairings = Pairings(listOf(Pairing(2, "", 1, "")))
         tags[1 to "gallery-dl/pixiv/[9] manga work"] = listOf("manga")
