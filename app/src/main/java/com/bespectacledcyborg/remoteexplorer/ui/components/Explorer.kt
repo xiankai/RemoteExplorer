@@ -17,8 +17,10 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ScrollPosition
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ViewType
 
 data class Item<T> (
@@ -43,11 +45,32 @@ fun <T>Explorer(
     isRefreshing: Boolean = false,
     onVisibleItemsChanged: (List<Item<T>>) -> Unit = {},
     scrollKey: Any? = null,
+    initialScroll: ScrollPosition = ScrollPosition(),
+    onScrollPositionChanged: (ScrollPosition) -> Unit = {},
 ) {
-    val gridState = key(scrollKey) { rememberLazyGridState() }
-    val listState = key(scrollKey) { rememberLazyListState() }
+    val gridState = key(scrollKey) { rememberLazyGridState(initialScroll.index, initialScroll.offset) }
+    val listState = key(scrollKey) { rememberLazyListState(initialScroll.index, initialScroll.offset) }
     val currentItems by rememberUpdatedState(items)
     val currentOnVisible by rememberUpdatedState(onVisibleItemsChanged)
+
+    LaunchedEffect(scrollKey, viewType) {
+        val position = {
+            if (viewType == ViewType.LIST) {
+                ScrollPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            } else {
+                ScrollPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+            }
+        }
+        snapshotFlow { currentItems.size }.first { it > initialScroll.index }
+        if (position() != initialScroll) {
+            if (viewType == ViewType.LIST) {
+                listState.scrollToItem(initialScroll.index, initialScroll.offset)
+            } else {
+                gridState.scrollToItem(initialScroll.index, initialScroll.offset)
+            }
+        }
+        snapshotFlow(position).distinctUntilChanged().collect { onScrollPositionChanged(it) }
+    }
 
     LaunchedEffect(viewType, gridState, listState) {
         snapshotFlow {
