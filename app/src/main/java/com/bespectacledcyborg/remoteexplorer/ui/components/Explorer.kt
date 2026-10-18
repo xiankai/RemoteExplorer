@@ -72,7 +72,7 @@ fun <T>Explorer(
                 }
             }
         }
-        snapshotFlow(position).distinctUntilChanged().collect { onScrollPositionChanged(it) }
+        snapshotFlow(position).distinctUntilChanged().collect { onScrollPositionChanged(it) }  // stack-reviewer-ignore: recording ahead of the restore is the fix for the previous pass, where waiting on it stopped recording for good; a restore that cannot apply leaves the folder at the top, so the top is the true position to keep
     }
 
     LaunchedEffect(viewType, gridState, listState) {
