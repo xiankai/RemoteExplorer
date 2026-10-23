@@ -54,7 +54,10 @@ internal class TileLoadTimer(
         abandoned = false
     }
 
-    fun succeeded(from: String) = finish("ok", from)
+    fun succeeded(from: String) {
+        finish("ok", from)
+        failures = 0
+    }
 
     fun failed(cause: Throwable? = null) {
         finish("error", "none", mapOf("error" to (cause?.javaClass?.simpleName ?: "unknown")))

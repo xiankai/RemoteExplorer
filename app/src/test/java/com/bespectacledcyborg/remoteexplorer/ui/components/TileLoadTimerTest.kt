@@ -45,13 +45,15 @@ class TileLoadTimerTest {
     }
 
     @Test
-    fun `a retry after a failure is recorded as the next attempt`() {
+    fun `a retry after a failure is the next attempt, and a success starts the count again`() {
         timer.started()
         timer.failed()
         timer.started()
         timer.succeeded("network")
+        timer.started()
+        timer.failed()
 
-        assertEquals(listOf("1", "2"), metrics.recorded.map { it.attributes["attempt"] })
+        assertEquals(listOf("1", "2", "1"), metrics.recorded.map { it.attributes["attempt"] })
     }
 
     @Test
