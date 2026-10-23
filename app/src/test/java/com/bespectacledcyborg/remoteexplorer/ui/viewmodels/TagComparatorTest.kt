@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.displayLabels
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -28,6 +29,15 @@ class TagComparatorTest {
         assertEquals(
             listOf("Original", "female/smile", "female/glasses", "artist:someone"),
             tags.sortedWith(tagComparator(SortType.NAME_DESC)).map { it.label },
+        )
+    }
+
+    @Test
+    fun `by name sorts on the label as shown, without its root`() {
+        assertEquals(
+            listOf("artist:someone", "female/glasses", "Original", "female/smile"),
+            tags.sortedWith(tagComparator(SortType.NAME_ASC, shown = displayLabels(tags)))
+                .map { it.label },
         )
     }
 }
