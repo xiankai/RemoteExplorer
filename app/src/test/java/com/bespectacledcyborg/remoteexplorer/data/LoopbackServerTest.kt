@@ -25,7 +25,10 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.jetty.jakarta.Jetty
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -338,6 +341,49 @@ class LoopbackServerTest {
         assertEquals(listOf("Photos/beach.jpg"), renders)
         assertEquals(ThumbnailStatus.SUCCESS, statuses.recorded[1 to "Photos/beach.jpg"])
         assertTrue(runBlocking { thumbnailManager.hasThumbnail(1, "Photos/beach.jpg") })
+    }
+
+    @Test
+    fun `an image with no thumbnail is served whole while every render slot is busy`() {
+        val rendering = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val gated = object : ThumbnailSource {
+            override suspend fun render(connectionId: Int, path: String, destination: File): Boolean {
+                rendering.complete(Unit)
+                release.await()
+                destination.writeBytes(thumbnail)
+                return true
+            }
+        }
+        val oneSlot = ServerRepository(
+            fileDataSource = files,
+            dispatcher = Dispatchers.Unconfined,
+            thumbnailManager = thumbnailManager,
+            thumbnailSources = ThumbnailSources { type, _ ->
+                if (type == IconType.IMAGE) gated else null
+            },
+            thumbnailStatuses = statuses,
+            canonicalize = { id, path -> FileIdentity(id, path) },
+            resolver = SourceResolver(files, pairings = { Pairings.NONE }, connect = {}),
+            token = token,
+            renderSlotCount = 1,
+        )
+        loopback(oneSlot) {
+            coroutineScope {
+                val url = "/Photos/beach.jpg?connectionId=1&$auth&thumbnail=true"
+                val first = async { client.get(url) }
+                rendering.await()
+
+                val whileBusy = client.get(url)
+
+                assertEquals(HttpStatusCode.OK, whileBusy.status)
+                assertArrayEquals(photo, whileBusy.bodyAsBytes())
+                assertEquals("image/jpeg", whileBusy.headers[HttpHeaders.ContentType])
+
+                release.complete(Unit)
+                assertArrayEquals(thumbnail, first.await().bodyAsBytes())
+            }
+        }
     }
 
     @Test
