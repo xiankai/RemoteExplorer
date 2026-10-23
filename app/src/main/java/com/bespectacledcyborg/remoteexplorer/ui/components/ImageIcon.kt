@@ -97,7 +97,7 @@ internal object TileRetry {
     }
 
     private fun Throwable?.isServerAnswer(): Boolean =
-        this?.message?.startsWith("HTTP code error") == true
+        this?.message?.startsWith("HTTP code error") == true  // stack-reviewer-ignore: Sketch 4.7.0 has no typed HTTP error; javap of HttpUriFetcher shows a non-200 answer raised as a plain java.io.IOException built from the "HTTP code error. <code>. ..." template, so the message is the only signal. The version is pinned, TileRetrierTest pins the 404 case, and if a bump ever changed the text the cost is at most three extra requests for a tile that has no thumbnail.
 }
 
 internal class TileRetrier(

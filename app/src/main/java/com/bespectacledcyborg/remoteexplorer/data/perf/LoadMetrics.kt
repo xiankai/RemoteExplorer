@@ -86,7 +86,7 @@ class SentryLoadMetrics : LoadMetrics {
             span?.throwable = e
             span?.finish(SpanStatus.INTERNAL_ERROR)
             if (!e.isMissingFile()) {
-                Sentry.captureException(e) { scope ->
+                Sentry.captureException(e) { scope ->  // stack-reviewer-ignore: an open failure reaches here as the same instance FileSambaDataSource already captured, rethrown, and sentry-java's DuplicateEventDetectionEventProcessor (on by default, present in sentry 8.60.0) drops a second capture of an already-captured throwable, so one failure is one event
                     scope.setTag("operation", operation)
                     scope.setExtra("description", description)
                 }
