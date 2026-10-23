@@ -734,10 +734,10 @@ class ExplorerViewModel(
      * (`hagoromo gitsune`, not `character:hagoromo gitsune`). Null when the path is not a tag.
      */
     val openTagLabelState: StateFlow<String?> =
-        combine(_path, _tags, tagDisplayLabelsState) { path, tags, shown ->
+        combine(_path, tagDisplayLabelsState) { path, shown ->
             if (!path.startsWith(tagPrefix)) return@combine null
             val tag = path.substringAfter(tagPrefix)
-            shown[tag] ?: tags.firstOrNull { it.tag == tag }?.label ?: tag
+            shown[tag] ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
 
