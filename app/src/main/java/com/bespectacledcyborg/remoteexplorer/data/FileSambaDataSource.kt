@@ -101,12 +101,21 @@ class SambaFileDataSource : FileDataSource {
             return SmbSourceFile(file)
         } catch (e: Exception) {
             Log.e("FileSambaDataSource", "samba failed to open file: $path", e)
-            Sentry.captureMessage("Failed to open", SentryLevel.INFO, {
-                val diskShare = accessDiskShare(connectionId)
-                it.setExtra("shareName", diskShare.smbPath.toString())
-                it.setExtra("fullPath", path)
-            })
+            if (!e.isMissingFile()) reportOpenFailure(e, connectionId, path)
             throw e
+        }
+    }
+
+    private fun reportOpenFailure(e: Exception, connectionId: ConnectionId, path: String) {
+        val share = diskShares[connectionId]?.details
+        Sentry.captureException(e) { scope ->
+            scope.level = SentryLevel.WARNING
+            scope.setTag("smb.open", e.javaClass.simpleName)
+            scope.setExtra(
+                "shareName",
+                share?.let { "\\\\${it.hostname}\\${it.shareName}" } ?: "connection $connectionId",
+            )
+            scope.setExtra("fullPath", path)
         }
     }
 }

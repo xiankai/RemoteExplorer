@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -22,6 +23,10 @@ import com.github.panpf.sketch.rememberAsyncImageState
 import com.github.panpf.sketch.request.ComposableImageOptions
 import com.github.panpf.sketch.request.error
 import com.github.panpf.sketch.request.placeholder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 typealias GetImageUrl = (fullPath: String, thumbnail: Boolean) -> String
 
@@ -34,11 +39,12 @@ internal class TileLoadTimer(
 ) {
     private var startedAt: Long? = null
     private var abandoned = false
+    private var failures = 0
 
     fun onLoadState(loadState: LoadState) = when (loadState) {
         is LoadState.Started -> started()
         is LoadState.Success -> succeeded(loadState.result.dataFrom.name.lowercase())
-        is LoadState.Error -> failed()
+        is LoadState.Error -> failed(loadState.result.throwable)
         is LoadState.Canceled -> canceled()
         else -> Unit
     }
@@ -48,16 +54,22 @@ internal class TileLoadTimer(
         abandoned = false
     }
 
-    fun succeeded(from: String) = finish("ok", from)
+    fun succeeded(from: String) {
+        finish("ok", from)
+        failures = 0
+    }
 
-    fun failed() = finish("error", "none")
+    fun failed(cause: Throwable? = null) {
+        finish("error", "none", mapOf("error" to (cause?.javaClass?.simpleName ?: "unknown")))
+        failures++
+    }
 
     fun canceled() {
         startedAt = null
         abandoned = true
     }
 
-    private fun finish(result: String, from: String) {
+    private fun finish(result: String, from: String, extra: Map<String, String> = emptyMap()) {
         if (abandoned) return
         val elapsed = startedAt?.let { clock() - it } ?: 0L
         startedAt = null
@@ -65,8 +77,56 @@ internal class TileLoadTimer(
         metrics.record(
             LoadMetric.TILE_LOAD,
             elapsed,
-            attributes + mapOf("result" to result, "from" to from),
+            attributes + mapOf(
+                "result" to result,
+                "from" to from,
+                "attempt" to (failures + 1).toString(),
+            ) + extra,
         )
+    }
+}
+
+internal object TileRetry {
+    const val MAX_RETRIES = 3
+    private const val FIRST_DELAY_MILLIS = 1_000L
+
+    fun delayBefore(retry: Int, cause: Throwable?): Long? = when {
+        retry >= MAX_RETRIES -> null
+        cause.isServerAnswer() -> null
+        else -> FIRST_DELAY_MILLIS shl retry
+    }
+
+    private fun Throwable?.isServerAnswer(): Boolean =
+        this?.message?.startsWith("HTTP code error") == true  // stack-reviewer-ignore: Sketch 4.7.0 has no typed HTTP error; javap of HttpUriFetcher shows a non-200 answer raised as a plain java.io.IOException built from the "HTTP code error. <code>. ..." template, so the message is the only signal. The version is pinned, TileRetrierTest pins the 404 case, and if a bump ever changed the text the cost is at most three extra requests for a tile that has no thumbnail.
+}
+
+internal class TileRetrier(
+    private val scope: CoroutineScope,
+    private val restart: () -> Unit,
+) {
+    private var retries = 0
+    private var pending: Job? = null
+
+    fun onLoadState(loadState: LoadState) {
+        when (loadState) {
+            is LoadState.Success -> retries = 0
+            is LoadState.Error -> failed(loadState.result.throwable)
+            else -> Unit
+        }
+    }
+
+    fun failed(cause: Throwable?) {
+        val wait = TileRetry.delayBefore(retries, cause) ?: return
+        retries++
+        pending?.cancel()
+        pending = scope.launch {
+            delay(wait)
+            restart()
+        }
+    }
+
+    fun cancel() {
+        pending?.cancel()
     }
 }
 
@@ -105,12 +165,20 @@ fun ImageIcon(
             error(R.drawable.sentiment_very_dissatisfied_24px)
         })
         val metrics = LocalLoadMetrics.current
-        DisposableEffect(state, metrics) {
-            val timer = TileLoadTimer(metrics, mapOf("client_slots" to IMAGE_REQUEST_SLOTS.toString()))
-            state.onLoadState = timer::onLoadState
-            onDispose { state.onLoadState = null }
-        }
         val uri = getImageUrl(fullPath, true)
+        val retryScope = rememberCoroutineScope()
+        DisposableEffect(state, metrics, uri) {
+            val timer = TileLoadTimer(metrics, mapOf("client_slots" to IMAGE_REQUEST_SLOTS.toString()))
+            val retrier = TileRetrier(retryScope, state::restart)
+            state.onLoadState = {
+                timer.onLoadState(it)
+                retrier.onLoadState(it)
+            }
+            onDispose {
+                state.onLoadState = null
+                retrier.cancel()
+            }
+        }
         val progressPainter = rememberRingProgressPainter()
 
         AsyncImage(
