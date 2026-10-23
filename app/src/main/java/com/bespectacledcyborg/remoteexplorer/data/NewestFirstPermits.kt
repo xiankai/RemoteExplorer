@@ -10,6 +10,8 @@ class NewestFirstPermits(permits: Int) {
 
     val queued: Int get() = synchronized(lock) { waiting.size }
 
+    val isExhausted: Boolean get() = synchronized(lock) { available == 0 }
+
     suspend fun <T> withPermit(block: suspend () -> T): T {
         acquire()
         try {

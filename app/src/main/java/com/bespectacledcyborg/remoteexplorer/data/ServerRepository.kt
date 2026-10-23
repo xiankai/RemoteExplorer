@@ -82,10 +82,11 @@ class ServerRepository(
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
     private val token: LoopbackToken,
+    renderSlotCount: Int = MAX_CONCURRENT_RENDERS,
 ) {
     val urlToken: String get() = token.value
 
-    private val renderSlots = NewestFirstPermits(MAX_CONCURRENT_RENDERS)
+    private val renderSlots = NewestFirstPermits(renderSlotCount)
 
     private fun extractConnectionId(call: RoutingCall): Int {
         val connectionId: Int =
@@ -247,6 +248,14 @@ class ServerRepository(
 
                     val served = servedFrom()
                     readFrom = sourceKind(served.connectionId)
+                    if (variant == null &&
+                        Utils.guessIconType(decodedPath) == IconType.IMAGE &&
+                        renderSlots.isExhausted
+                    ) {
+                        respondOriginal(call, served, decodedPath)
+                        logOutcome("original")
+                        return@get
+                    }
                     val renderAttributes = mapOf("media" to media, "source" to readFrom)
                     val queuedAt = System.currentTimeMillis()
                     val rendered = renderSlots.withPermit {
@@ -429,6 +438,17 @@ class ServerRepository(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private suspend fun respondOriginal(call: ApplicationCall, served: FileIdentity, path: String) {
+        fileDataSource.openFile(served.connectionId, served.path).use { file ->
+            call.respondOutputStream(
+                ContentType.parse(contentTypeOf(path)),
+                contentLength = file.length(),
+            ) {
+                file.inputStream().transferTo(this)
             }
         }
     }
