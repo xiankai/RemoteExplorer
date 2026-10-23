@@ -22,6 +22,7 @@ import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
+import com.bespectacledcyborg.remoteexplorer.data.displayLabels
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
@@ -104,8 +105,11 @@ internal fun <T> viewComparator(
 internal fun tagComparator(
     sortType: SortType,
     views: Map<String, ViewTotals> = emptyMap(),
+    shown: Map<String, String> = emptyMap(),
 ): Comparator<LocalTagWithMetadata> {
-    val byName = compareBy<LocalTagWithMetadata, String>(String.CASE_INSENSITIVE_ORDER) { it.label }
+    val byName = compareBy<LocalTagWithMetadata, String>(String.CASE_INSENSITIVE_ORDER) {
+        shown[it.tag] ?: it.label
+    }
     viewComparator(sortType, { views[it.canonical ?: it.tag] ?: ViewTotals.NONE }, byName)
         ?.let { return it }
     return when (sortType) {
@@ -709,11 +713,16 @@ class ExplorerViewModel(
             .flowOn(Dispatchers.IO)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    val tagDisplayLabelsState: StateFlow<Map<String, String>> =
+        _tags.map(::displayLabels)
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     val visibleTagsState: StateFlow<List<LocalTagWithMetadata>> =
         combine(_tags, _tagSearch, _tagQuery, _tagSort, tagViews) { tags, search, query, sort, views ->
             val matching =
                 if (query.isBlank()) tags else tags.filter { search.matches(it.tag, query, it.label) }
-            matching.sortedWith(tagComparator(sort, views))
+            matching.sortedWith(tagComparator(sort, views, displayLabels(tags)))
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun searchTags(query: String) {
@@ -721,15 +730,14 @@ class ExplorerViewModel(
     }
 
     /**
-     * What the header names an open tag: its group's label rather than the member the path
-     * goes through (`characters/hagoromo gitsune`, not `character:hagoromo gitsune`). Null
-     * when the path is not a tag.
+     * What the header names an open tag: its group's label, shown as the list shows it
+     * (`hagoromo gitsune`, not `character:hagoromo gitsune`). Null when the path is not a tag.
      */
     val openTagLabelState: StateFlow<String?> =
-        combine(_path, _tags) { path, tags ->
+        combine(_path, tagDisplayLabelsState) { path, shown ->
             if (!path.startsWith(tagPrefix)) return@combine null
             val tag = path.substringAfter(tagPrefix)
-            tags.firstOrNull { it.tag == tag }?.label ?: tag
+            shown[tag] ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
 

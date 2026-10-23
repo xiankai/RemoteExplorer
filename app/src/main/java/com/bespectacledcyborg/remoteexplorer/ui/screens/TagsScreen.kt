@@ -38,6 +38,7 @@ fun TagsScreen(
     navHostController: NavHostController,
 ) {
     val tags = explorerViewModel.visibleTagsState.collectAsState()
+    val shownLabels by explorerViewModel.tagDisplayLabelsState.collectAsState()
     val tagQuery by explorerViewModel.tagQueryState.collectAsState()
     val tagThumbnails by explorerViewModel.tagThumbnailsState.collectAsState()
     val viewType by explorerViewModel.tagScreenViewTypeState.collectAsState()
@@ -101,7 +102,7 @@ fun TagsScreen(
                     getImageUrl = { fullPath, thumbnail -> explorerViewModel.getUrl(fullPath, thumbnail) },
                     items = tags.value.map {
                         Item(
-                            name = "${it.label} (${it.count})",
+                            name = "${shownLabels[it.tag] ?: it.label} (${it.count})",
                             type = FileType.FOLDER, // TODO: Support nested tags
                             thumbnails = tagThumbnails.getOrDefault(
                                 "${tagPrefix}${it.tag}",
