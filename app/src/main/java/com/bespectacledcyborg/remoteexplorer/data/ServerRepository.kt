@@ -252,7 +252,7 @@ class ServerRepository(
                         Utils.guessIconType(decodedPath) == IconType.IMAGE &&
                         renderSlots.isExhausted
                     ) {
-                        respondOriginal(call, served, decodedPath)
+                        respondOriginal(call, served, decodedPath)  // stack-reviewer-ignore: a thumbnail response never went through commonHeaders; the rendered and cached paths answer with respondFile, which sets only Content-Type and Content-Length, the same two set here. Accept-Ranges is left off deliberately because this response ignores Range, and Sketch fetches a tile whole. LoopbackServerTest asserts the body and Content-Type.
                         logOutcome("original")
                         return@get
                     }
