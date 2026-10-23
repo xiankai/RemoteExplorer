@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- A local root (#51) is read with plain java.io.File, which on shared storage and on a
          card needs all-files access. Chosen over the Storage Access Framework for speed at
          library scale; the Play build carries the matching All files access declaration. -->
@@ -36,6 +38,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".data.views.ExternalPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

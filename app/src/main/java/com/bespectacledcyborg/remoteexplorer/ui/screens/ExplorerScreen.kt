@@ -36,7 +36,9 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.data.PLAYBACK_TYPES
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
@@ -119,6 +121,9 @@ fun ExplorerScreen(
 
                         try {
                             context.startActivity(intent)
+                            if (Utils.guessIconType(item.name) in PLAYBACK_TYPES) {
+                                ExternalPlaybackService.start(context, item.name)
+                            }
                         } catch (e: ActivityNotFoundException) {
                             Toast.makeText(
                                 context,

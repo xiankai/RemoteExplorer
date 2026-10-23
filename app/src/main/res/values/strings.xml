@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Remote Explorer</string>
+    <string name="streaming_channel_name">Streaming to another app</string>
+    <string name="streaming_notification_title">Streaming to your player</string>
 </resources>
