@@ -54,7 +54,7 @@ const val ENCODING = "UTF-8"
 private const val RANGE_CHUNK_BYTES = 64 * 1024
 
 /** What the server measures as watched; see ServerRepository.playback. */
-private val PLAYBACK_TYPES = setOf(IconType.VIDEO, IconType.AUDIO)
+internal val PLAYBACK_TYPES = setOf(IconType.VIDEO, IconType.AUDIO)
 
 private const val MAX_CONCURRENT_RENDERS = 3
 

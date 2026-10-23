@@ -80,7 +80,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import com.bespectacledcyborg.remoteexplorer.data.views.MediaDuration
+import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
+import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackListener
 import com.bespectacledcyborg.remoteexplorer.data.views.PlaybackSessions
+import com.bespectacledcyborg.remoteexplorer.data.views.StreamingActivity
 import com.bespectacledcyborg.remoteexplorer.data.views.ServedOpens
 import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import kotlinx.coroutines.launch
@@ -270,7 +273,10 @@ class ExplorerViewModelFactory(
                 pairingRepository::current,
                 connectionOpener::ensureOpen,
             ),
-            playback = playbackSessions,
+            playback = PlaybackListener { canonical, served, first, last, totalLength ->
+                playbackSessions.onServed(canonical, served, first, last, totalLength)
+                StreamingActivity.shared.onServed(canonical, served, first, last, totalLength)
+            },
             opens = ServedOpens(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
                 record = viewRecorder::recordOpen,
@@ -317,6 +323,11 @@ class SettingsViewModelFactory(
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        ExternalPlaybackService.stop(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
