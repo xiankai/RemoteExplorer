@@ -63,7 +63,7 @@ class ExternalPlaybackService : Service() {
         )
         StreamingActivity.shared.touch()
         if (idleWatch?.isActive != true) {
-            idleWatch = scope.launch {
+            idleWatch = scope.launch {  // stack-reviewer-ignore: a stop here is final on purpose. Android refuses to start a mediaPlayback foreground service from the background, so traffic arriving after REx has left the screen cannot re-arm it; the next handoff from REx, made while it is in front, starts it again. Ten minutes with no byte served is a paused or closed player.
                 while (!StreamingActivity.shared.isIdle()) delay(STREAMING_CHECK_MILLIS)
                 stopSelf()
             }
@@ -97,6 +97,10 @@ class ExternalPlaybackService : Service() {
         private const val CHANNEL_ID = "external-playback"
         private const val NOTIFICATION_ID = 1
         private const val EXTRA_TITLE = "title"
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, ExternalPlaybackService::class.java))
+        }
 
         fun start(context: Context, title: String) {
             val intent = Intent(context, ExternalPlaybackService::class.java)
