@@ -21,21 +21,37 @@ class TileLoadTimerTest {
         assertEquals(LoadMetric.TILE_LOAD, recorded.metric)
         assertEquals(420L, recorded.millis)
         assertEquals(
-            mapOf("client_slots" to "8", "result" to "ok", "from" to "result_cache"),
+            mapOf("client_slots" to "8", "result" to "ok", "from" to "result_cache", "attempt" to "1"),
             recorded.attributes,
         )
     }
 
     @Test
-    fun `a failed tile is recorded as an error`() {
+    fun `a failed tile is recorded as an error with its cause`() {
         timer.started()
         now += 90
-        timer.failed()
+        timer.failed(java.net.SocketTimeoutException("timeout"))
 
         assertEquals(
-            mapOf("client_slots" to "8", "result" to "error", "from" to "none"),
+            mapOf(
+                "client_slots" to "8",
+                "result" to "error",
+                "from" to "none",
+                "attempt" to "1",
+                "error" to "SocketTimeoutException",
+            ),
             metrics.recorded.single().attributes,
         )
+    }
+
+    @Test
+    fun `a retry after a failure is recorded as the next attempt`() {
+        timer.started()
+        timer.failed()
+        timer.started()
+        timer.succeeded("network")
+
+        assertEquals(listOf("1", "2"), metrics.recorded.map { it.attributes["attempt"] })
     }
 
     @Test
@@ -64,5 +80,20 @@ class TileLoadTimerTest {
         timer.succeeded("network")
 
         assertEquals(1, metrics.recorded.size)
+    }
+
+    @Test
+    fun `a timed out tile is retried with a growing delay, then left alone`() {
+        val timeout = java.net.SocketTimeoutException("timeout")
+        assertEquals(
+            listOf(1_000L, 2_000L, 4_000L, null),
+            (0..3).map { TileRetry.delayBefore(it, timeout) },
+        )
+    }
+
+    @Test
+    fun `a tile the server answered with an error status is not retried`() {
+        val notFound = java.io.IOException("HTTP code error. 404. Not Found. http://127.0.0.1/a.jpg")
+        assertEquals(null, TileRetry.delayBefore(0, notFound))
     }
 }

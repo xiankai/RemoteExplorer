@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.perf
 
+import com.bespectacledcyborg.remoteexplorer.data.isMissingFile
 import io.sentry.ITransaction
 import io.sentry.Sentry
 import io.sentry.SentryAttributes
@@ -76,15 +77,20 @@ class SentryLoadMetrics : LoadMetrics {
         block: suspend () -> T,
     ): T {
         val span = folderOpen?.takeUnless { it.isFinished }?.startChild(operation, description)
-            ?: return block()
         return try {
-            block().also { span.finish(SpanStatus.OK) }
+            block().also { span?.finish(SpanStatus.OK) }
         } catch (e: CancellationException) {
-            span.finish(SpanStatus.CANCELLED)
+            span?.finish(SpanStatus.CANCELLED)
             throw e
         } catch (e: Exception) {
-            span.throwable = e
-            span.finish(SpanStatus.INTERNAL_ERROR)
+            span?.throwable = e
+            span?.finish(SpanStatus.INTERNAL_ERROR)
+            if (!e.isMissingFile()) {
+                Sentry.captureException(e) { scope ->
+                    scope.setTag("operation", operation)
+                    scope.setExtra("description", description)
+                }
+            }
             throw e
         }
     }
