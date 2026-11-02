@@ -857,3 +857,210 @@ private class FakeLocalDatabaseDao(
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")
 }
+
+private const val LOCAL = 2
+private const val NAS = 1
+private const val FOLDER_ATTRIBUTE = 0x10L
+
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class PairedListingTest {
+
+    private var now = 1_000_000L
+
+    private val pairings = Pairings(
+        listOf(Pairing(
+            localConnectionId = LOCAL, localSubPath = "",
+            remoteConnectionId = NAS, remoteSubPath = "gallery-dl",
+        ))
+    )
+
+    private fun entry(name: String, lastModified: Long = 0, folder: Boolean = false) = File(
+        filename = name,
+        parentPath = "",
+        lastModified = Date(lastModified),
+        allocationSize = 0,
+        fileAttributes = if (folder) FOLDER_ATTRIBUTE else 0,
+    )
+
+    private val opened = mutableListOf<ConnectionId>()
+    private val unreachable = mutableListOf<FileIdentity>()
+
+    private fun repository(
+        source: ScriptedFileDataSource,
+        dao: FakeLocalDatabaseDao,
+        metrics: LoadMetrics = LoadMetrics.NONE,
+        open: (ConnectionId) -> Unit = {},
+        canonicalize: (ConnectionId, String) -> FileIdentity = pairings::canonicalize,
+    ): FileRepository {
+        val dispatcher = UnconfinedTestDispatcher()
+        return FileRepository(
+            source,
+            LocalDatabaseDataSource(dao, dispatcher),
+            dispatcher,
+            canHaveThumbnail = { false },
+            clock = { now },
+            listingTtlMillis = 60_000L,
+            metrics = metrics,
+            sourceKind = { if (it == LOCAL) "local" else "smb" },
+            canonicalize = canonicalize,
+            ensureOpen = {
+                opened += it
+                open(it)
+            },
+            onShareUnreachable = { share, _ -> unreachable += share },
+        )
+    }
+
+    @Test
+    fun `a paired folder lists the union of both sides, the local copy winning a clash`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg", 5), entry("both.jpg", 5)),
+                (NAS to "gallery-dl/pixiv") to listOf(
+                    entry("both.jpg", 9), entry("nas.jpg"), entry(".stfolder", folder = true),
+                ),
+            )
+        )
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+
+        val files = repository(source, dao).listFiles(LOCAL, "pixiv").toList().last().files
+
+        assertEquals(listOf("a.jpg", "both.jpg", "nas.jpg"), files.map { it.filename }.sorted())
+        assertTrue(files.all { it.connectionId == LOCAL && it.parentPath == "pixiv" })
+        assertEquals(Date(5), files.single { it.filename == "both.jpg" }.lastModified)
+        assertEquals(listOf(LOCAL to "pixiv", NAS to "gallery-dl/pixiv"), source.listed)
+        assertEquals(listOf(NAS), opened)
+    }
+
+    @Test
+    fun `each side of a merged listing is timed under its own source`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (NAS to "gallery-dl/pixiv") to listOf(entry("b.jpg"), entry("c.jpg")),
+            )
+        )
+        val metrics = RecordingLoadMetrics()
+
+        repository(source, FakeLocalDatabaseDao(emptyList()), metrics = metrics)
+            .listFiles(LOCAL, "pixiv").toList()
+
+        assertEquals(listOf("local", "smb"), metrics.recorded.map { it.attributes["source"] })
+    }
+
+    @Test
+    fun `a folder only the share has is listed from the share`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf((NAS to "gallery-dl/pixiv/new") to listOf(entry("x.jpg"), entry("deeper", folder = true)))
+        )
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+
+        val files = repository(source, dao).listFiles(LOCAL, "pixiv/new").toList().last().files
+
+        assertEquals(listOf("deeper", "x.jpg"), files.map { it.filename }.sorted())
+        assertEquals(FileType.FOLDER, files.single { it.filename == "deeper" }.type)
+        assertTrue(files.all { it.connectionId == LOCAL && it.parentPath == "pixiv/new" })
+    }
+
+    @Test
+    fun `an unreachable share leaves the local listing with no error, and is not retried at once`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (LOCAL to "other") to listOf(entry("b.jpg")),
+            )
+        )
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        val repository = repository(source, dao, open = { throw java.io.IOException("no route") })
+
+        val listing = repository.listFiles(LOCAL, "pixiv").toList().last()
+
+        assertEquals(listOf("a.jpg"), listing.files.map { it.filename })
+        assertEquals(false, listing.syncing)
+        assertEquals(listOf(FileIdentity(NAS, "gallery-dl/pixiv")), unreachable)
+
+        now += 30_000L
+        assertEquals(listOf("b.jpg"), repository.listFiles(LOCAL, "other").toList().last().files.map { it.filename })
+        assertEquals(listOf(NAS), opened)
+    }
+
+    @Test
+    fun `a share that fails mid-listing still leaves the local rows`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf((LOCAL to "pixiv") to listOf(entry("a.jpg"))),
+            failing = mapOf((NAS to "gallery-dl/pixiv") to java.io.IOException("reset")),
+        )
+
+        val repository = repository(source, FakeLocalDatabaseDao(emptyList()))
+        val listing = repository.listFiles(LOCAL, "pixiv").toList().last()
+
+        assertEquals(listOf("a.jpg"), listing.files.map { it.filename })
+        assertEquals(listOf(FileIdentity(NAS, "gallery-dl/pixiv")), unreachable)
+    }
+
+    @Test
+    fun `one folder failing on the share does not keep the share from other folders`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (NAS to "gallery-dl/other") to listOf(entry("b.jpg")),
+            ),
+            failing = mapOf((NAS to "gallery-dl/pixiv") to java.io.IOException("reset")),
+        )
+        val repository = repository(source, FakeLocalDatabaseDao(emptyList()))
+
+        repository.listFiles(LOCAL, "pixiv").toList()
+        val other = repository.listFiles(LOCAL, "other").toList().last()
+
+        assertEquals(listOf("b.jpg"), other.files.map { it.filename })
+    }
+
+    @Test
+    fun `a folder the share lacks is the local listing, quietly`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf((LOCAL to "pixiv") to listOf(entry("a.jpg")))
+        )
+
+        val listing = repository(source, FakeLocalDatabaseDao(emptyList()))
+            .listFiles(LOCAL, "pixiv").toList().last()
+
+        assertEquals(listOf("a.jpg"), listing.files.map { it.filename })
+        assertEquals(emptyList<FileIdentity>(), unreachable)
+    }
+
+    @Test
+    fun `an unpaired local folder never reaches for a share`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf((LOCAL to "pixiv") to listOf(entry("a.jpg")))
+        )
+        val metrics = RecordingLoadMetrics()
+
+        val files = repository(
+            source, FakeLocalDatabaseDao(emptyList()), metrics = metrics, canonicalize = ::FileIdentity,
+        ).listFiles(LOCAL, "pixiv").toList().last().files
+
+        assertEquals(listOf("a.jpg"), files.map { it.filename })
+        assertEquals(listOf(LOCAL to "pixiv"), source.listed)
+        assertEquals(emptyList<ConnectionId>(), opened)
+        assertEquals(listOf("local"), metrics.recorded.map { it.attributes["source"] })
+    }
+}
+
+private class ScriptedFileDataSource(
+    private val listings: Map<Pair<ConnectionId, String>, List<File>>,
+    private val failing: Map<Pair<ConnectionId, String>, Exception> = emptyMap(),
+) : FileDataSource {
+    val listed = mutableListOf<Pair<ConnectionId, String>>()
+
+    override fun connect(details: SourceDetails) = Unit
+
+    override fun listFiles(connectionId: ConnectionId, currentPath: String, filter: String): List<File> {
+        val key = connectionId to currentPath
+        listed += key
+        failing[key]?.let { throw it }
+        return listings[key] ?: throw java.io.FileNotFoundException(currentPath)
+    }
+
+    override fun openFile(connectionId: ConnectionId, path: String) =
+        throw UnsupportedOperationException("listing opens no file")
+}

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 
@@ -102,24 +103,37 @@ internal fun entriesBucket(count: Int): String = when {
  */
 private const val MAX_CONCURRENT_COVER_LISTINGS = 4
 
+private const val SHARE_RETRY_MILLIS = 60_000L
+
+private const val TAG = "FileRepository"
+
+class ShareUnreachableException(connectionId: ConnectionId) :
+    java.io.IOException("Share $connectionId failed recently; not retried yet")
+
+private sealed interface ShareListing {
+    data class Listed(val files: List<File>) : ShareListing
+    data object Missing : ShareListing
+    data class Unreachable(val cause: Exception) : ShareListing
+}
+
 class FileRepository(
     private val fileDataSource: FileDataSource,
     private val localDatabaseDataSource: LocalDatabaseDataSource,
     private val dispatcher: CoroutineDispatcher,
-    // Injected purely so this class is reachable from a JVM unit test. The real
-    // implementation goes through Sketch's MimeTypeMap, which delegates to
-    // android.webkit.MimeTypeMap — a stub that throws under plain unit tests, and returns
-    // null (then NPEs inside Sketch) even with unitTests.isReturnDefaultValues. Testing the
-    // caching logic should not require Robolectric just to classify a file extension.
     private val canHaveThumbnail: (String) -> Boolean = Utils::canHaveThumbnail,
-    // Injected for the same reason: a test needs to move time without sleeping through a TTL.
     private val clock: () -> Long = System::currentTimeMillis,
     private val listingTtlMillis: Long = DEFAULT_LISTING_TTL_MILLIS,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (ConnectionId) -> String = { "unknown" },
     private val keepsFirstPage: suspend (ConnectionId, String) -> Boolean = { _, _ -> false },
     private val canonicalize: (ConnectionId, String) -> FileIdentity = ::FileIdentity,
+    private val ensureOpen: suspend (ConnectionId) -> Unit = {},
+    private val onShareUnreachable: (FileIdentity, Exception) -> Unit = { share, e ->
+        Log.w(TAG, "Paired share ${share.connectionId} unreachable at ${share.path}", e)
+    },
 ) {
+    private val shareFailedAt = ConcurrentHashMap<ConnectionId, Long>()
+
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
 
@@ -155,21 +169,16 @@ class FileRepository(
         }
     }
 
-    private fun syncDirectory(connectionId: Int, parentPath: String, forced: Boolean = false) {
+    private suspend fun syncDirectory(connectionId: Int, parentPath: String, forced: Boolean = false) {
         if (forced) localDatabaseDataSource.clearFailedThumbnails(connectionId, parentPath)
 
-        val listedAt = clock()
-        val remoteList = fileDataSource.listFiles(connectionId, parentPath)
-        metrics.record(
-            LoadMetric.FOLDER_LISTING,
-            clock() - listedAt,
-            mapOf(
-                "source" to sourceKind(connectionId),
-                "entries" to entriesBucket(remoteList.size),
-                "forced" to forced.toString(),
-            ),
-        )
-        val mappedRemoteList = remoteList.map {
+        val share = canonicalize(connectionId, parentPath)
+        val listed = if (share.connectionId == connectionId) {
+            timedListing(connectionId, parentPath, forced)
+        } else {
+            mergedListing(connectionId, parentPath, share, forced)
+        }
+        val rows = listed.map {
             LocalFile(
                 connectionId = connectionId,
                 filename = it.filename,
@@ -184,12 +193,73 @@ class FileRepository(
                 lastModified = it.lastModified,
             )
         }
-        localDatabaseDataSource.reconcileDirectory(
-            connectionId,
-            parentPath,
-            mappedRemoteList,
-            Date(clock()),
+        localDatabaseDataSource.reconcileDirectory(connectionId, parentPath, rows, Date(clock()))
+    }
+
+    private fun timedListing(connectionId: ConnectionId, path: String, forced: Boolean): List<File> {
+        val listedAt = clock()
+        val listed = fileDataSource.listFiles(connectionId, path)
+        metrics.record(
+            LoadMetric.FOLDER_LISTING,
+            clock() - listedAt,
+            mapOf(
+                "source" to sourceKind(connectionId),
+                "entries" to entriesBucket(listed.size),
+                "forced" to forced.toString(),
+            ),
         )
+        return listed
+    }
+
+    private suspend fun mergedListing(
+        localId: ConnectionId,
+        parentPath: String,
+        share: FileIdentity,
+        forced: Boolean,
+    ): List<File> {
+        val local = try {  // stack-reviewer-ignore: asymmetric on purpose. The local root is what the user opened. A local failure other than a missing folder means all-files access was revoked or the card was ejected, and that has to surface the way it does for an unpaired root. Falling back to the share's rows alone would also reconcile away every local-only row in the folder. The share is the optional half, so its failures are the ones tolerated.
+            timedListing(localId, parentPath, forced)
+        } catch (e: FileNotFoundException) {
+            null
+        }
+        val remote = when (val outcome = shareListing(share, forced)) {
+            is ShareListing.Listed -> outcome.files
+            ShareListing.Missing -> if (local == null) throw FileNotFoundException(parentPath) else emptyList()
+            is ShareListing.Unreachable -> if (local == null) throw outcome.cause else emptyList()
+        }
+        if (local == null) return remote
+        val localNames = local.mapTo(HashSet()) { it.filename }
+        return local + remote.filter { it.filename !in localNames }
+    }
+
+    private suspend fun shareListing(share: FileIdentity, forced: Boolean): ShareListing {
+        val failedAt = shareFailedAt[share.connectionId]
+        if (!forced && failedAt != null && clock() - failedAt < SHARE_RETRY_MILLIS) {  // stack-reviewer-ignore: a fixed minute with no probe is the back-off. Probing to find out whether the share is back is the connect timeout this exists to avoid paying on every folder and cover while offline. The cost of a share returning early is at most a minute without its half of a listing, the local rows still show, and pull-to-refresh (forced) skips the back-off at once.
+            return ShareListing.Unreachable(ShareUnreachableException(share.connectionId))
+        }
+        try {
+            ensureOpen(share.connectionId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (e.isMissingFile()) return ShareListing.Missing
+            shareFailedAt[share.connectionId] = clock()
+            onShareUnreachable(share, e)
+            return ShareListing.Unreachable(e)
+        }
+        shareFailedAt.remove(share.connectionId)
+        return try {
+            ShareListing.Listed(
+                timedListing(share.connectionId, share.path, forced)
+                    .filterNot { isSyncthingInternal(it.filename) }
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {  // stack-reviewer-ignore: no back-off here on purpose. The previous pass asked for exactly the opposite: a failure listing one folder says nothing about the share's other folders, so it must not black them out for a minute (PairedListingTest pins that). A share that is really gone fails at connect, which does start the back-off, and smbj's reconnect inside listFiles has a 5 s connect timeout, so a share that connects but fails each listing costs one bounded try per folder.
+            if (e.isMissingFile()) return ShareListing.Missing
+            onShareUnreachable(share, e)
+            ShareListing.Unreachable(e)
+        }
     }
 
     /**
