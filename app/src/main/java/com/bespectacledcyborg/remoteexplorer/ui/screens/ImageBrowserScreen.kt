@@ -29,6 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.data.Caption
+import com.bespectacledcyborg.remoteexplorer.data.TagChip
+import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
+import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -71,6 +74,7 @@ import com.github.panpf.zoomimage.SketchZoomAsyncImage
 @Composable
 fun ImageBrowserScreen(
     explorerViewModel: ExplorerViewModel,
+    onTagOpened: () -> Unit = {},
 ) {
     val images by explorerViewModel.browsableImagesState.collectAsState()
     val initialImage by explorerViewModel.initialBrowsableImageState.collectAsState()
@@ -152,6 +156,10 @@ fun ImageBrowserScreen(
         LaunchedEffect(shownImage?.connectionId, shownImage?.parentPath) {
             caption = shownImage?.let { explorerViewModel.captionFor(it) }
         }
+        var imageTags by remember { mutableStateOf(emptyList<TagChip>()) }
+        LaunchedEffect(shownImage) {
+            imageTags = shownImage?.let { explorerViewModel.tagsFor(it) }.orEmpty()
+        }
 
         AnimatedVisibility(
             visible = chromeVisible && images.isNotEmpty(),
@@ -174,6 +182,15 @@ fun ImageBrowserScreen(
                 if (galleryCaption != null && showCaptions) {
                     CaptionText(galleryCaption)
                 }
+                TagStrip(
+                    tags = imageTags,
+                    onOpenTag = {
+                        explorerViewModel.getFilesWithTag(LocalTag(it.tag))
+                        onTagOpened()
+                    },
+                    onDark = true,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (current != null) {
                         Text(

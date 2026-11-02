@@ -94,6 +94,9 @@ class LocalDatabaseDataSource(
         }
     }
 
+    suspend fun getTagsOn(connectionId: Int, directory: String, filename: String?): List<LocalTagWithMetadata> =
+        withContext(dispatcher) { localDatabaseDao.getTagsOn(connectionId, directory, filename) }
+
     suspend fun getTagAliasPairs(): List<TagAliasPair> =
         withContext(dispatcher) { localDatabaseDao.getTagAliasPairs() }
 

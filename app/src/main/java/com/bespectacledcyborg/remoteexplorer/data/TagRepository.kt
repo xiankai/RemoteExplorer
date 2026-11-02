@@ -23,6 +23,9 @@ class TagRepository(
 
     suspend fun getTags(): List<LocalTagWithMetadata> = localDatabaseDataSource.getTags()
 
+    suspend fun tagsOn(place: FileIdentity, filename: String? = null): List<LocalTagWithMetadata> =
+        localDatabaseDataSource.getTagsOn(place.connectionId, place.path, filename)
+
     /** Each tag's alias-group siblings, for [TagSearch]. */
     suspend fun getTagSearch(): TagSearch = TagSearch(localDatabaseDataSource.getTagAliasPairs())
 }

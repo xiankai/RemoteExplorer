@@ -76,6 +76,19 @@ interface LocalDatabaseDao {
     @Query("SELECT tag FROM DirTagRelation WHERE connectionId = :connectionId AND parentPath = :path")
     fun getDirectoryTags(connectionId: Int, path: String): List<String>
 
+    @Query(
+        "SELECT own.tag AS tag, 0 AS count, " +
+                "(SELECT MIN(canonical) FROM TagAlias WHERE TagAlias.tag = own.tag) AS canonical " +
+                "FROM ( " +
+                "  SELECT tag FROM DirTagRelation " +
+                "  WHERE connectionId = :connectionId AND parentPath = :directory " +
+                "  UNION " +
+                "  SELECT tag FROM FileTagRelation " +
+                "  WHERE connectionId = :connectionId AND parentPath = :directory AND filename = :filename " +
+                ") AS own ORDER BY own.tag"
+    )
+    fun getTagsOn(connectionId: Int, directory: String, filename: String?): List<LocalTagWithMetadata>
+
     @Query("SELECT canonical FROM TagAlias WHERE connectionId = :connectionId AND tag IN (:tags)")
     fun getAliasCanonicals(connectionId: Int, tags: List<String>): List<String>
 

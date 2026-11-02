@@ -23,6 +23,9 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.displayLabels
+import com.bespectacledcyborg.remoteexplorer.data.listedChips
+import com.bespectacledcyborg.remoteexplorer.data.TagChip
+import com.bespectacledcyborg.remoteexplorer.data.tagChips
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
@@ -740,6 +743,42 @@ class ExplorerViewModel(
             shown[tag] ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private val listedTagChips: StateFlow<Map<String, TagChip>> =
+        _tags.map(::listedChips)
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val folderTagsState: StateFlow<List<TagChip>> =
+        combine(_connection, _path, pairingsState, listedTagChips) { connection, path, _, listed ->
+            Triple(connection, path, listed)
+        }
+            .map { (connection, path, listed) ->
+                if (connection == null || path.startsWith(tagPrefix)) {
+                    emptyList()
+                } else {
+                    tagChipsOn(pairingRepository.current().canonicalize(connection.id, path), null, listed)
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun tagsFor(image: LocalFile): List<TagChip> {
+        val gallery = pairingRepository.current().canonicalize(image.connectionId, image.parentPath)
+        return tagChipsOn(gallery, image.filename, listedTagChips.value)
+    }
+
+    private suspend fun tagChipsOn(
+        place: FileIdentity,
+        filename: String?,
+        listed: Map<String, TagChip>,
+    ): List<TagChip> = try {
+        tagChips(tagRepository.tagsOn(place, filename), listed)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("ExplorerViewModel", "Could not read the tags on ${place.path}", e)
+        emptyList()
+    }
 
     fun getFilesWithTag(tag: LocalTag) {
         _search.update { "" }
