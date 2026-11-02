@@ -24,6 +24,17 @@ class FileComparatorTest {
         assertEquals(listOf("d", "c", "b", "a"), sorted(SortType.NAME_DESC))
     }
 
+    @Test
+    fun `numbers in names order by value`() {
+        val numbered = listOf("101.jpg", "2.jpg", "10.jpg", "1.jpg", "100.jpg").map { file(it, 0) }
+
+        val ascending = numbered.sortedWith(fileComparator(SortType.NAME_ASC)).map { it.filename }
+        val descending = numbered.sortedWith(fileComparator(SortType.NAME_DESC)).map { it.filename }
+
+        assertEquals(listOf("1.jpg", "2.jpg", "10.jpg", "100.jpg", "101.jpg"), ascending)
+        assertEquals(listOf("101.jpg", "100.jpg", "10.jpg", "2.jpg", "1.jpg"), descending)
+    }
+
     /** b and c share a time, so they fall back to the name either way round. */
     @Test
     fun `time orders, ties by name`() {
