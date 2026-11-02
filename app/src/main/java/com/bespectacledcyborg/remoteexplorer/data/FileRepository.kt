@@ -234,7 +234,7 @@ class FileRepository(
 
     private suspend fun shareListing(share: FileIdentity, forced: Boolean): ShareListing {
         val failedAt = shareFailedAt[share.connectionId]
-        if (!forced && failedAt != null && clock() - failedAt < SHARE_RETRY_MILLIS) {
+        if (!forced && failedAt != null && clock() - failedAt < SHARE_RETRY_MILLIS) {  // stack-reviewer-ignore: a fixed minute with no probe is the back-off. Probing to find out whether the share is back is the connect timeout this exists to avoid paying on every folder and cover while offline. The cost of a share returning early is at most a minute without its half of a listing, the local rows still show, and pull-to-refresh (forced) skips the back-off at once.
             return ShareListing.Unreachable(ShareUnreachableException(share.connectionId))
         }
         try {
