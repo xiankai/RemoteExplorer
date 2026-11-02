@@ -42,9 +42,11 @@ fun ExplorerButtons(
 ) {
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val path by explorerViewModel.pathState.collectAsState()
+    val search by explorerViewModel.searchState.collectAsState()
     ExpandableSearchBar(
         currentContext = connectionName + path,
         onSearch = { explorerViewModel.search(it) },
+        query = search,
     )
 
     var selectingColumnCount by remember { mutableStateOf(false) }

@@ -742,6 +742,7 @@ class ExplorerViewModel(
 
 
     fun getFilesWithTag(tag: LocalTag) {
+        _search.update { "" }
         changePath("${tagPrefix}${tag.tag}")
     }
 

@@ -24,7 +24,7 @@ fun TagButtons(
         currentContext = "tags",
         onSearch = { explorerViewModel.searchTags(it) },
         searchAsYouType = true,
-        initialValue = tagQuery.value,
+        query = tagQuery.value,
     )
     IconButton(
         onClick = { explorerViewModel.setTagScreenViewType(ViewType.LIST) },

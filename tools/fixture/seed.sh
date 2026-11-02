@@ -89,6 +89,7 @@ index="$media/gallery-dl/_index"
 mkdir -p "$index" \
   "$media/gallery-dl/pixiv/[137128361] 羽衣狐" \
   "$media/gallery-dl/examplebooru/[artist] a gallery (with parens)" \
+  "$media/gallery-dl/examplebooru/[artist] another gallery" \
   "$media/gallery-dl/patreon/loose files"
 
 image_at() { magick -size 320x240 "gradient:$2-white" "$1/$3"; }
@@ -96,6 +97,7 @@ image_at "$media/gallery-dl/pixiv/[137128361] 羽衣狐"           purple 001.jp
 image_at "$media/gallery-dl/pixiv/[137128361] 羽衣狐"           violet 002.jpg
 image_at "$media/gallery-dl/examplebooru/[artist] a gallery (with parens)" red    01.jpg
 image_at "$media/gallery-dl/examplebooru/[artist] a gallery (with parens)" pink   02.jpg
+image_at "$media/gallery-dl/examplebooru/[artist] another gallery"   orange 01.jpg
 image_at "$media/gallery-dl/patreon/loose files"                teal   single.jpg
 image_at "$media/gallery-dl/patreon/loose files"                cyan   untagged.jpg
 
@@ -110,6 +112,7 @@ log="$index/index.ndjson"
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[999] deleted gallery","site":"pixiv","tags":["gone"],"files":0,"deleted":true,"mtime":1790047800}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910,"annotations":["narration"]}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] another gallery","site":"examplebooru","site_id":"992","title":"another gallery","token":"cafef00d","tags":["artist:someone","character:hagoromo gitsune"],"files":1,"mtime":1790048000}'
 } >> "$log"
 
 # bytes is the log's length, which is both where a reader stops and the offset it resumes

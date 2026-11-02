@@ -27,16 +27,24 @@ import androidx.compose.ui.text.input.ImeAction
 fun ExpandableSearchBar(
     currentContext: String,
     onSearch: (search: String) -> Unit,
-    // Narrow on every keystroke rather than on Done. For lists already in memory, where
-    // filtering costs nothing and seeing it narrow is the point.
     searchAsYouType: Boolean = false,
-    // A query held by the caller, for a screen that is left and returned to. Without it the
-    // bar would come back empty over a list still filtered by the old text.
-    initialValue: String = "",
+    query: String = "",
 ) {
-    var isSearching by remember { mutableStateOf(initialValue.isNotEmpty()) }
+    var isSearching by remember { mutableStateOf(query.isNotEmpty()) }
     var openedByTap by remember { mutableStateOf(false) }
-    var value by remember { mutableStateOf(initialValue) }
+    var value by remember { mutableStateOf(query) }
+    var sent by remember { mutableStateOf(query) }
+    val send = { text: String ->
+        sent = text
+        onSearch(text)
+    }
+    LaunchedEffect(query) {
+        if (query != sent) {
+            sent = query
+            value = query
+            if (query.isEmpty()) isSearching = false
+        }
+    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
 
@@ -75,13 +83,13 @@ fun ExpandableSearchBar(
                 placeholder = { Text("Search within $currentContext") },
                 onValueChange = {
                     value = it
-                    if (searchAsYouType) onSearch(it)
+                    if (searchAsYouType) send(it)
                 },
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         isSearching = !isSearching
-                        onSearch(value)
+                        send(value)
                         keyboardController?.hide()
                     }
                 ),
@@ -95,7 +103,7 @@ fun ExpandableSearchBar(
                         },
                         onClick = {
                             isSearching = !isSearching
-                            onSearch(value)
+                            send(value)
                         },
                     )
                 },
@@ -108,7 +116,7 @@ fun ExpandableSearchBar(
                             },
                             onClick = {
                                 value = ""
-                                if (searchAsYouType) onSearch("")
+                                if (searchAsYouType) send("")
                             },
                         )
                     }
