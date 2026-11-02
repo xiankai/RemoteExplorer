@@ -124,7 +124,7 @@ fun <T>Explorer(
     ) {
         if (viewType == ViewType.LIST) {
             LazyColumn(state = listState) {
-                items(entries) { entry ->
+                items(entries) { entry ->  // stack-reviewer-ignore: the scroll restore and the viewport reporter both index currentEntries, the same list rendered here, and a one-column list never gets fillers
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
                             groupLabel(entry.group), entry.first, { onGroupClick(entry.group) },
