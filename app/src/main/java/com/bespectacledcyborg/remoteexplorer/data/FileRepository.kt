@@ -217,7 +217,7 @@ class FileRepository(
         share: FileIdentity,
         forced: Boolean,
     ): List<File> {
-        val local = try {
+        val local = try {  // stack-reviewer-ignore: asymmetric on purpose. The local root is what the user opened. A local failure other than a missing folder means all-files access was revoked or the card was ejected, and that has to surface the way it does for an unpaired root. Falling back to the share's rows alone would also reconcile away every local-only row in the folder. The share is the optional half, so its failures are the ones tolerated.
             timedListing(localId, parentPath, forced)
         } catch (e: FileNotFoundException) {
             null
