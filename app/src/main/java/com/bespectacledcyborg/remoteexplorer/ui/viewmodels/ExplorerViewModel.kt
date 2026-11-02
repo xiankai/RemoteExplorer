@@ -386,7 +386,7 @@ class ExplorerViewModel(
     private val _searchCleared = MutableStateFlow(0)
     val searchClearedState: StateFlow<Int> = _searchCleared.asStateFlow()
 
-    private fun clearSearch() {
+    private fun clearSearch() {  // stack-reviewer-ignore: #151 scopes the reset to opening a tag; a search carrying across folders is existing behaviour and the breadcrumb shows it, and seeding the bar from searchState makes it show that active filter instead of an empty field
         _search.update { "" }
         _searchCleared.update { it + 1 }
     }
