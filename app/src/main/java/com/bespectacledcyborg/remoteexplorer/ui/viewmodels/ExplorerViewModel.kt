@@ -253,6 +253,7 @@ class ExplorerViewModel(
         val tags = tagRepository.getTags()
         _tagSearch.update { tagRepository.getTagSearch() }
         _tags.update { tags }
+        _tagsRefreshed.update { it + 1 }
         _tagThumbnails.update { fetchTagThumbnails(tags) }
         _captioned.update {
             try {
@@ -686,6 +687,7 @@ class ExplorerViewModel(
     }
 
     private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
+    private val _tagsRefreshed = MutableStateFlow(0)
     val tagsState = _tags.asStateFlow()
 
     private val _tagSearch = MutableStateFlow(TagSearch.NONE)
@@ -758,7 +760,7 @@ class ExplorerViewModel(
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val folderTagsState: StateFlow<List<TagChip>> =
-        combine(_connection, _path, pairingsState, listedTagChips) { connection, path, _, listed ->
+        combine(_connection, _path, pairingsState, listedTagChips, _tagsRefreshed) { connection, path, _, listed, _ ->
             Triple(connection, path, listed)
         }
             .map { (connection, path, listed) ->
