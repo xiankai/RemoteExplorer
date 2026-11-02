@@ -237,17 +237,26 @@ class FileRepository(
         if (!forced && failedAt != null && clock() - failedAt < SHARE_RETRY_MILLIS) {
             return ShareListing.Unreachable(ShareUnreachableException(share.connectionId))
         }
-        return try {
+        try {
             ensureOpen(share.connectionId)
-            val files = timedListing(share.connectionId, share.path, forced)
-                .filterNot { isSyncthingInternal(it.filename) }
-            shareFailedAt.remove(share.connectionId)
-            ShareListing.Listed(files)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             if (e.isMissingFile()) return ShareListing.Missing
             shareFailedAt[share.connectionId] = clock()
+            onShareUnreachable(share, e)
+            return ShareListing.Unreachable(e)
+        }
+        shareFailedAt.remove(share.connectionId)
+        return try {
+            ShareListing.Listed(
+                timedListing(share.connectionId, share.path, forced)
+                    .filterNot { isSyncthingInternal(it.filename) }
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (e.isMissingFile()) return ShareListing.Missing
             onShareUnreachable(share, e)
             ShareListing.Unreachable(e)
         }

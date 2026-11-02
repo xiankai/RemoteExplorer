@@ -984,10 +984,28 @@ class PairedListingTest {
             failing = mapOf((NAS to "gallery-dl/pixiv") to java.io.IOException("reset")),
         )
 
-        val listing = repository(source, FakeLocalDatabaseDao(emptyList()))
-            .listFiles(LOCAL, "pixiv").toList().last()
+        val repository = repository(source, FakeLocalDatabaseDao(emptyList()))
+        val listing = repository.listFiles(LOCAL, "pixiv").toList().last()
 
         assertEquals(listOf("a.jpg"), listing.files.map { it.filename })
+        assertEquals(listOf(FileIdentity(NAS, "gallery-dl/pixiv")), unreachable)
+    }
+
+    @Test
+    fun `one folder failing on the share does not keep the share from other folders`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (NAS to "gallery-dl/other") to listOf(entry("b.jpg")),
+            ),
+            failing = mapOf((NAS to "gallery-dl/pixiv") to java.io.IOException("reset")),
+        )
+        val repository = repository(source, FakeLocalDatabaseDao(emptyList()))
+
+        repository.listFiles(LOCAL, "pixiv").toList()
+        val other = repository.listFiles(LOCAL, "other").toList().last()
+
+        assertEquals(listOf("b.jpg"), other.files.map { it.filename })
     }
 
     @Test
