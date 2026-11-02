@@ -90,3 +90,21 @@ fun ExplorerItem(
         )
     }
 }
+
+@Composable
+fun ExplorerItemPlaceholder() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+        )
+        Text(
+            text = "",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            maxLines = 1,
+        )
+    }
+}

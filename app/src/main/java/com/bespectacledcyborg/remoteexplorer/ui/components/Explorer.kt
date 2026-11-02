@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -162,7 +160,7 @@ fun <T>Explorer(
                             groupLabel(entry.group), entry.first, { onGroupClick(entry.group) },
                         )
                         is GridEntry.Filler -> GroupCellBox(entry.cell) {
-                            Spacer(Modifier.fillMaxWidth().aspectRatio(1f))
+                            ExplorerItemPlaceholder()
                         }
                         is GridEntry.Tile -> key(columnCount) {  // stack-reviewer-ignore: this is Compose's runtime key() inside one item's own lambda, not a LazyList item key; it only has to be unique among that item's children, and it is the sole child. Its job is to remount the tile when the column count changes so images are requested at the new size.
                             GroupCellBox(entry.cell) {
