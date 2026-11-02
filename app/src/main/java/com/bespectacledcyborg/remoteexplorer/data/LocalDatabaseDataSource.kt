@@ -49,7 +49,7 @@ class LocalDatabaseDataSource(
         limit: Int = 4,
     ): List<String> {
         return withContext(dispatcher) {
-            localDatabaseDao.getCoverCandidates(connectionId, parentPath)
+            localDatabaseDao.getCoverCandidates(connectionId, parentPath)  // stack-reviewer-ignore: unbounded on purpose. Any SQL LIMIT before a natural sort picks the first rows as text (10 before 2), which is #149. The cover search already loads every row of the folder through subfolders(), so this adds no new cost class; the rows are cached Room rows, not a listing.
                 .sortedWith(compareBy(NaturalOrder) { it.filename })
                 .take(limit)
                 .map { it.fullPath() }
