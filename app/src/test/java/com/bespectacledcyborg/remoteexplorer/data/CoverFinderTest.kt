@@ -4,6 +4,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.TagStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -55,7 +56,7 @@ class CoverFinderTest {
 
         override suspend fun images(connectionId: Int, folder: String, limit: Int) =
             folders[folder].orEmpty().filter { it.type == FileType.FILE }
-                .sortedBy { it.filename }.take(limit).map { it.fullPath() }
+                .sortedWith(compareBy(NaturalOrder) { it.filename }).take(limit).map { it.fullPath() }
 
         override suspend fun subfolders(connectionId: Int, folder: String) =
             folders[folder].orEmpty().filter { it.type == FileType.FOLDER }
@@ -81,6 +82,18 @@ class CoverFinderTest {
         assertEquals(listOf("pixiv/a/0.jpg", "pixiv/b/0.jpg", "pixiv/c/0.jpg", "pixiv/d/0.jpg"), cover.images)
         assertTrue(cover.borrowed)
         assertTrue(cover.complete)
+    }
+
+    @Test
+    fun `sub-folders numbered without padding borrow in numeric order, either way round`() = runTest {
+        val tree = Tree().folder("series")
+        listOf("10", "2", "100", "1", "3").forEach { tree.folder("series/$it").image("series/$it/0.jpg") }
+
+        val ascending = CoverFinder(tree).cover(1, "series", CoverOrder.Name)
+        val descending = CoverFinder(tree).cover(1, "series", CoverOrder.NameDesc)
+
+        assertEquals(listOf("series/1/0.jpg", "series/2/0.jpg", "series/3/0.jpg", "series/10/0.jpg"), ascending.images)
+        assertEquals(listOf("series/100/0.jpg", "series/10/0.jpg", "series/3/0.jpg", "series/2/0.jpg"), descending.images)
     }
 
     @Test
