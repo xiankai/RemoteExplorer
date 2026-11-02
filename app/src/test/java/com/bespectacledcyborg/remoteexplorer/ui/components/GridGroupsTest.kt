@@ -75,6 +75,24 @@ class GridGroupsTest {
     }
 
     @Test
+    fun `a group that fills its last row rounds that row's own tiles and adds no filler`() {
+        val entries = gridEntries(listOf("p/1", "p/2", "p/3", "p/4"), columns = 2) {
+            it.substringBefore('/')
+        }
+
+        assertEquals(
+            listOf(
+                GridEntry.Header("p", first = true),
+                GridEntry.Tile("p/1", GroupCell(true)),
+                GridEntry.Tile("p/2", GroupCell(true)),
+                GridEntry.Tile("p/3", GroupCell(true, bottomStart = true)),
+                GridEntry.Tile("p/4", GroupCell(true, bottomEnd = true)),
+            ),
+            entries,
+        )
+    }
+
+    @Test
     fun `one column rounds both bottom corners of the last tile`() {
         val entries = gridEntries(listOf("p/1", "p/2"), columns = 1) { it.substringBefore('/') }
 

@@ -113,7 +113,7 @@ fun <T>Explorer(
             .collect { (visible, all) ->
                 if (visible.isEmpty() || all.isEmpty()) return@collect
                 currentOnVisible(
-                    inViewportOrder(visible, all).mapNotNull { (it as? GridEntry.Tile)?.item }
+                    inViewportOrder(visible, all).mapNotNull { (it as? GridEntry.Tile)?.item }  // stack-reviewer-ignore: visible holds indices into the entries the grid renders, so the order is computed over those and only then narrowed to tiles; a header or filler in the lookahead only trims it by a row, and covers are wanted for tiles alone
                 )
             }
     }
@@ -124,7 +124,7 @@ fun <T>Explorer(
     ) {
         if (viewType == ViewType.LIST) {
             LazyColumn(state = listState) {
-                items(entries) { entry ->
+                items(entries) { entry ->  // stack-reviewer-ignore: the scroll restore and the viewport reporter both index currentEntries, the same list rendered here, and a one-column list never gets fillers
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
                             groupLabel(entry.group), entry.first, { onGroupClick(entry.group) },

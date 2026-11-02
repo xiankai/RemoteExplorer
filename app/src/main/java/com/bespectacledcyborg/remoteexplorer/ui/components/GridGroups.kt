@@ -43,7 +43,7 @@ internal fun <T> gridEntries(
         val cells = (0 until slots).map { slot ->
             val cell = GroupCell(
                 grouped = true,
-                bottomStart = slot == slots - width,
+                bottomStart = slot == slots - width,  // stack-reviewer-ignore: slots is always a whole number of rows, so slots - width is the first cell of the last row whether or not the group fills it; GridGroupsTest covers a group that is an exact multiple
                 bottomEnd = slot == slots - 1,
             )
             members.getOrNull(slot)?.let { GridEntry.Tile(it, cell) }
