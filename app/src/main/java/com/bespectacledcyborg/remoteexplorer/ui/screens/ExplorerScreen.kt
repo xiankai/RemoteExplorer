@@ -198,7 +198,7 @@ fun ExplorerScreen(
         }
     }
 
-    val openedFromTagList =
+    val openedFromTagList =  // stack-reviewer-ignore: TagsScreen is the only place that navigates to ExplorerRoute on top of TagsRoute, so the previous entry tells the two entry points apart; otherwise back is goBack(), which pops the view model's stack to the folder the tag was opened from (checked on the emulator)
         navHostController.previousBackStackEntry?.destination?.hasRoute<Route.TagsRoute>() == true
     val backToTags = atTag && openedFromTagList
 
