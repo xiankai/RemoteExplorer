@@ -41,6 +41,7 @@ import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
+import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.resolveColumnCount
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
@@ -90,6 +91,10 @@ fun ExplorerScreen(
             finalList = finalList.filter {
                 it.filename.contains(search, ignoreCase = true)
             }
+        }
+
+        if (path.startsWith(tagPrefix)) {
+            finalList = clusteredByParent(finalList)
         }
 
         finalList
@@ -277,6 +282,13 @@ fun ExplorerScreen(
                     scrollKey = pathState,
                     initialScroll = explorerViewModel.scrollPositionToRestore(),
                     onScrollPositionChanged = { explorerViewModel.recordScrollPosition(pathState, it) },
+                    groupOf = if (pathState.startsWith(tagPrefix)) {
+                        { it.item.parentPath }
+                    } else {
+                        null
+                    },
+                    groupLabel = { it.ifEmpty { connectionName } },
+                    onGroupClick = { explorerViewModel.changePath(it) },
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible

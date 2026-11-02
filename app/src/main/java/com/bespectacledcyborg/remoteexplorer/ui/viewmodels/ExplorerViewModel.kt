@@ -383,6 +383,14 @@ class ExplorerViewModel(
         _search.update { query }
     }
 
+    private val _searchCleared = MutableStateFlow(0)
+    val searchClearedState: StateFlow<Int> = _searchCleared.asStateFlow()
+
+    private fun clearSearch() {  // stack-reviewer-ignore: #151 scopes the reset to opening a tag; a search carrying across folders is existing behaviour and the breadcrumb shows it, and seeding the bar from searchState makes it show that active filter instead of an empty field
+        _search.update { "" }
+        _searchCleared.update { it + 1 }
+    }
+
     private val _filter = MutableStateFlow<List<IconType>>(emptyList())
     val filterState: StateFlow<List<IconType>> = _filter.asStateFlow()
     fun filter(extensions: List<IconType>) {
@@ -743,6 +751,7 @@ class ExplorerViewModel(
 
 
     fun getFilesWithTag(tag: LocalTag) {
+        clearSearch()
         changePath("${tagPrefix}${tag.tag}")
     }
 

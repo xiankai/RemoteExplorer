@@ -14,6 +14,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,16 +28,21 @@ import androidx.compose.ui.text.input.ImeAction
 fun ExpandableSearchBar(
     currentContext: String,
     onSearch: (search: String) -> Unit,
-    // Narrow on every keystroke rather than on Done. For lists already in memory, where
-    // filtering costs nothing and seeing it narrow is the point.
     searchAsYouType: Boolean = false,
-    // A query held by the caller, for a screen that is left and returned to. Without it the
-    // bar would come back empty over a list still filtered by the old text.
     initialValue: String = "",
+    clearSignal: Int = 0,
 ) {
     var isSearching by remember { mutableStateOf(initialValue.isNotEmpty()) }
     var openedByTap by remember { mutableStateOf(false) }
     var value by remember { mutableStateOf(initialValue) }
+    var clearsSeen by remember { mutableIntStateOf(clearSignal) }
+    LaunchedEffect(clearSignal) {
+        if (clearSignal != clearsSeen) {
+            clearsSeen = clearSignal
+            value = ""
+            isSearching = false
+        }
+    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
 
