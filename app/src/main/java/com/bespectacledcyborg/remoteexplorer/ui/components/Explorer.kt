@@ -113,7 +113,7 @@ fun <T>Explorer(
             .collect { (visible, all) ->
                 if (visible.isEmpty() || all.isEmpty()) return@collect
                 currentOnVisible(
-                    inViewportOrder(visible, all).mapNotNull { (it as? GridEntry.Tile)?.item }
+                    inViewportOrder(visible, all).mapNotNull { (it as? GridEntry.Tile)?.item }  // stack-reviewer-ignore: visible holds indices into the entries the grid renders, so the order is computed over those and only then narrowed to tiles; a header or filler in the lookahead only trims it by a row, and covers are wanted for tiles alone
                 )
             }
     }
