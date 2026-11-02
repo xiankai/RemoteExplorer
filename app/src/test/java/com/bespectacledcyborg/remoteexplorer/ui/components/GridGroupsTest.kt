@@ -21,11 +21,16 @@ class GridGroupsTest {
             file("b", "a"),
             file("", "root"),
             file("a", "x"),
+            file("p/[10] ten", "t"),
+            file("p/[9] nine", "n"),
         )
 
         val clustered = clusteredByParent(sorted).map { it.fullPath() }
 
-        assertEquals(listOf("root", "A/y", "a/x", "b/z", "b/a"), clustered)
+        assertEquals(
+            listOf("root", "A/y", "a/x", "b/z", "b/a", "p/[9] nine/n", "p/[10] ten/t"),
+            clustered,
+        )
     }
 
     @Test

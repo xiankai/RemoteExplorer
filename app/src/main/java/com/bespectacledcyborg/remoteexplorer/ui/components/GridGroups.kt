@@ -1,13 +1,11 @@
 package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
-
-private val byParentPath: Comparator<String> =
-    compareBy<String, String>(String.CASE_INSENSITIVE_ORDER) { it }.thenBy { it }
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 
 internal fun clusteredByParent(files: List<LocalFile>): List<LocalFile> =
     files.groupBy { it.parentPath }
-        .toSortedMap(byParentPath)
+        .toSortedMap(NaturalOrder)
         .values
         .flatten()
 

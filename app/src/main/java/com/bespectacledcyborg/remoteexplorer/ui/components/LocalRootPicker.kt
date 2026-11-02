@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bespectacledcyborg.remoteexplorer.data.isSyncthingInternal
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import java.io.File
 
 /** A mounted storage volume, by the name the system gives it and where it is mounted. */
@@ -44,12 +45,6 @@ fun mountedStorageRoots(context: Context): List<StorageRoot> {
         }
 }
 
-/**
- * Picks a folder to use as a local root: first a volume, then down through its folders.
- *
- * Folders only, since a root is a folder, and never Syncthing's own — `.stversions` is a
- * folder, and choosing it would browse the old copies Syncthing keeps rather than the files.
- */
 @Composable
 fun LocalRootPickerDialog(
     initial: String?,
@@ -58,7 +53,6 @@ fun LocalRootPickerDialog(
 ) {
     val context = LocalContext.current
     val roots = remember { mountedStorageRoots(context) }
-    // null is the list of volumes, above any of them.
     var current by remember {
         mutableStateOf(initial?.let(::File)?.takeIf { it.isDirectory })
     }
@@ -67,7 +61,7 @@ fun LocalRootPickerDialog(
     val entries: List<Pair<String, File>> = current?.let { dir ->
         dir.listFiles { file -> file.isDirectory && !isSyncthingInternal(file.name) }
             .orEmpty()
-            .sortedBy { it.name.lowercase() }
+            .sortedWith(compareBy(NaturalOrder) { it.name })
             .map { it.name to it }
     } ?: roots.map { it.label to it.directory }
 

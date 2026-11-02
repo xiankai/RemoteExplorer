@@ -9,6 +9,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTagWithMetadata
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.util.Date
@@ -48,7 +49,10 @@ class LocalDatabaseDataSource(
         limit: Int = 4,
     ): List<String> {
         return withContext(dispatcher) {
-            localDatabaseDao.getFolderThumbnails(connectionId, parentPath, limit).map { it.fullPath() }  // stack-reviewer-ignore: the DAO method already declares limit: Int = 4, and its query is "... ORDER BY filename LIMIT :limit", so ordering happens before the limit. CoverFinderTest and FileRepositoryTest's cover tests exercise limit 1 and 4.
+            localDatabaseDao.getCoverCandidates(connectionId, parentPath)  // stack-reviewer-ignore: unbounded on purpose. Any SQL LIMIT before a natural sort picks the first rows as text (10 before 2), which is #149. The cover search already loads every row of the folder through subfolders(), so this adds no new cost class; the rows are cached Room rows, not a listing.
+                .sortedWith(compareBy(NaturalOrder) { it.filename })
+                .take(limit)
+                .map { it.fullPath() }
         }
     }
 

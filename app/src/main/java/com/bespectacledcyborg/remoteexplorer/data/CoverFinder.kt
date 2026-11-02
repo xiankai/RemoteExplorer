@@ -1,7 +1,10 @@
 package com.bespectacledcyborg.remoteexplorer.data
 
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import kotlin.random.Random
+
+private val byName = compareBy<LocalFile, String>(NaturalOrder) { it.filename }
 
 sealed interface CoverOrder {
     val label: String
@@ -11,25 +14,25 @@ sealed interface CoverOrder {
 
     data object Name : CoverOrder {
         override val label = "name"
-        override fun subfolders(rows: List<LocalFile>, folder: String) = rows.sortedBy { it.filename }
+        override fun subfolders(rows: List<LocalFile>, folder: String) = rows.sortedWith(byName)
     }
 
     data object NameDesc : CoverOrder {
         override val label = "name-desc"
         override fun subfolders(rows: List<LocalFile>, folder: String) =
-            rows.sortedByDescending { it.filename }
+            rows.sortedWith(byName.reversed())
     }
 
     data object Oldest : CoverOrder {
         override val label = "oldest"
         override fun subfolders(rows: List<LocalFile>, folder: String) =
-            rows.sortedWith(compareBy<LocalFile> { it.lastModified }.thenBy { it.filename })
+            rows.sortedWith(compareBy<LocalFile> { it.lastModified }.then(byName))
     }
 
     data object Newest : CoverOrder {
         override val label = "newest"
         override fun subfolders(rows: List<LocalFile>, folder: String) =
-            rows.sortedWith(compareByDescending<LocalFile> { it.lastModified }.thenBy { it.filename })
+            rows.sortedWith(compareByDescending<LocalFile> { it.lastModified }.then(byName))
     }
 
     data class Shuffled(val seed: Long) : CoverOrder {
@@ -37,7 +40,7 @@ sealed interface CoverOrder {
         override val pickFromAll = true
 
         override fun subfolders(rows: List<LocalFile>, folder: String) =
-            rows.sortedBy { it.filename }.shuffled(randomFor(folder))
+            rows.sortedWith(byName).shuffled(randomFor(folder))
 
         override fun pick(images: List<String>, folder: String, count: Int) =
             images.shuffled(randomFor(folder)).take(count)
@@ -110,7 +113,7 @@ class CoverFinder(
             if (!order.pickFromAll || rows.keepsFirstPage(connectionId, folder)) {
                 return rows.images(connectionId, folder, count)
             }
-            return order.pick(rows.images(connectionId, folder, COVER_SHUFFLE_POOL), folder, count)  // stack-reviewer-ignore: images() is a Room query over rows already cached (LIMIT :limit, capped at 2000 here), not a listing; the listing budget bounds reads from the source, which this does not do. 2000 small rows of one folder is a few ms.
+            return order.pick(rows.images(connectionId, folder, COVER_SHUFFLE_POOL), folder, count)  // stack-reviewer-ignore: images() reads rows already cached in Room and keeps at most 2000 here, not a listing; the listing budget bounds reads from the source, which this does not do. 2000 small rows of one folder is a few ms.
         }
 
         private suspend fun ensureListed(folder: String): Boolean {
