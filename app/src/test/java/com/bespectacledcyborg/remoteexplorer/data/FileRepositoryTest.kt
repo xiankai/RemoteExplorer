@@ -564,6 +564,18 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `a cover picks pages numbered without padding in numeric order`() = runTest {
+        val dao = FakeLocalDatabaseDao(
+            cached = listOf("10.jpg", "100.jpg", "2.jpg", "1.jpg", "3.jpg").map { cachedFile(it) }
+        )
+        freshlySynced(dao)
+
+        val cover = repository(FakeFileDataSource(), dao).folderCover(1, "Photos")
+
+        assertEquals(listOf("Photos/1.jpg", "Photos/2.jpg", "Photos/3.jpg", "Photos/10.jpg"), cover.images)
+    }
+
+    @Test
     fun `a listing leaves out clutter unless hidden files are shown`() = runTest {
         val dao = FakeLocalDatabaseDao(
             cached = listOf(
@@ -764,20 +776,15 @@ private class FakeLocalDatabaseDao(
 
     override fun getFilesWithTag(tag: String): List<LocalFile> = notUsed()
     override fun getFolders(connectionId: Int, parentPath: String, type: FileType) = notUsed()
-    // The query, restated: files only, none that cannot or did not make a thumbnail, by name.
-    override fun getFolderThumbnails(
+    override fun getCoverCandidates(
         connectionId: Int,
         parentPath: String,
-        limit: Int,
         type: FileType,
         excluded: List<ThumbnailStatus>,
-    ): List<LocalFile> = files
-        .filter {
-            it.connectionId == connectionId && it.parentPath == parentPath &&
-                it.type == type && it.thumbnailStatus !in excluded
-        }
-        .sortedBy { it.filename }
-        .take(limit)
+    ): List<LocalFile> = files.filter {
+        it.connectionId == connectionId && it.parentPath == parentPath &&
+            it.type == type && it.thumbnailStatus !in excluded
+    }
     override fun getProcessedFolderThumbnails(
         connectionId: Int,
         parentPath: String,

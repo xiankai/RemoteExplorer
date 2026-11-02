@@ -42,6 +42,7 @@ import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
+import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.constructUrl
 import kotlinx.coroutines.CancellationException
@@ -107,7 +108,7 @@ internal fun tagComparator(
     views: Map<String, ViewTotals> = emptyMap(),
     shown: Map<String, String> = emptyMap(),
 ): Comparator<LocalTagWithMetadata> {
-    val byName = compareBy<LocalTagWithMetadata, String>(String.CASE_INSENSITIVE_ORDER) {
+    val byName = compareBy<LocalTagWithMetadata, String>(NaturalOrder) {
         shown[it.tag] ?: it.label
     }
     viewComparator(sortType, { views[it.canonical ?: it.tag] ?: ViewTotals.NONE }, byName)
@@ -123,7 +124,7 @@ internal fun fileComparator(
     sortType: SortType,
     views: Map<String, ViewTotals> = emptyMap(),
 ): Comparator<LocalFile> {
-    val byName = compareBy<LocalFile> { it.filename }
+    val byName = compareBy<LocalFile, String>(NaturalOrder) { it.filename }
     viewComparator(sortType, { views[it.fullPath()] ?: ViewTotals.NONE }, byName)
         ?.let { return it }
     // Two files modified in the same instant (a gallery downloaded in one go often is) fall
