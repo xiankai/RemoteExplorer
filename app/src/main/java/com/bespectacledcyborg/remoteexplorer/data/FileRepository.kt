@@ -255,7 +255,7 @@ class FileRepository(
             )
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Exception) {  // stack-reviewer-ignore: no back-off here on purpose. The previous pass asked for exactly the opposite: a failure listing one folder says nothing about the share's other folders, so it must not black them out for a minute (PairedListingTest pins that). A share that is really gone fails at connect, which does start the back-off, and smbj's reconnect inside listFiles has a 5 s connect timeout, so a share that connects but fails each listing costs one bounded try per folder.
             if (e.isMissingFile()) return ShareListing.Missing
             onShareUnreachable(share, e)
             ShareListing.Unreachable(e)
