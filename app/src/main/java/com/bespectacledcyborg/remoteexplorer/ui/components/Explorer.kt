@@ -34,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -74,9 +73,7 @@ fun <T>Explorer(
     onGroupClick: (String) -> Unit = {},
 ) {
     val entryColumns = if (viewType == ViewType.LIST) 1 else columnCount
-    val entries = remember(items, entryColumns, groupOf != null) {
-        gridEntries(items, entryColumns, groupOf)
-    }
+    val entries = gridEntries(items, entryColumns, groupOf)
     val gridState = key(scrollKey) { rememberLazyGridState(initialScroll.index, initialScroll.offset) }
     val listState = key(scrollKey) { rememberLazyListState(initialScroll.index, initialScroll.offset) }
     val currentEntries by rememberUpdatedState(entries)
