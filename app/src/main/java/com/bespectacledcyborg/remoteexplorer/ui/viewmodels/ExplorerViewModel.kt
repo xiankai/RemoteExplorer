@@ -760,7 +760,7 @@ class ExplorerViewModel(
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val folderTagsState: StateFlow<List<TagChip>> =
-        combine(_connection, _path, pairingsState, listedTagChips, _tagsRefreshed) { connection, path, _, listed, _ ->
+        combine(_connection, _path, pairingsState, listedTagChips, _tagsRefreshed) { connection, path, _, listed, _ ->  // stack-reviewer-ignore: pairingsState and _tagsRefreshed are triggers only; combine re-emits on any source change and nothing downstream dedupes before the map, which reads pairingRepository.current() fresh, so a pairing change re-runs the lookup
             Triple(connection, path, listed)  // stack-reviewer-ignore: combine emits on every source change without comparing values and nothing between it and the map is distinctUntilChanged, so a bumped _tagsRefreshed re-runs the query even when this Triple is equal to the last one
         }
             .map { (connection, path, listed) ->

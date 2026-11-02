@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -156,9 +157,8 @@ fun ImageBrowserScreen(
         LaunchedEffect(shownImage?.connectionId, shownImage?.parentPath) {
             caption = shownImage?.let { explorerViewModel.captionFor(it) }
         }
-        var imageTags by remember { mutableStateOf(emptyList<TagChip>()) }
-        LaunchedEffect(shownImage) {
-            imageTags = shownImage?.let { explorerViewModel.tagsFor(it) }.orEmpty()
+        val imageTags by produceState(emptyList<TagChip>(), shownImage) {
+            value = shownImage?.let { explorerViewModel.tagsFor(it) }.orEmpty()
         }
 
         AnimatedVisibility(
