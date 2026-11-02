@@ -78,7 +78,7 @@ interface LocalDatabaseDao {
 
     @Query(
         "SELECT own.tag AS tag, 0 AS count, " +
-                "(SELECT MIN(canonical) FROM TagAlias WHERE TagAlias.tag = own.tag) AS canonical " +
+                "(SELECT MIN(canonical) FROM TagAlias WHERE TagAlias.tag = own.tag) AS canonical " +  // stack-reviewer-ignore: deliberately across connections, the way getTags and TAG_AND_ALIASES resolve groups; the chip's group has to match the tag list's entry, which is keyed the same way
                 "FROM ( " +
                 "  SELECT tag FROM DirTagRelation " +
                 "  WHERE connectionId = :connectionId AND parentPath = :directory " +
