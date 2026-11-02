@@ -24,6 +24,7 @@ import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
+import com.bespectacledcyborg.remoteexplorer.data.sourceDetailsOf
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import kotlinx.coroutines.withContext
@@ -146,6 +147,14 @@ class ExplorerViewModelFactory(
                 withContext(defaultDispatcher) { db.localDatabaseDao().getAliasCanonicals(id, tags) }
             },
         )
+        val connectionDao = db.connectionDao()
+        val connectionOpener = ConnectionOpener(
+            files = fileDataSource,
+            lookUp = connectionDao::getConnection,
+            open = { connection ->
+                withContext(defaultDispatcher) { fileDataSource.connect(sourceDetailsOf(connection)) }
+            },
+        )
         val fileRepository = FileRepository(
             fileDataSource,
             localDatabaseDataSource,
@@ -154,9 +163,9 @@ class ExplorerViewModelFactory(
             sourceKind = fileDataSource::sourceKind,
             keepsFirstPage = coverPreferences::keepsFirstPage,
             canonicalize = { id, path -> pairingRepository.current().canonicalize(id, path) },
+            ensureOpen = connectionOpener::ensureOpen,
         )
         val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
-        val connectionDao = db.connectionDao()
         val tagRepository = TagRepository(
             localDatabaseDataSource,
             {
@@ -244,11 +253,6 @@ class ExplorerViewModelFactory(
         }
 
         val thumbnailStatuses = PairedThumbnailStatuses(listingStatuses, pairingRepository::current)
-        val connectionOpener = ConnectionOpener(
-            files = fileDataSource,
-            lookUp = connectionDao::getConnection,
-            open = fileRepository::connect,
-        )
 
         // What has been opened and watched (#76). The playback tracker outlives any one
         // screen, as the server does, so it gets a scope of its own rather than a view

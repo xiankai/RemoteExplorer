@@ -15,9 +15,10 @@ import kotlinx.coroutines.sync.withLock
  * to be on the device too. A file missing from the copy (Syncthing has not caught up, or
  * the folder is excluded from sync) falls through to the share.
  *
- * The connection a request names may never have been opened in this process — browsing a
- * local root does not open the share it is paired with — so [connect] opens whichever one
- * the answer lands on, and is expected to be a no-op for one that is already open.
+ * The connection a request names may never have been opened in this process — the share a
+ * local root is paired with is opened only once a paired folder is listed — so [connect]
+ * opens whichever one the answer lands on, and is expected to be a no-op for one that is
+ * already open.
  */
 class SourceResolver(
     private val files: FileDataSource,
