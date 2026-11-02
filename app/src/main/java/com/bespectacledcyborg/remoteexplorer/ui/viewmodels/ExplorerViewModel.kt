@@ -382,6 +382,14 @@ class ExplorerViewModel(
         _search.update { query }
     }
 
+    private val _searchCleared = MutableStateFlow(0)
+    val searchClearedState: StateFlow<Int> = _searchCleared.asStateFlow()
+
+    private fun clearSearch() {
+        _search.update { "" }
+        _searchCleared.update { it + 1 }
+    }
+
     private val _filter = MutableStateFlow<List<IconType>>(emptyList())
     val filterState: StateFlow<List<IconType>> = _filter.asStateFlow()
     fun filter(extensions: List<IconType>) {
@@ -742,7 +750,7 @@ class ExplorerViewModel(
 
 
     fun getFilesWithTag(tag: LocalTag) {
-        _search.update { "" }
+        clearSearch()
         changePath("${tagPrefix}${tag.tag}")
     }
 

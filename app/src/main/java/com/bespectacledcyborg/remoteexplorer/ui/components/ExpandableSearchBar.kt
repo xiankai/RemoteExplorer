@@ -14,6 +14,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,21 +29,18 @@ fun ExpandableSearchBar(
     currentContext: String,
     onSearch: (search: String) -> Unit,
     searchAsYouType: Boolean = false,
-    query: String = "",
+    initialValue: String = "",
+    clearSignal: Int = 0,
 ) {
-    var isSearching by remember { mutableStateOf(query.isNotEmpty()) }
+    var isSearching by remember { mutableStateOf(initialValue.isNotEmpty()) }
     var openedByTap by remember { mutableStateOf(false) }
-    var value by remember { mutableStateOf(query) }
-    var sent by remember { mutableStateOf(query) }
-    val send = { text: String ->
-        sent = text
-        onSearch(text)
-    }
-    LaunchedEffect(query) {
-        if (query != sent) {
-            sent = query
-            value = query
-            if (query.isEmpty()) isSearching = false
+    var value by remember { mutableStateOf(initialValue) }
+    var clearsSeen by remember { mutableIntStateOf(clearSignal) }
+    LaunchedEffect(clearSignal) {
+        if (clearSignal != clearsSeen) {
+            clearsSeen = clearSignal
+            value = ""
+            isSearching = false
         }
     }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -83,13 +81,13 @@ fun ExpandableSearchBar(
                 placeholder = { Text("Search within $currentContext") },
                 onValueChange = {
                     value = it
-                    if (searchAsYouType) send(it)
+                    if (searchAsYouType) onSearch(it)
                 },
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         isSearching = !isSearching
-                        send(value)
+                        onSearch(value)
                         keyboardController?.hide()
                     }
                 ),
@@ -103,7 +101,7 @@ fun ExpandableSearchBar(
                         },
                         onClick = {
                             isSearching = !isSearching
-                            send(value)
+                            onSearch(value)
                         },
                     )
                 },
@@ -116,7 +114,7 @@ fun ExpandableSearchBar(
                             },
                             onClick = {
                                 value = ""
-                                if (searchAsYouType) send("")
+                                if (searchAsYouType) onSearch("")
                             },
                         )
                     }
