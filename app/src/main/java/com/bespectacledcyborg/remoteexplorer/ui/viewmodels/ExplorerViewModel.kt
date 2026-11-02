@@ -761,7 +761,7 @@ class ExplorerViewModel(
 
     val folderTagsState: StateFlow<List<TagChip>> =
         combine(_connection, _path, pairingsState, listedTagChips, _tagsRefreshed) { connection, path, _, listed, _ ->
-            Triple(connection, path, listed)
+            Triple(connection, path, listed)  // stack-reviewer-ignore: combine emits on every source change without comparing values and nothing between it and the map is distinctUntilChanged, so a bumped _tagsRefreshed re-runs the query even when this Triple is equal to the last one
         }
             .map { (connection, path, listed) ->
                 if (connection == null || path.startsWith(tagPrefix)) {
