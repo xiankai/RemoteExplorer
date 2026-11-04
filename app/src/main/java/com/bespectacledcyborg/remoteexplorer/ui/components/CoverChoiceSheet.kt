@@ -29,7 +29,7 @@ fun CoverChoiceSheet(
             ListItem(
                 headlineContent = { Text("Cover for $folderName") },
                 supportingContent = if (keepsFirstPage) {
-                    { Text("Manga keeps its first page as its cover.") }
+                    { Text("A manga gallery keeps its first page as its cover.") }
                 } else {
                     null
                 },
