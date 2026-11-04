@@ -43,6 +43,12 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
+import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
+import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination.Companion.hasRoute
 import com.bespectacledcyborg.remoteexplorer.ui.components.resolveColumnCount
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ExplorerButtons
@@ -192,9 +198,15 @@ fun ExplorerScreen(
         }
     }
 
+    val openedFromTagList =  // stack-reviewer-ignore: TagsScreen is the only place that navigates to ExplorerRoute on top of TagsRoute, so the previous entry tells the two entry points apart; otherwise back is goBack(), which pops the view model's stack to the folder the tag was opened from (checked on the emulator)
+        navHostController.previousBackStackEntry?.destination?.hasRoute<Route.TagsRoute>() == true
+    val backToTags = atTag && openedFromTagList
+
     BackHandler(enabled = atTag || !atRoot) {
-        if (atTag) returnToTags() else explorerViewModel.goBack()
+        if (backToTags) returnToTags() else explorerViewModel.goBack()
     }
+
+    val folderTags by explorerViewModel.folderTagsState.collectAsState()
 
     val search by explorerViewModel.searchState.collectAsState()
     val openTagLabel by explorerViewModel.openTagLabelState.collectAsState()
@@ -230,7 +242,7 @@ fun ExplorerScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         when {
-                            atTag -> returnToTags()
+                            backToTags -> returnToTags()
                             atRoot -> returnToConnections()
                             else -> explorerViewModel.goBack()
                         }
@@ -298,6 +310,16 @@ fun ExplorerScreen(
                     },
                 )
             }
+        },
+        bottomBar = {
+            TagStrip(
+                tags = folderTags,
+                onOpenTag = { explorerViewModel.getFilesWithTag(LocalTag(it.tag)) },
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            )
         },
         containerColor = MaterialTheme.colorScheme.background
     )

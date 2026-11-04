@@ -23,6 +23,9 @@ import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.displayLabels
+import com.bespectacledcyborg.remoteexplorer.data.listedChips
+import com.bespectacledcyborg.remoteexplorer.data.TagChip
+import com.bespectacledcyborg.remoteexplorer.data.tagChips
 import com.bespectacledcyborg.remoteexplorer.data.ThumbnailManager
 import com.bespectacledcyborg.remoteexplorer.data.AllFilesAccessMissing
 import com.bespectacledcyborg.remoteexplorer.data.perf.LoadMetric
@@ -250,6 +253,7 @@ class ExplorerViewModel(
         val tags = tagRepository.getTags()
         _tagSearch.update { tagRepository.getTagSearch() }
         _tags.update { tags }
+        _tagsRefreshed.update { it + 1 }
         _tagThumbnails.update { fetchTagThumbnails(tags) }
         _captioned.update {
             try {
@@ -683,6 +687,7 @@ class ExplorerViewModel(
     }
 
     private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
+    private val _tagsRefreshed = MutableStateFlow(0)
     val tagsState = _tags.asStateFlow()
 
     private val _tagSearch = MutableStateFlow(TagSearch.NONE)
@@ -749,6 +754,42 @@ class ExplorerViewModel(
             shown[tag] ?: tag
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private val listedTagChips: StateFlow<Map<String, TagChip>> =
+        _tags.map(::listedChips)
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val folderTagsState: StateFlow<List<TagChip>> =
+        combine(_connection, _path, pairingsState, listedTagChips, _tagsRefreshed) { connection, path, _, listed, _ ->  // stack-reviewer-ignore: pairingsState and _tagsRefreshed are triggers only; combine re-emits on any source change and nothing downstream dedupes before the map, which reads pairingRepository.current() fresh, so a pairing change re-runs the lookup
+            Triple(connection, path, listed)  // stack-reviewer-ignore: combine emits on every source change without comparing values and nothing between it and the map is distinctUntilChanged, so a bumped _tagsRefreshed re-runs the query even when this Triple is equal to the last one
+        }
+            .map { (connection, path, listed) ->
+                if (connection == null || path.startsWith(tagPrefix)) {
+                    emptyList()
+                } else {
+                    tagChipsOn(pairingRepository.current().canonicalize(connection.id, path), null, listed)
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun tagsFor(image: LocalFile): List<TagChip> {
+        val gallery = pairingRepository.current().canonicalize(image.connectionId, image.parentPath)
+        return tagChipsOn(gallery, image.filename, listedTagChips.value)
+    }
+
+    private suspend fun tagChipsOn(
+        place: FileIdentity,
+        filename: String?,
+        listed: Map<String, TagChip>,
+    ): List<TagChip> = try {
+        tagChips(tagRepository.tagsOn(place, filename), listed)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("ExplorerViewModel", "Could not read the tags on ${place.path}", e)
+        emptyList()
+    }
 
     fun getFilesWithTag(tag: LocalTag) {
         clearSearch()
