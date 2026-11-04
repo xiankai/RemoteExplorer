@@ -119,6 +119,7 @@ fun Routes(
         composable<Route.ImageBrowserRoute> {
             ImageBrowserScreen(
                 explorerViewModel = explorerViewModel,
+                onTagOpened = { navHostController.popBackStack(Route.ExplorerRoute, inclusive = false) },
             )
         }
         composable<Route.TagsRoute> {

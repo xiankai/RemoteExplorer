@@ -827,6 +827,8 @@ private class FakeLocalDatabaseDao(
 
     override fun getDirectoryTags(connectionId: Int, path: String): List<String> = notUsed()
 
+    override fun getTagsOn(connectionId: Int, directory: String, filename: String?): List<LocalTagWithMetadata> = notUsed()
+
     override fun getAliasCanonicals(connectionId: Int, tags: List<String>): List<String> = notUsed()
 
     override fun getTagIndexIngest(connectionId: Int): TagIndexIngest? = notUsed()
