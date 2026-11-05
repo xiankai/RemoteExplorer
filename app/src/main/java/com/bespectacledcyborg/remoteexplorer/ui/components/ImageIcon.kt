@@ -32,7 +32,7 @@ typealias GetImageUrl = (fullPath: String, thumbnail: Boolean) -> String
 
 val LocalLoadMetrics = staticCompositionLocalOf { LoadMetrics.NONE }
 
-val LocalThumbnailMissing = staticCompositionLocalOf<(fullPath: String) -> Unit> { {} }
+val LocalThumbnailMissing = staticCompositionLocalOf<(fullPath: String, url: String) -> Unit> { { _, _ -> } }
 
 internal class TileLoadTimer(
     private val metrics: LoadMetrics,
@@ -179,7 +179,7 @@ fun ImageIcon(
             state.onLoadState = {
                 timer.onLoadState(it)
                 retrier.onLoadState(it)
-                if (it is LoadState.Error && TileRetry.isNotFound(it.result.throwable)) onMissing(fullPath)
+                if (it is LoadState.Error && TileRetry.isNotFound(it.result.throwable)) onMissing(fullPath, uri)
             }
             onDispose {
                 state.onLoadState = null

@@ -924,8 +924,9 @@ class ExplorerViewModel(
         }
     }
 
-    fun coverImageMissing(imagePath: String) {
+    fun coverImageMissing(imagePath: String, url: String) {
         val connectionId = browsingConnectionId ?: return
+        if (runCatching { getUrl(imagePath, true) }.getOrNull() != url) return
         val folders = _thumbnails.value
             .filter { (folder, images) -> folder != imagePath && imagePath in images }
             .keys
