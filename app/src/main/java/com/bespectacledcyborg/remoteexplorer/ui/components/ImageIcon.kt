@@ -32,6 +32,8 @@ typealias GetImageUrl = (fullPath: String, thumbnail: Boolean) -> String
 
 val LocalLoadMetrics = staticCompositionLocalOf { LoadMetrics.NONE }
 
+val LocalThumbnailMissing = staticCompositionLocalOf<(fullPath: String, url: String) -> Unit> { { _, _ -> } }
+
 internal class TileLoadTimer(
     private val metrics: LoadMetrics,
     private val attributes: Map<String, String> = emptyMap(),
@@ -95,6 +97,9 @@ internal object TileRetry {
         cause.isServerAnswer() -> null
         else -> FIRST_DELAY_MILLIS shl retry
     }
+
+    fun isNotFound(cause: Throwable?): Boolean =
+        cause?.message?.startsWith("HTTP code error. 404") == true
 
     private fun Throwable?.isServerAnswer(): Boolean =
         this?.message?.startsWith("HTTP code error") == true  // stack-reviewer-ignore: Sketch 4.7.0 has no typed HTTP error; javap of HttpUriFetcher shows a non-200 answer raised as a plain java.io.IOException built from the "HTTP code error. <code>. ..." template, so the message is the only signal. The version is pinned, TileRetrierTest pins the 404 case, and if a bump ever changed the text the cost is at most three extra requests for a tile that has no thumbnail.
@@ -167,12 +172,14 @@ fun ImageIcon(
         val metrics = LocalLoadMetrics.current
         val uri = getImageUrl(fullPath, true)
         val retryScope = rememberCoroutineScope()
-        DisposableEffect(state, metrics, uri) {
+        val onMissing = LocalThumbnailMissing.current
+        DisposableEffect(state, metrics, uri, onMissing) {
             val timer = TileLoadTimer(metrics, mapOf("client_slots" to IMAGE_REQUEST_SLOTS.toString()))
             val retrier = TileRetrier(retryScope, state::restart)
             state.onLoadState = {
                 timer.onLoadState(it)
                 retrier.onLoadState(it)
+                if (it is LoadState.Error && TileRetry.isNotFound(it.result.throwable)) onMissing(fullPath, uri)
             }
             onDispose {
                 state.onLoadState = null

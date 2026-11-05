@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.bespectacledcyborg.remoteexplorer.ui.components.LocalThumbnailMissing
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
@@ -111,10 +113,12 @@ fun Routes(
             )
         }
         composable<Route.ExplorerRoute> {
-            ExplorerScreen(
-                explorerViewModel = explorerViewModel,
-                navHostController = navHostController,
-            )
+            CompositionLocalProvider(LocalThumbnailMissing provides explorerViewModel::coverImageMissing) {
+                ExplorerScreen(
+                    explorerViewModel = explorerViewModel,
+                    navHostController = navHostController,
+                )
+            }
         }
         composable<Route.ImageBrowserRoute> {
             ImageBrowserScreen(

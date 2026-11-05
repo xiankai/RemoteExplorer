@@ -924,6 +924,29 @@ class ExplorerViewModel(
         }
     }
 
+    fun coverImageMissing(imagePath: String, url: String) {
+        val connectionId = browsingConnectionId ?: return
+        if (runCatching { getUrl(imagePath, true) }.getOrNull() != url) return  // stack-reviewer-ignore: dropping a report whose URL the current state would not build is the point. A tile still mounted from the previous connection is exactly the report to drop, and any other dropped report falls back to today's behaviour, the placeholder until the cover is next recomputed, never to a wrong skip.
+        val folders = _thumbnails.value
+            .filter { (folder, images) -> folder != imagePath && imagePath in images }
+            .keys
+        if (folders.isEmpty()) return
+        _thumbnails.update { thumbnails ->
+            thumbnails + folders.associateWith { thumbnails[it].orEmpty() - imagePath }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                fileRepository.forgetMissingCoverImage(connectionId, imagePath)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ExplorerViewModel", "Could not re-list the folder of missing '$imagePath'", e)
+            }
+            folders.forEach(coversSettled::remove)
+            _coverChoicesChanged.update { it + 1 }
+        }
+    }
+
     private suspend fun loadCover(connectionId: Int, path: String, order: CoverOrder) {
         try {
             val startedAt = System.currentTimeMillis()

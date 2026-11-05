@@ -564,6 +564,68 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `an image that 404s is re-listed away, and the cover picks the next one`() = runTest {
+        val remote = FakeFileDataSource(listOf(remoteFile("b.jpg"), remoteFile("c.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
+        freshlySynced(dao)
+        val repository = repository(remote, dao, canHaveThumbnail = { true })
+        assertEquals(listOf("Photos/a.jpg", "Photos/b.jpg"), repository.folderCover(1, "Photos").images)
+
+        repository.forgetMissingCoverImage(1, "Photos/a.jpg")
+
+        assertEquals(1, remote.listCalls)
+        assertEquals(listOf("Photos/b.jpg", "Photos/c.jpg"), repository.folderCover(1, "Photos").images)
+    }
+
+    @Test
+    fun `an image that 404s while still listed is skipped all the same`() = runTest {
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"), remoteFile("b.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
+        freshlySynced(dao)
+        val repository = repository(remote, dao, canHaveThumbnail = { true })
+
+        repository.forgetMissingCoverImage(1, "Photos/a.jpg")
+
+        assertEquals(listOf("Photos/b.jpg"), repository.folderCover(1, "Photos").images)
+    }
+
+    @Test
+    fun `a skipped image is back in the running once its folder is listed again`() = runTest {
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"), remoteFile("b.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
+        freshlySynced(dao)
+        val repository = repository(remote, dao, canHaveThumbnail = { true })
+        repository.forgetMissingCoverImage(1, "Photos/a.jpg")
+
+        repository.listFiles(1, "Photos", refresh = RefreshMode.FORCE).toList()
+
+        assertEquals(listOf("Photos/a.jpg", "Photos/b.jpg"), repository.folderCover(1, "Photos").images)
+    }
+
+    @Test
+    fun `a folder that has gone lends no cover, and its rows are left alone`() = runTest {
+        val remote = FakeFileDataSource(gone = true)
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
+        freshlySynced(dao)
+        val repository = repository(remote, dao, canHaveThumbnail = { true })
+
+        repository.forgetMissingCoverImage(1, "Photos/a.jpg")
+
+        assertEquals(emptyList<String>(), repository.folderCover(1, "Photos").images)
+        assertEquals(2, repository.listFiles(1, "Photos", showHidden = true).toList().first().files.size)
+    }
+
+    @Test
+    fun `a subfolder that has gone is stepped over rather than failing the parent's cover`() = runTest {
+        val remote = FakeFileDataSource(gone = true)
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+
+        val cover = repository(remote, dao, canHaveThumbnail = { true }).folderCover(1, "Photos")
+
+        assertEquals(emptyList<String>(), cover.images)
+    }
+
+    @Test
     fun `a cover picks pages numbered without padding in numeric order`() = runTest {
         val dao = FakeLocalDatabaseDao(
             cached = listOf("10.jpg", "100.jpg", "2.jpg", "1.jpg", "3.jpg").map { cachedFile(it) }
@@ -658,6 +720,7 @@ class FileRepositoryTest {
 /** Stands in for SMB. Nothing under test opens a file, so [openFile] refuses. */
 private class FakeFileDataSource(
     private val files: List<File> = emptyList(),
+    private val gone: Boolean = false,
     private val whileListing: () -> Unit = {},
 ) : FileDataSource {
     private val calls = java.util.concurrent.atomic.AtomicInteger()
@@ -672,6 +735,7 @@ private class FakeFileDataSource(
     ): List<File> {
         calls.incrementAndGet()
         whileListing()
+        if (gone) throw java.io.FileNotFoundException(currentPath)
         return files
     }
 

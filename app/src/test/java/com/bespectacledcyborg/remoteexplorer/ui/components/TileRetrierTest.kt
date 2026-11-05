@@ -52,6 +52,14 @@ class TileRetrierTest {
     }
 
     @Test
+    fun `only a 404 from the server reads as a missing thumbnail`() {
+        assertEquals(true, TileRetry.isNotFound(IOException("HTTP code error. 404 Not Found. http://127.0.0.1/a.jpg")))
+        assertEquals(false, TileRetry.isNotFound(IOException("HTTP code error. 403 Forbidden. http://127.0.0.1/a.jpg")))
+        assertEquals(false, TileRetry.isNotFound(SocketTimeoutException("timeout")))
+        assertEquals(false, TileRetry.isNotFound(null))
+    }
+
+    @Test
     fun `a cancelled retrier does not restart`() {
         retrier.failed(SocketTimeoutException())
         retrier.cancel()

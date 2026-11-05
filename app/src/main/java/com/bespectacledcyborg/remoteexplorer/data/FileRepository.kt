@@ -194,6 +194,7 @@ class FileRepository(
             )
         }
         localDatabaseDataSource.reconcileDirectory(connectionId, parentPath, rows, Date(clock()))
+        clearCoverSkips(connectionId, parentPath)
     }
 
     private fun timedListing(connectionId: ConnectionId, path: String, forced: Boolean): List<File> {
@@ -394,17 +395,49 @@ class FileRepository(
         return localDatabaseDataSource.getFolderThumbnails(connectionId, parentPath)
     }
 
+    private val missingCoverImages: MutableSet<FileIdentity> = ConcurrentHashMap.newKeySet()
+    private val unlistableCoverFolders: MutableSet<FileIdentity> = ConcurrentHashMap.newKeySet()
+
+    suspend fun forgetMissingCoverImage(connectionId: Int, imagePath: String) {
+        try {
+            listForCover(connectionId, imagePath.substringBeforeLast('/', ""))
+        } finally {
+            missingCoverImages += FileIdentity(connectionId, imagePath)
+        }
+    }
+
+    private fun clearCoverSkips(connectionId: Int, folder: String) {
+        unlistableCoverFolders -= FileIdentity(connectionId, folder)
+        missingCoverImages.removeIf {
+            it.connectionId == connectionId && it.path.substringBeforeLast('/', "") == folder
+        }
+    }
+
+    private suspend fun listForCover(connectionId: Int, folder: String) {
+        try {
+            syncShared(connectionId, folder)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (!e.isMissingFile() || e is UnknownConnectionException) throw e
+            unlistableCoverFolders += FileIdentity(connectionId, folder)
+        }
+    }
+
     private val coverRows = object : CoverRows {
         override suspend fun isListed(connectionId: Int, folder: String): Boolean =
             localDatabaseDataSource.getLastSyncedAt(connectionId, folder) != null ||
                 localDatabaseDataSource.getFiles(connectionId, folder, "").isNotEmpty()  // stack-reviewer-ignore: an empty filter goes to LocalDatabaseDao.getFiles, which is WHERE connectionId AND parentPath = :parentPath, i.e. this folder's own child rows. Those exist only if the folder was listed at some point, by a build from before DirectorySync existed, which is exactly the case the old folderCover treated as listed too.
 
         override suspend fun list(connectionId: Int, folder: String) =
-            coverListingSlots.withPermit { syncShared(connectionId, folder) }
+            coverListingSlots.withPermit { listForCover(connectionId, folder) }
 
         override suspend fun images(connectionId: Int, folder: String, limit: Int): List<String> {
+            if (FileIdentity(connectionId, folder) in unlistableCoverFolders) return emptyList()
             val pool = localDatabaseDataSource.getFolderThumbnails(connectionId, folder, COVER_SHUFFLE_POOL)
-            return HiddenFiles.visiblePaths(connectionId, pool, canonicalize).take(limit)  // stack-reviewer-ignore: covers skip hidden entries whatever the switch says, on purpose (#128's plan hides them "from listings and from cover picking"). The switch exists so nothing becomes unreachable, and a cover is decoration, not a way to reach a file; an AppleDouble ._x.jpg as a gallery's cover is the bug this fixes.
+            return HiddenFiles.visiblePaths(connectionId, pool, canonicalize)
+                .filterNot { FileIdentity(connectionId, it) in missingCoverImages }
+                .take(limit)  // stack-reviewer-ignore: covers skip hidden entries whatever the switch says, on purpose (#128's plan hides them "from listings and from cover picking"). The switch exists so nothing becomes unreachable, and a cover is decoration, not a way to reach a file; an AppleDouble ._x.jpg as a gallery's cover is the bug this fixes.
         }
 
         override suspend fun subfolders(connectionId: Int, folder: String) =
