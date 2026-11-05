@@ -182,6 +182,21 @@ class CoverPreferencesTest {
     }
 
     @Test
+    fun `a choice made before a gallery turned manga is still reported, unused, until it is reset`() = runTest {
+        preferences.choose(1, "g/series", CoverMode.NEWEST)
+        tags[1 to "g/series"] = listOf("manga")
+
+        assertEquals(CoverMode.NEWEST, preferences.choiceFor(1, "g/series"))
+        assertEquals(CoverMode.DEFAULT, applied("g/series"))
+
+        preferences.choose(1, "g/series", CoverMode.DEFAULT)
+        tags.remove(1 to "g/series")
+
+        assertEquals(CoverMode.DEFAULT, preferences.choiceFor(1, "g/series"))
+        assertEquals(CoverMode.DEFAULT, applied("g/series"))
+    }
+
+    @Test
     fun `a manga folder not yet listed reads as a gallery until a listing shows subfolders`() = runTest {
         tags[1 to "g/series"] = listOf("manga")
         assertTrue(preferences.keepsFirstPage(1, "g/series"))
