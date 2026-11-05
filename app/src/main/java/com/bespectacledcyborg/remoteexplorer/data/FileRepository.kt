@@ -194,6 +194,7 @@ class FileRepository(
             )
         }
         localDatabaseDataSource.reconcileDirectory(connectionId, parentPath, rows, Date(clock()))
+        clearCoverSkips(connectionId, parentPath)
     }
 
     private fun timedListing(connectionId: ConnectionId, path: String, forced: Boolean): List<File> {
@@ -398,8 +399,18 @@ class FileRepository(
     private val unlistableCoverFolders: MutableSet<FileIdentity> = ConcurrentHashMap.newKeySet()
 
     suspend fun forgetMissingCoverImage(connectionId: Int, imagePath: String) {
-        missingCoverImages += FileIdentity(connectionId, imagePath)
-        listForCover(connectionId, imagePath.substringBeforeLast('/', ""))
+        try {
+            listForCover(connectionId, imagePath.substringBeforeLast('/', ""))
+        } finally {
+            missingCoverImages += FileIdentity(connectionId, imagePath)
+        }
+    }
+
+    private fun clearCoverSkips(connectionId: Int, folder: String) {
+        unlistableCoverFolders -= FileIdentity(connectionId, folder)
+        missingCoverImages.removeIf {
+            it.connectionId == connectionId && it.path.substringBeforeLast('/', "") == folder
+        }
     }
 
     private suspend fun listForCover(connectionId: Int, folder: String) {

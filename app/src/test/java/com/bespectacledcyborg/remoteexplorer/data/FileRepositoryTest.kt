@@ -590,6 +590,19 @@ class FileRepositoryTest {
     }
 
     @Test
+    fun `a skipped image is back in the running once its folder is listed again`() = runTest {
+        val remote = FakeFileDataSource(listOf(remoteFile("a.jpg"), remoteFile("b.jpg")))
+        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
+        freshlySynced(dao)
+        val repository = repository(remote, dao, canHaveThumbnail = { true })
+        repository.forgetMissingCoverImage(1, "Photos/a.jpg")
+
+        repository.listFiles(1, "Photos", refresh = RefreshMode.FORCE).toList()
+
+        assertEquals(listOf("Photos/a.jpg", "Photos/b.jpg"), repository.folderCover(1, "Photos").images)
+    }
+
+    @Test
     fun `a folder that has gone lends no cover, and its rows are left alone`() = runTest {
         val remote = FakeFileDataSource(gone = true)
         val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("a.jpg"), cachedFile("b.jpg")))
