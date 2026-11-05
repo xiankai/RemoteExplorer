@@ -924,6 +924,28 @@ class ExplorerViewModel(
         }
     }
 
+    fun coverImageMissing(imagePath: String) {
+        val connectionId = browsingConnectionId ?: return
+        val folders = _thumbnails.value
+            .filter { (folder, images) -> folder != imagePath && imagePath in images }
+            .keys
+        if (folders.isEmpty()) return
+        _thumbnails.update { thumbnails ->
+            thumbnails + folders.associateWith { thumbnails[it].orEmpty() - imagePath }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                fileRepository.forgetMissingCoverImage(connectionId, imagePath)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ExplorerViewModel", "Could not re-list the folder of missing '$imagePath'", e)
+            }
+            folders.forEach(coversSettled::remove)
+            _coverChoicesChanged.update { it + 1 }
+        }
+    }
+
     private suspend fun loadCover(connectionId: Int, path: String, order: CoverOrder) {
         try {
             val startedAt = System.currentTimeMillis()
