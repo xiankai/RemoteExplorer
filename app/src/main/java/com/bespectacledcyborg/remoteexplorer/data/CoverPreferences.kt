@@ -24,6 +24,7 @@ class CoverPreferences(
     private val pairings: () -> Pairings,
     private val directoryTags: suspend (connectionId: Int, path: String) -> List<String>,
     private val aliasCanonicals: suspend (connectionId: Int, tags: List<String>) -> List<String>,
+    private val hasSubfolders: suspend (connectionId: Int, path: String) -> Boolean,
     private val newSeed: () -> Long = { Random.nextLong() },
 ) {
     suspend fun coverFor(
@@ -73,7 +74,10 @@ class CoverPreferences(
 
     private val mangaFolders: MutableSet<FileIdentity> = ConcurrentHashMap.newKeySet()
 
-    suspend fun keepsFirstPage(connectionId: Int, path: String): Boolean {
+    suspend fun keepsFirstPage(connectionId: Int, path: String): Boolean =
+        isInsideManga(connectionId, path) && !hasSubfolders(connectionId, path)
+
+    private suspend fun isInsideManga(connectionId: Int, path: String): Boolean {
         val canonical = pairings().canonicalize(connectionId, path)
         val lineage = listOf(canonical) + ancestorsOf(canonical)
         val mangaFolder = lineage.firstOrNull { it in mangaFolders }

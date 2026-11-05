@@ -26,7 +26,9 @@ import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
 import com.bespectacledcyborg.remoteexplorer.data.sourceDetailsOf
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
+import com.bespectacledcyborg.remoteexplorer.data.HiddenFiles
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
+import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import kotlinx.coroutines.withContext
 import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
@@ -145,6 +147,12 @@ class ExplorerViewModelFactory(
             },
             aliasCanonicals = { id, tags ->
                 withContext(defaultDispatcher) { db.localDatabaseDao().getAliasCanonicals(id, tags) }
+            },
+            hasSubfolders = { id, path ->
+                HiddenFiles.visible(
+                    localDatabaseDataSource.getFiles(id, path, "").filter { it.type == FileType.FOLDER },
+                    pairingRepository.current()::canonicalize,
+                ).isNotEmpty()
             },
         )
         val connectionDao = db.connectionDao()

@@ -30,6 +30,7 @@ class CoverPreferencesTest {
     private var pairings = Pairings.NONE
     private val tags = mutableMapOf<Pair<Int, String>, List<String>>()
     private val aliases = mutableMapOf<String, String>()
+    private val withSubfolders = mutableSetOf<Pair<Int, String>>()
     private var seeds = generateSequence(100L) { it + 1 }.iterator()
 
     private val preferences = CoverPreferences(
@@ -38,6 +39,7 @@ class CoverPreferencesTest {
         pairings = { pairings },
         directoryTags = { id, path -> tags[id to path].orEmpty() },
         aliasCanonicals = { _, list -> list.mapNotNull { aliases[it] } },
+        hasSubfolders = { id, path -> (id to path.trim('/')) in withSubfolders },
         newSeed = { seeds.next() },
     )
 
@@ -124,11 +126,13 @@ class CoverPreferencesTest {
     }
 
     @Test
-    fun `anything under examplebooru is never shuffled, samplebooru is`() = runTest {
+    fun `a gallery under examplebooru is never shuffled, examplebooru itself and samplebooru are`() = runTest {
         shuffle = CoverShuffle.ALL
+        withSubfolders += 1 to "gallery-dl/examplebooru"
         preferences.choose(1, "gallery-dl/examplebooru/[123] work", CoverMode.SHUFFLE)
 
-        assertEquals(CoverOrder.Name, order("gallery-dl/examplebooru"))
+        assertFalse(preferences.keepsFirstPage(1, "gallery-dl/examplebooru"))
+        assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/examplebooru"))
         assertEquals(CoverOrder.Name, order("gallery-dl/examplebooru/[123] work"))
         assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/samplebooru/[456] other"))
         assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/examplebooru-mirror"))
@@ -154,19 +158,47 @@ class CoverPreferencesTest {
     }
 
     @Test
-    fun `every folder beneath a manga folder keeps its first page too`() = runTest {
+    fun `beneath a manga folder, only a folder without subfolders keeps its first page`() = runTest {
         shuffle = CoverShuffle.ALL
         tags[1 to "g/series"] = listOf("manga")
+        withSubfolders += 1 to "g/series"
+        withSubfolders += 1 to "g/series/vol 1"
         preferences.choose(1, "g/series/vol 1", CoverMode.SHUFFLE)
+        preferences.choose(1, "g/series/vol 1/chapter 3", CoverMode.SHUFFLE)
 
-        listOf("g/series/vol 1", "g/series/vol 1/chapter 3", "/g/series/vol 2/").forEach {
+        listOf("g/series/vol 1/chapter 3", "/g/series/vol 2/").forEach {
             assertTrue(it, preferences.keepsFirstPage(1, it))
             assertEquals(it, CoverOrder.Name, order(it))
             assertEquals(it, CoverMode.DEFAULT, applied(it))
         }
+        assertFalse(preferences.keepsFirstPage(1, "g/series"))
+        assertEquals(CoverOrder.Shuffled(7), order("g/series"))
+        assertFalse(preferences.keepsFirstPage(1, "g/series/vol 1"))
+        assertEquals(CoverOrder.Shuffled(100), order("g/series/vol 1"))
+        assertEquals(CoverMode.SHUFFLE, applied("g/series/vol 1"))
         assertFalse(preferences.keepsFirstPage(1, "g"))
         assertFalse(preferences.keepsFirstPage(1, "g/other/vol 1"))
         assertFalse(preferences.keepsFirstPage(1, "g/series-extra/vol 1"))
+    }
+
+    @Test
+    fun `a manga folder not yet listed reads as a gallery until a listing shows subfolders`() = runTest {
+        tags[1 to "g/series"] = listOf("manga")
+        assertTrue(preferences.keepsFirstPage(1, "g/series"))
+
+        withSubfolders += 1 to "g/series"
+
+        assertFalse(preferences.keepsFirstPage(1, "g/series"))
+    }
+
+    @Test
+    fun `a paired local copy is a gallery or not by its own listing`() = runTest {
+        pairings = Pairings(listOf(Pairing(2, "", 1, "")))
+        tags[1 to "gallery-dl/pixiv/[9] manga work"] = listOf("manga")
+        withSubfolders += 2 to "gallery-dl/pixiv/[9] manga work"
+
+        assertFalse(preferences.keepsFirstPage(2, "gallery-dl/pixiv/[9] manga work"))
+        assertTrue(preferences.keepsFirstPage(1, "gallery-dl/pixiv/[9] manga work"))
     }
 
     @Test
