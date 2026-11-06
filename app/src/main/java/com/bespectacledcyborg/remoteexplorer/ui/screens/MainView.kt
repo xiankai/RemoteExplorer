@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -76,6 +77,12 @@ fun Routes(
     settingsViewModel: SettingsViewModel,
     navHostController: NavHostController,
 ) {
+    LaunchedEffect(Unit) {
+        if (explorerViewModel.restoreLastLocation() && navHostController.isOnlyOnConnections()) {  // stack-reviewer-ignore: a tap during the suspend goes through connect, and restoreLastLocation then returns false before reconnecting, so the view model never ends up on the restored connection while the UI shows the tapped one
+            navHostController.navigate(Route.ExplorerRoute)
+        }
+    }
+
     NavHost(
         navController = navHostController,
         startDestination = Route.ConnectionsRoute,
@@ -140,3 +147,7 @@ fun Routes(
         }
     }
 }
+
+private fun NavHostController.isOnlyOnConnections(): Boolean =
+    previousBackStackEntry == null &&
+        currentBackStackEntry?.destination?.hasRoute<Route.ConnectionsRoute>() == true

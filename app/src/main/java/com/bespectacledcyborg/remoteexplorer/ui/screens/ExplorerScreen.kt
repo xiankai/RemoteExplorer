@@ -18,7 +18,11 @@ import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -151,6 +155,14 @@ fun ExplorerScreen(
     }
 
     var coverFolder by remember { mutableStateOf<LocalFile?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val dismissCoverSheetOnStop = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) coverFolder = null
+        }
+        lifecycleOwner.lifecycle.addObserver(dismissCoverSheetOnStop)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(dismissCoverSheetOnStop) }
+    }
     val handleLongItemClick = { item: Item<LocalFile> ->
         {
             if (item.type == FileType.FOLDER) {
@@ -187,6 +199,7 @@ fun ExplorerScreen(
     val atRoot = navigationStack.size <= 1
     val atTag = navigationStack.lastOrNull()?.startsWith(tagPrefix) == true  // stack-reviewer-ignore: the same reserved-prefix test ExplorerViewModel already uses to choose between a tag query and a folder listing, so a folder named "Tag: …" was a tag before this change too
     val returnToConnections = {
+        explorerViewModel.leaveConnection()
         if (!navHostController.popBackStack(Route.ConnectionsRoute, inclusive = false)) {
             navHostController.navigate(Route.ConnectionsRoute)
         }
@@ -202,8 +215,15 @@ fun ExplorerScreen(
         navHostController.previousBackStackEntry?.destination?.hasRoute<Route.TagsRoute>() == true
     val backToTags = atTag && openedFromTagList
 
-    BackHandler(enabled = atTag || !atRoot) {
+    val backLeavesExplorer = !atTag && atRoot
+    BackHandler(enabled = !backLeavesExplorer) {
         if (backToTags) returnToTags() else explorerViewModel.goBack()
+    }
+    BackHandler(enabled = backLeavesExplorer) {
+        if (navHostController.previousBackStackEntry?.destination?.hasRoute<Route.ConnectionsRoute>() == true) {
+            explorerViewModel.leaveConnection()
+        }
+        navHostController.popBackStack()
     }
 
     val folderTags by explorerViewModel.folderTagsState.collectAsState()
