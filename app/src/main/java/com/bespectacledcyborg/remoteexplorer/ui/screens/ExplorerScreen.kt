@@ -18,7 +18,11 @@ import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -151,6 +155,14 @@ fun ExplorerScreen(
     }
 
     var coverFolder by remember { mutableStateOf<LocalFile?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val dismissCoverSheetOnStop = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) coverFolder = null
+        }
+        lifecycleOwner.lifecycle.addObserver(dismissCoverSheetOnStop)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(dismissCoverSheetOnStop) }
+    }
     val handleLongItemClick = { item: Item<LocalFile> ->
         {
             if (item.type == FileType.FOLDER) {
