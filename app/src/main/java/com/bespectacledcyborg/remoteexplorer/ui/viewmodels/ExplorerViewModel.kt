@@ -16,6 +16,7 @@ import com.bespectacledcyborg.remoteexplorer.data.CoverOrder
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.LastLocation
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
@@ -62,11 +63,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.FileIdentity
@@ -194,6 +197,7 @@ class ExplorerViewModel(
     private val captionRepository: CaptionRepository,
     private val coverPreferences: CoverPreferences,
     private val folderSortRepository: FolderSortRepository,
+    private val lastLocation: LastLocation,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (Int) -> String = { "unknown" },
 ) : AndroidViewModel(application) {
@@ -272,6 +276,8 @@ class ExplorerViewModel(
         _navigationStack.update { listOf("") }
         scrollPositions.reset()
         _path.update { "" }
+        locationConnectionId = connection.id
+        rememberLocation()
         viewModelScope.launch {
             try {
                 _connection.update { connection }
@@ -342,6 +348,7 @@ class ExplorerViewModel(
         scrollPositions.push()  // stack-reviewer-ignore: _navigationStack changes in exactly three places, connect, changePath and goBack, and each moves scrollPositions in step with it
         _path.update { path }
         _navigationStack.update { it.plus(path) }
+        rememberLocation()
     }
 
     fun goBack() {
@@ -349,6 +356,31 @@ class ExplorerViewModel(
         scrollPositions.pop()
         _navigationStack.update { it.dropLast(1) }
         _path.update { _navigationStack.value.lastOrNull().orEmpty() }
+        rememberLocation()
+    }
+
+    private var locationConnectionId: Int? = null
+    private var restoreAttempted = false
+
+    private fun rememberLocation() {
+        val connectionId = locationConnectionId ?: return
+        lastLocation.remember(connectionId, _path.value)
+    }
+
+    suspend fun restoreLastLocation(): Boolean {
+        if (restoreAttempted) return false
+        restoreAttempted = true
+        val connections = connectionRepository.getConnections().first()
+        val location = withContext(Dispatchers.IO) { lastLocation.resolve(connections) } ?: return false
+        if (locationConnectionId != null) return false
+        connect(location.connection)
+        location.folderStack.drop(1).forEach(::changePath)
+        return true
+    }
+
+    fun leaveConnection() {
+        locationConnectionId = null
+        lastLocation.forget()
     }
 
     fun scrollPositionToRestore(): ScrollPosition = scrollPositions.top
@@ -671,6 +703,8 @@ class ExplorerViewModel(
         viewModelScope.launch {
             connectionRepository.deleteConnection(connection)
             _connections.update { it.minus(connection) }
+            if (locationConnectionId == connection.id) locationConnectionId = null
+            lastLocation.forget(connection.id)
         }
     }
 
