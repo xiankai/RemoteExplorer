@@ -78,7 +78,7 @@ fun Routes(
     navHostController: NavHostController,
 ) {
     LaunchedEffect(Unit) {
-        if (explorerViewModel.restoreLastLocation() && navHostController.isOnlyOnConnections()) {
+        if (explorerViewModel.restoreLastLocation() && navHostController.isOnlyOnConnections()) {  // stack-reviewer-ignore: a tap during the suspend goes through connect, and restoreLastLocation then returns false before reconnecting, so the view model never ends up on the restored connection while the UI shows the tapped one
             navHostController.navigate(Route.ExplorerRoute)
         }
     }

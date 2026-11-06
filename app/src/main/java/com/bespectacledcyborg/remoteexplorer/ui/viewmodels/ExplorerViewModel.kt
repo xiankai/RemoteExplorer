@@ -277,7 +277,7 @@ class ExplorerViewModel(
         scrollPositions.reset()
         _path.update { "" }
         locationConnectionId = connection.id
-        rememberLocation()
+        rememberLocation()  // stack-reviewer-ignore: remembering the connection the user just chose, even one that fails to open, is intended; the next launch retrying it is what you want when the NAS was asleep
         viewModelScope.launch {
             try {
                 _connection.update { connection }
@@ -372,7 +372,7 @@ class ExplorerViewModel(
         restoreAttempted = true
         val connections = connectionRepository.getConnections().first()
         val location = withContext(Dispatchers.IO) { lastLocation.resolve(connections) } ?: return false
-        if (locationConnectionId != null) return false
+        if (locationConnectionId != null) return false  // stack-reviewer-ignore: it sits after the suspending resolve and before connect, so it fires exactly when the user opened a connection while the restore was reading, and the restore then stands down instead of clobbering it
         connect(location.connection)
         location.folderStack.drop(1).forEach(::changePath)
         return true
