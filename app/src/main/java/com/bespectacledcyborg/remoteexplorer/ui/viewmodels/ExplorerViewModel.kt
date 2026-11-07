@@ -44,6 +44,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
 import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
+import com.bespectacledcyborg.remoteexplorer.data.isPseudoFolder
+import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
@@ -527,6 +529,12 @@ class ExplorerViewModel(
                 // longer exists was a hard crash (STATUS_OBJECT_NAME_NOT_FOUND), so surface
                 // it the way connect() already surfaces a failed connection.
                 try {
+                    if (path == newestAdditionsPath) {
+                        _isRefreshing.update { false }
+                        _tagsRefreshed.collect { listNewestAdditions(connectionId) }
+                        return@collectLatest
+                    }
+
                     if (path.startsWith(tagPrefix)) {
                         val tag = path.substringAfter(tagPrefix)
                         // Tagged rows are the share's (a local root indexes nothing), so
@@ -597,6 +605,18 @@ class ExplorerViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun listNewestAdditions(connectionId: Int) {
+        val files = pairingRepository.current().inFrameOf(connectionId, fileRepository.getNewestAdditions())
+        _list.update { it.plus(newestAdditionsPath to files.withThumbnailEligibility()) }
+        fetchThumbnails(connectionId, files)
+    }
+
+    fun openNewestAdditions() {
+        if (_path.value == newestAdditionsPath) return
+        clearSearch()
+        changePath(newestAdditionsPath)
     }
 
     private fun List<LocalFile>.withThumbnailEligibility(): List<LocalFile> = map {
@@ -798,7 +818,7 @@ class ExplorerViewModel(
             Triple(connection, path, listed)  // stack-reviewer-ignore: combine emits on every source change without comparing values and nothing between it and the map is distinctUntilChanged, so a bumped _tagsRefreshed re-runs the query even when this Triple is equal to the last one
         }
             .map { (connection, path, listed) ->
-                if (connection == null || path.startsWith(tagPrefix)) {
+                if (connection == null || isPseudoFolder(path)) {
                     emptyList()
                 } else {
                     tagChipsOn(pairingRepository.current().canonicalize(connection.id, path), null, listed)
@@ -1050,18 +1070,12 @@ class ExplorerViewModel(
         }
     }
 
-    /**
-     * View totals for the directory on screen, keyed by [LocalFile.fullPath]: a file's own,
-     * a folder's summed over what is directly inside it. Read only while the listing is in
-     * a view order, and again after every recorded view, so a sort by views follows what
-     * was just opened.
-     */
     val listingViewsState: StateFlow<Map<String, ViewTotals>> =
         combine(_list, _path, sortState, viewRecorder.changes) { list, path, sort, _ ->
-            Triple(list[path].orEmpty(), sort, browsingConnectionId)
+            Triple(list[path].orEmpty(), sort.usesViews || path == newestAdditionsPath, browsingConnectionId)
         }
-            .map { (files, sort, connectionId) ->
-                if (!sort.usesViews || connectionId == null || files.isEmpty()) {
+            .map { (files, needsViews, connectionId) ->
+                if (!needsViews || connectionId == null || files.isEmpty()) {
                     emptyMap()
                 } else try {
                     viewRecorder.totalsFor(connectionId, files, pairingRepository.current())

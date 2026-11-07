@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.migration.AutoMigrationSpec
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.util.Date
 
 @Database(
@@ -27,6 +29,7 @@ import java.util.Date
         AnnotationIngest::class,
         FolderCoverChoice::class,
         FolderSort::class,
+        IndexedDirectory::class,
     ],
     exportSchema = true,
     // 9 carries no schema change: Connection.password is still one TEXT column. The bump
@@ -83,7 +86,11 @@ import java.util.Date
     //
     // 22 adds settings.showHiddenFiles, off (#128). A defaulted column, so it auto-migrates,
     // and an existing install starts hiding clutter.
-    version = 22,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
+    //
+    // 23 adds IndexedDirectory, when each gallery arrived on the share (#157). A new table,
+    // but the rows it needs are in records an install has already read, so the migration
+    // drops TagIndexIngest and the next pass is a full pull that fills it.
+    version = 23,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
     autoMigrations = [
         // 5 -> 6 changed nothing: both schemas carry identityHash
         // 6890da0f705249cab681d87c67f24ff7, so the version was bumped without a schema
@@ -109,6 +116,7 @@ import java.util.Date
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22),
+        AutoMigration(from = 22, to = 23, spec = RepullTagIndex::class),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -121,6 +129,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun annotationDao(): AnnotationDao
     abstract fun folderCoverChoiceDao(): FolderCoverChoiceDao
     abstract fun folderSortDao(): FolderSortDao
+}
+
+class RepullTagIndex : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM TagIndexIngest")
+    }
 }
 
 class Converters {

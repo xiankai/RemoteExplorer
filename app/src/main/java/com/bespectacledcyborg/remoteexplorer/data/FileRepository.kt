@@ -105,6 +105,8 @@ private const val MAX_CONCURRENT_COVER_LISTINGS = 4
 
 private const val SHARE_RETRY_MILLIS = 60_000L
 
+const val NEWEST_ADDITIONS = 200
+
 private const val TAG = "FileRepository"
 
 class ShareUnreachableException(connectionId: ConnectionId) :
@@ -341,6 +343,9 @@ class FileRepository(
         val directories = localDatabaseDataSource.getDirectoriesWithTag(tag).map { it.asFolder() }
         return directories + localDatabaseDataSource.getFilesWithTag(tag)
     }
+
+    suspend fun getNewestAdditions(): List<LocalFile> =
+        localDatabaseDataSource.getNewestDirectories(NEWEST_ADDITIONS).map { it.asFolder() }
 
     fun openFileDirectly(connectionId: Int, fullPath: String): SourceFile {
         return fileDataSource.openFile(connectionId, fullPath)

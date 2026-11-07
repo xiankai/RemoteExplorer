@@ -6,6 +6,9 @@ import com.bespectacledcyborg.remoteexplorer.data.tags.TagIndexProgress
 import com.bespectacledcyborg.remoteexplorer.data.tags.TagSources
 
 const val tagPrefix = "Tag: "
+const val newestAdditionsPath = "Newest: additions"
+
+fun isPseudoFolder(path: String): Boolean = path.startsWith(tagPrefix) || path == newestAdditionsPath
 
 /**
  * Tags, read from Room and kept up to date by whichever [com.bespectacledcyborg.remoteexplorer.data.tags.TagSource]

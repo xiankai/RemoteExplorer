@@ -85,6 +85,8 @@ printf 'Opened through ACTION_VIEW rather than the in-app browser.\n' \
 #     index shipped, so an older reader ignoring it stays covered
 #   - a live record with files:0, which exists upstream where a work's files could not be
 #     attributed to one of two sibling directories. Displayable but empty, not an error
+#   - added_at on every live record, kept across the re-append, and an untagged site: folder
+#     record, which only the newest-additions view shows
 index="$media/gallery-dl/_index"
 mkdir -p "$index" \
   "$media/gallery-dl/pixiv/[137128361] 羽衣狐" \
@@ -106,13 +108,14 @@ image_at "$media/gallery-dl/patreon/loose files"                cyan   untagged.
 log="$index/index.ndjson"
 : > "$log"
 {
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐"],"files":2,"mtime":1790047563}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:blush","parody:touhou project"],"files":2,"mtime":1790047600}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐"],"files":2,"mtime":1790047563,"added_at":1790047563}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:blush","parody:touhou project"],"files":2,"mtime":1790047600,"added_at":1790047600}'
   printf '%s\n' '{"scope":"file","path":"gallery-dl/patreon/loose files/single.jpg","site":"patreon","tags":["creator:somebody"],"mtime":1790047700}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[999] deleted gallery","site":"pixiv","tags":["gone"],"files":0,"deleted":true,"mtime":1790047800}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910,"annotations":["narration"]}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] another gallery","site":"examplebooru","site_id":"992","title":"another gallery","token":"cafef00d","tags":["artist:someone","character:hagoromo gitsune"],"files":1,"mtime":1790048000}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910,"annotations":["narration"],"added_at":1790047563}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950,"added_at":1790047950}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] another gallery","site":"examplebooru","site_id":"992","title":"another gallery","token":"cafef00d","tags":["artist:someone","character:hagoromo gitsune"],"files":1,"mtime":1790048000,"added_at":1790048000}'
+  printf '%s\n' '{"scope":"dir","path":"Photos","site":"folder","tags":[],"files":5,"mtime":1790048100,"added_at":1790048100}'
 } >> "$log"
 
 # bytes is the log's length, which is both where a reader stops and the offset it resumes

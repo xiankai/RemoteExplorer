@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +27,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 
 private val GLYPH_INSET = 8.dp
+private const val DIMMED_ALPHA = 0.4f
 
 @Composable
 private fun CaptionBadge(modifier: Modifier = Modifier) {
@@ -52,11 +54,13 @@ fun ExplorerItem(
     getImageUrl: GetImageUrl,
     captioned: Boolean = false,
     cover: CoverMode = CoverMode.DEFAULT,
+    dimmed: Boolean = false,
     ) {
     val inset = if (drawsPicture(type, thumbnails)) 0.dp else GLYPH_INSET
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (dimmed) DIMMED_ALPHA else 1f)
             .combinedClickable(
                 onClick = handleItemClick,
                 onLongClick = handleLongItemClick,

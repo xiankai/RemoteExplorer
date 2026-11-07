@@ -18,7 +18,7 @@ class FolderSorts(
         rows.associate { FileIdentity(it.connectionId, it.path) to it.sort }
 
     fun identityOf(connectionId: ConnectionId, path: String): FileIdentity =
-        if (path.startsWith(tagPrefix)) {
+        if (isPseudoFolder(path)) {
             FileIdentity(connectionId, path)
         } else {
             pairings.canonicalize(connectionId, Pairings.normalize(path))
@@ -29,7 +29,7 @@ class FolderSorts(
         val own = chosen[identityOf(connectionId, lineage.first())]
         val inherited = lineage.drop(1)
             .firstNotNullOfOrNull { chosen[identityOf(connectionId, it)] }
-            ?: default
+            ?: if (path == newestAdditionsPath) SortType.LAST_MODIFIED_DESC else default
         return FolderSortChoice(
             current = own ?: inherited,
             inherited = inherited,
@@ -39,7 +39,7 @@ class FolderSorts(
     }
 
     private fun lineageOf(path: String): List<String> {
-        if (path.startsWith(tagPrefix)) return listOf(path)
+        if (isPseudoFolder(path)) return listOf(path)
         val segments = Pairings.normalize(path).split('/').filter { it.isNotEmpty() }
         return (segments.size downTo 0).map { segments.take(it).joinToString("/") }  // stack-reviewer-ignore: intended; a sort chosen at a connection's root applies to every folder below it, as the owner asked, and FolderSortsTest covers it ("the nearest choice wins")
     }

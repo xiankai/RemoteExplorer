@@ -38,6 +38,7 @@ import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
+import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.data.PLAYBACK_TYPES
@@ -110,6 +111,7 @@ fun ExplorerScreen(
         finalList
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
+    val listingViews by explorerViewModel.listingViewsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
@@ -255,7 +257,11 @@ fun ExplorerScreen(
                             }
                         },
                         search = search,
-                        tagLabel = openTagLabel,
+                        pseudoFolderLabel = when {
+                            openTagLabel != null -> "$tagPrefix$openTagLabel"
+                            pathState == newestAdditionsPath -> "Newest additions"
+                            else -> null
+                        },
                     )
                 },
 
@@ -304,6 +310,8 @@ fun ExplorerScreen(
                             item = it,
                             captioned = it.fullPath() in captionedFolders,
                             cover = appliedCovers[it.fullPath()] ?: CoverMode.DEFAULT,
+                            dimmed = pathState == newestAdditionsPath &&
+                                (listingViews[it.fullPath()] ?: ViewTotals.NONE) != ViewTotals.NONE,
                         )
                     },
                     handleItemClick = handleItemClick,
