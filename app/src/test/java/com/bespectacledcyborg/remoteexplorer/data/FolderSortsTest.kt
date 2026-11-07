@@ -76,4 +76,12 @@ class FolderSortsTest {
         val sorts = sorts(pairings = pairings)
         assertEquals(FileIdentity(local, "${tagPrefix}cat"), sorts.identityOf(local, "${tagPrefix}cat"))
     }
+
+    @Test
+    fun `newest additions defaults to newest first and can be changed`() {
+        assertEquals(SortType.LAST_MODIFIED_DESC, sorts().choiceAt(share, newestAdditionsPath).current)
+
+        val chosen = sorts(FolderSort(share, newestAdditionsPath, SortType.NAME_ASC))
+        assertEquals(SortType.NAME_ASC, chosen.choiceAt(share, newestAdditionsPath).current)
+    }
 }

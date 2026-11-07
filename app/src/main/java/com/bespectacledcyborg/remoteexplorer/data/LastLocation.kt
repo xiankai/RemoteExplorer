@@ -17,7 +17,7 @@ data class Location(val connection: Connection, val path: String) {
 
 class LastLocation(private val preferences: SharedPreferences) {
     fun remember(connectionId: Int, path: String) {
-        if (path.startsWith(tagPrefix)) return
+        if (isPseudoFolder(path)) return
         preferences.edit()
             .putInt(CONNECTION_ID_KEY, connectionId)
             .putString(PATH_KEY, path)

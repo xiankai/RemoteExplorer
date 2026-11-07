@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -97,6 +98,12 @@ fun ExplorerButtons(
             onSelect = explorerViewModel::inheritSort,
         ),
     )
+    IconButton(onClick = explorerViewModel::openNewestAdditions, content = {
+        Icon(
+            Icons.Filled.NewReleases,
+            contentDescription = "Newest additions",
+        )
+    })
     IconButton(onClick = onOpenTagsScreen, content = {
         Icon(
             Icons.Filled.Sell,

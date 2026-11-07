@@ -409,11 +409,13 @@ interface LocalDatabaseDao {
         if (replace) {
             clearIngestedTags(connectionId)
             clearAnnotationKinds(connectionId)
+            clearIndexedDirectories(connectionId)
         }
 
         directories.forEach {
             applyDirectoryTags(connectionId, it.parentPath, it.tags, it.deleted)
             applyAnnotationKinds(connectionId, it.parentPath, if (it.deleted) emptyList() else it.annotations)
+            applyIndexedDirectory(connectionId, it)
         }
         files.forEach {
             applyFileTags(connectionId, it.parentPath, it.filename, it.tags, it.deleted)
@@ -424,6 +426,27 @@ interface LocalDatabaseDao {
 
     @Query("DELETE FROM DirAnnotationKind WHERE connectionId = :connectionId")
     fun clearAnnotationKinds(connectionId: Int)
+
+    @Query("DELETE FROM IndexedDirectory WHERE connectionId = :connectionId")
+    fun clearIndexedDirectories(connectionId: Int)
+
+    @Query("DELETE FROM IndexedDirectory WHERE connectionId = :connectionId AND parentPath = :parentPath")
+    fun deleteIndexedDirectory(connectionId: Int, parentPath: String)
+
+    @Upsert
+    fun upsertIndexedDirectory(directory: IndexedDirectory)
+
+    fun applyIndexedDirectory(connectionId: Int, update: DirectoryTagUpdate) {
+        val addedAt = update.addedAt
+        if (update.deleted || addedAt == null) {
+            deleteIndexedDirectory(connectionId, update.parentPath)
+        } else {
+            upsertIndexedDirectory(IndexedDirectory(connectionId, update.parentPath, addedAt))
+        }
+    }
+
+    @Query("SELECT * FROM IndexedDirectory ORDER BY addedAt DESC, parentPath LIMIT :limit")  // stack-reviewer-ignore: across connections on purpose (#157); IndexedDirectory.asFolder keeps connectionId, and the view model frames the rows with Pairings.inFrameOf exactly as the tag view does
+    fun getNewestDirectories(limit: Int): List<IndexedDirectory>
 
     @Query("DELETE FROM DirAnnotationKind WHERE connectionId = :connectionId AND parentPath = :parentPath")
     fun deleteAnnotationKinds(connectionId: Int, parentPath: String)
@@ -502,6 +525,7 @@ data class DirectoryTagUpdate(
     val tags: List<String>,
     val deleted: Boolean,
     val annotations: List<String> = emptyList(),
+    val addedAt: Long? = null,
 )
 
 data class FileTagUpdate(
@@ -639,6 +663,28 @@ data class DirTagRelation(
             type = FileType.FOLDER,
             canHaveThumbnail = false,
             lastModified = Date(0),
+        )
+    }
+}
+
+@Entity(
+    primaryKeys = ["connectionId", "parentPath"],
+    indices = [Index("addedAt")],
+)
+data class IndexedDirectory(
+    val connectionId: Int,
+    val parentPath: String,
+    val addedAt: Long,
+) {
+    fun asFolder(): LocalFile {
+        val path = Paths.get(parentPath)
+        return LocalFile(
+            connectionId = connectionId,
+            parentPath = path.parent?.toString().orEmpty(),
+            filename = path.fileName?.toString() ?: parentPath,
+            type = FileType.FOLDER,
+            canHaveThumbnail = false,
+            lastModified = Date(addedAt * 1000),
         )
     }
 }

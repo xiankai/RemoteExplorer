@@ -64,6 +64,7 @@ class IndexFileTagSource(
                     tags = record.tags,
                     deleted = record.deleted,
                     annotations = record.annotations,
+                    addedAt = record.addedAt,
                 )
 
                 TagScope.FILE -> fileUpdate(record)?.let { files += it }

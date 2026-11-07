@@ -1,5 +1,6 @@
 import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectoryTagUpdate
+import com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.FileTagUpdate
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
@@ -109,6 +110,9 @@ class LocalDatabaseDataSource(
             localDatabaseDao.getFilesWithTag(tag.tag)
         }
     }
+
+    suspend fun getNewestDirectories(limit: Int): List<IndexedDirectory> =
+        withContext(dispatcher) { localDatabaseDao.getNewestDirectories(limit) }
 
     suspend fun getDirectoriesWithTag(tag: LocalTag): List<DirTagRelation> {
         return withContext(dispatcher) {

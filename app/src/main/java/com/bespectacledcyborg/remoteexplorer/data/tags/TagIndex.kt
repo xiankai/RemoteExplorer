@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data.tags
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -107,6 +108,7 @@ data class TagIndexRecord(
     val files: Int,
     val deleted: Boolean,
     val annotations: List<String> = emptyList(),
+    val addedAt: Long? = null,
 )
 
 @Serializable
@@ -117,6 +119,7 @@ private data class WireRecord(
     val files: Int? = null,
     val deleted: Boolean? = null,
     val annotations: List<String>? = null,
+    @SerialName("added_at") val addedAt: Long? = null,
 )
 
 fun parseTagIndexLine(line: String): TagIndexRecord? {
@@ -136,6 +139,7 @@ fun parseTagIndexLine(line: String): TagIndexRecord? {
         files = wire.files ?: 0,
         deleted = wire.deleted == true,
         annotations = wire.annotations.orEmpty(),
+        addedAt = wire.addedAt,
     )
 }
 

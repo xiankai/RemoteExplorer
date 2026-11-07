@@ -919,6 +919,10 @@ private class FakeLocalDatabaseDao(
     override fun deleteAnnotationKinds(connectionId: Int, parentPath: String) = notUsed()
     override fun addAnnotationKinds(kinds: List<com.bespectacledcyborg.remoteexplorer.data.db.DirAnnotationKind>) = notUsed()
     override fun getAnnotatedDirectories(kind: String): List<com.bespectacledcyborg.remoteexplorer.data.db.AnnotatedDirectory> = notUsed()
+    override fun clearIndexedDirectories(connectionId: Int) = notUsed()
+    override fun deleteIndexedDirectory(connectionId: Int, parentPath: String) = notUsed()
+    override fun upsertIndexedDirectory(directory: com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory) = notUsed()
+    override fun getNewestDirectories(limit: Int): List<com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory> = notUsed()
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

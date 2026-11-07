@@ -36,11 +36,11 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     /**
-     * 5 through 8 and 9 through 22 are AutoMigrations; 9 rewrites credentials and so has to
+     * 5 through 8 and 9 through 23 are AutoMigrations; 9 rewrites credentials and so has to
      * be supplied.
      */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 22, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 23, true, EncryptSavedPasswords(cipher))
 
     /**
      * The whole declared chain, validated against the exported latest schema. This is the
@@ -428,6 +428,25 @@ class AppDatabaseMigrationTest {
                 assertEquals(8, row.getInt(0))
                 assertEquals(1, row.getInt(1))
                 assertEquals(0, row.getInt(2))
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 23 with the tag index due for a full pull`() {
+        helper.createDatabase(TEST_DB, 22).use { db ->
+            db.execSQL("INSERT INTO TagIndexIngest (connectionId, generation, bytesRead) VALUES (1, '3', 2048)")
+            db.execSQL("INSERT INTO DirTagRelation (connectionId, parentPath, tag) VALUES (1, 'g/x', 'a')")
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 23, true).use { db ->
+            db.query("SELECT COUNT(*) FROM TagIndexIngest").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(0, row.getInt(0))
+            }
+            db.query("SELECT COUNT(*) FROM DirTagRelation").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(1, row.getInt(0))
             }
         }
     }

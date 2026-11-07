@@ -51,6 +51,7 @@ data class Item<T> (
     val item: T,
     val captioned: Boolean = false,
     val cover: CoverMode = CoverMode.DEFAULT,
+    val dimmed: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -170,6 +171,7 @@ fun <T>Explorer(
                                     getImageUrl,
                                     entry.item.captioned,
                                     entry.item.cover,
+                                    entry.item.dimmed,
                                 )
                             }
                         }

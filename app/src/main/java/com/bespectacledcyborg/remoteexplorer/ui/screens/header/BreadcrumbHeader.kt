@@ -10,7 +10,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 
 @Composable
 fun BreadcrumbHeader(
@@ -19,12 +18,10 @@ fun BreadcrumbHeader(
     modifier: Modifier,
     onBreadcrumbClick: (String) -> Unit,
     search: String,
-    // Set when currentPath is a tag. A tag is one crumb, not a path: split on "/" it made
-    // `clothes/pantyhose` two crumbs, the first of which opened a tag called `clothes`.
-    tagLabel: String? = null,
+    pseudoFolderLabel: String? = null,
 ) {
     val pathComponents =
-        if (tagLabel != null) emptyList() else currentPath.split("/").filter { it.isNotEmpty() }
+        if (pseudoFolderLabel != null) emptyList() else currentPath.split("/").filter { it.isNotEmpty() }
     val rootLabel = rootPath.ifEmpty { "Root" }
 
     Row(
@@ -56,8 +53,8 @@ fun BreadcrumbHeader(
             )
         }
 
-        if (tagLabel != null) {
-            Text(text = "» $tagPrefix$tagLabel")
+        if (pseudoFolderLabel != null) {
+            Text(text = "» $pseudoFolderLabel")
         }
 
         for (i in pathComponents.indices) {

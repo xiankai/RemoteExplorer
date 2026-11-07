@@ -193,4 +193,17 @@ class TagIndexParsingTest {
         assertNull(splitNamespacedTag(":leading"))
         assertNull(splitNamespacedTag("trailing:"))
     }
+
+    @Test
+    fun `reads added_at, and its absence as null`() {
+        val dated = parseTagIndexLine(
+            """{"scope":"dir","path":"Download","site":"folder","tags":[],"files":3,""" +
+                    """"mtime":1790047563,"added_at":1790048100}"""
+        )
+        val undated = parseTagIndexLine("""{"scope":"dir","path":"g/x","tags":["a"],"files":1}""")
+
+        assertEquals(1_790_048_100L, dated?.addedAt)
+        assertEquals(emptyList<String>(), dated?.tags)
+        assertNull(undated?.addedAt)
+    }
 }
