@@ -445,7 +445,7 @@ interface LocalDatabaseDao {
         }
     }
 
-    @Query("SELECT * FROM IndexedDirectory ORDER BY addedAt DESC, parentPath LIMIT :limit")
+    @Query("SELECT * FROM IndexedDirectory ORDER BY addedAt DESC, parentPath LIMIT :limit")  // stack-reviewer-ignore: across connections on purpose (#157); IndexedDirectory.asFolder keeps connectionId, and the view model frames the rows with Pairings.inFrameOf exactly as the tag view does
     fun getNewestDirectories(limit: Int): List<IndexedDirectory>
 
     @Query("DELETE FROM DirAnnotationKind WHERE connectionId = :connectionId AND parentPath = :parentPath")

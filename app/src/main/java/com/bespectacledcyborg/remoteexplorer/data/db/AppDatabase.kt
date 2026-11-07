@@ -133,7 +133,7 @@ abstract class AppDatabase : RoomDatabase() {
 
 class RepullTagIndex : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
-        db.execSQL("DELETE FROM TagIndexIngest")
+        db.execSQL("DELETE FROM TagIndexIngest")  // stack-reviewer-ignore: no ingest row plans a FullPull, and applyTagIndex replaces the connection's tags, annotation kinds and indexed directories in the same transaction that writes the new offset; an interrupted pull writes nothing, so the next pass is again a full replace, exactly as on a fresh install
     }
 }
 
