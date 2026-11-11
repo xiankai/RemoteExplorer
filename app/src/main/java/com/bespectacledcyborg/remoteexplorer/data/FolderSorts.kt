@@ -7,6 +7,7 @@ data class FolderSortChoice(
     val inherited: SortType,
     val chosenHere: Boolean,
     val isTopLevel: Boolean,
+    val isLeaf: Boolean,
 )
 
 class FolderSorts(
@@ -24,19 +25,24 @@ class FolderSorts(
             pairings.canonicalize(connectionId, Pairings.normalize(path))
         }
 
-    fun choiceAt(connectionId: ConnectionId, path: String): FolderSortChoice {
+    fun choiceAt(connectionId: ConnectionId, path: String, hasSubfolders: Boolean = true): FolderSortChoice {
         val lineage = lineageOf(path)
         val own = chosen[identityOf(connectionId, lineage.first())]
-        val inherited = lineage.drop(1)
-            .firstNotNullOfOrNull { chosen[identityOf(connectionId, it)] }
-            ?: if (path == newestAdditionsPath) SortType.LAST_MODIFIED_DESC else default
+        val isLeaf = !hasSubfolders && !isPseudoFolder(path)
+        val inherited = if (isLeaf) LEAF_SORT else inheritedAlong(connectionId, lineage, path)
         return FolderSortChoice(
             current = own ?: inherited,
             inherited = inherited,
             chosenHere = own != null,
             isTopLevel = lineage.size == 1,
+            isLeaf = isLeaf,
         )
     }
+
+    private fun inheritedAlong(connectionId: ConnectionId, lineage: List<String>, path: String): SortType =
+        lineage.drop(1)
+            .firstNotNullOfOrNull { chosen[identityOf(connectionId, it)] }
+            ?: if (path == newestAdditionsPath) SortType.LAST_MODIFIED_DESC else default
 
     private fun lineageOf(path: String): List<String> {
         if (isPseudoFolder(path)) return listOf(path)
@@ -45,6 +51,7 @@ class FolderSorts(
     }
 
     companion object {
+        val LEAF_SORT = SortType.NAME_ASC
         val NONE = FolderSorts(emptyList(), SortType.NAME_ASC, Pairings.NONE)
     }
 }
