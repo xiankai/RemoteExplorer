@@ -87,7 +87,11 @@ fun ExplorerButtons(
     }
 
     val folderSort by explorerViewModel.folderSortState.collectAsState()
-    val inheritFrom = if (folderSort.isTopLevel) "Default" else "Same as parent"
+    val inheritFrom = when {
+        folderSort.isLeaf -> "Default for galleries"
+        folderSort.isTopLevel -> "Default"
+        else -> "Same as parent"
+    }
     SortMenu(
         current = folderSort.current,
         options = SortType.entries,

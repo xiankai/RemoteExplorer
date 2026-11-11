@@ -84,4 +84,33 @@ class FolderSortsTest {
         val chosen = sorts(FolderSort(share, newestAdditionsPath, SortType.NAME_ASC))
         assertEquals(SortType.NAME_ASC, chosen.choiceAt(share, newestAdditionsPath).current)
     }
+
+    @Test
+    fun `a folder with no subfolders sorts by name instead of following its parents`() {
+        val sorts = FolderSorts(
+            listOf(FolderSort(share, "a", SortType.LAST_MODIFIED_DESC)),
+            SortType.MOST_VIEWED,
+            Pairings.NONE,
+        )
+        val choice = sorts.choiceAt(share, "a/gallery", hasSubfolders = false)
+        assertEquals(SortType.NAME_ASC, choice.current)
+        assertEquals(SortType.NAME_ASC, choice.inherited)
+        assertTrue(choice.isLeaf)
+        assertEquals(SortType.LAST_MODIFIED_DESC, sorts.choiceAt(share, "a/series", hasSubfolders = true).current)
+    }
+
+    @Test
+    fun `a leaf folder's own choice still wins`() {
+        val sorts = sorts(FolderSort(share, "a/gallery", SortType.NAME_DESC))
+        val choice = sorts.choiceAt(share, "a/gallery", hasSubfolders = false)
+        assertEquals(SortType.NAME_DESC, choice.current)
+        assertTrue(choice.chosenHere)
+    }
+
+    @Test
+    fun `newest additions is never treated as a leaf`() {
+        val choice = sorts().choiceAt(share, newestAdditionsPath, hasSubfolders = false)
+        assertEquals(SortType.LAST_MODIFIED_DESC, choice.current)
+        assertFalse(choice.isLeaf)
+    }
 }
