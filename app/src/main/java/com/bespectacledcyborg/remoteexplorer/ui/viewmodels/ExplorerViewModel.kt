@@ -438,7 +438,7 @@ class ExplorerViewModel(
 
     private val currentListingHasSubfolders: Flow<Boolean> =
         combine(_list, _path) { list, path ->
-            list[path]?.any { it.type == FileType.FOLDER } ?: true
+            list[path]?.any { it.type == FileType.FOLDER } ?: true  // stack-reviewer-ignore: true means "has subfolders", i.e. non-leaf, which is what the PR body says; defaulting to leaf would flip every series folder to A-Z then back instead, and most opens are galleries served from Room before the first frame
         }.distinctUntilChanged()
 
     private val folderSorts: StateFlow<FolderSorts> =
