@@ -47,6 +47,7 @@ import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
+import com.bespectacledcyborg.remoteexplorer.ui.components.gallerySwipe
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -121,7 +122,7 @@ fun ExplorerScreen(
         {
             when (item.type) {
                 FileType.FOLDER -> {
-                    explorerViewModel.changePath(item.item.fullPath())
+                    explorerViewModel.openFolder(item.item.fullPath(), filteredList.value)
                 }
 
                 FileType.FILE -> {
@@ -290,6 +291,7 @@ fun ExplorerScreen(
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
+                    .gallerySwipe(explorerViewModel::swipeGallery)
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
