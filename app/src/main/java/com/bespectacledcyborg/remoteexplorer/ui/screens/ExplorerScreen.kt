@@ -349,7 +349,7 @@ fun ExplorerScreen(
                         groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
                         else -> null
                     },
-                    groupLabel = when (groupMode) {
+                    groupLabel = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
                         GroupMode.BY_DATE -> { group -> group }
                         GroupMode.BY_PARENT_FOLDER -> { group ->
                             parentGroupHeads[group]
@@ -366,7 +366,7 @@ fun ExplorerScreen(
                         }
                         GroupMode.UNGROUPED -> { group -> group.ifEmpty { connectionName } }
                     },
-                    onGroupClick = when (groupMode) {
+                    onGroupClick = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
                         GroupMode.BY_DATE -> null
                         GroupMode.BY_PARENT_FOLDER -> { group ->
                             parentGroupHeads[group]?.let { explorerViewModel.changePath(it.parentPath) }
