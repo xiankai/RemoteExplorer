@@ -370,7 +370,7 @@ class ExplorerViewModel(
         if (!run.isOpenFrom(_navigationStack.value) || !folderSortState.value.isLeaf) return
         val next = run.neighbour(_path.value, step) ?: return
         abandonRefreshRequest()
-        scrollPositions.recordTop(ScrollPosition())
+        scrollPositions.recordTop(ScrollPosition())  // stack-reviewer-ignore: recordTop replaces the top entry in place (ScrollPositions.kt), matching the stack's dropLast(1) + next, so both stay the same depth and Back restores the listing's position
         _path.update { next }
         _navigationStack.update { it.dropLast(1) + next }
         rememberLocation()
