@@ -52,7 +52,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
 import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParentInOrder
 import com.bespectacledcyborg.remoteexplorer.ui.components.parentGroupOf
 import com.bespectacledcyborg.remoteexplorer.data.GroupMode
-import java.time.LocalDate
+import com.bespectacledcyborg.remoteexplorer.ui.components.rememberToday
 import java.time.ZoneId
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
@@ -79,8 +79,8 @@ fun ExplorerScreen(
 
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val pathState by explorerViewModel.pathState.collectAsState()
-    val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
+    val today = rememberToday(zone)
     val filteredList = combine(
         explorerViewModel.listState,
         explorerViewModel.searchState,
