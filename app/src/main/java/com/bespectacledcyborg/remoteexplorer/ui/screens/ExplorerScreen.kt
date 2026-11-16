@@ -81,47 +81,49 @@ fun ExplorerScreen(
     val pathState by explorerViewModel.pathState.collectAsState()
     val zone = ZoneId.systemDefault()
     val today = rememberToday(zone)
-    val filteredList = combine(
-        explorerViewModel.listState,
-        explorerViewModel.searchState,
-        explorerViewModel.filterState,
-        explorerViewModel.sortState,
-        explorerViewModel.pathState,
-        explorerViewModel.listingViewsState,
-        explorerViewModel.groupModeState,
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
-        val list = values[0] as Map<String, List<LocalFile>>
-        val search = values[1] as String
-        @Suppress("UNCHECKED_CAST")
-        val filter = values[2] as List<IconType>
-        val sort = values[3] as SortType
-        val path = values[4] as String
-        @Suppress("UNCHECKED_CAST")
-        val views = values[5] as Map<String, ViewTotals>
-        val groupMode = values[6] as GroupMode
-        var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
-        if (filter.isNotEmpty()) {
-            finalList = finalList.filter {
-                val iconType = Utils.guessIconType(it.filename)
-                filter.contains(iconType)
+    val filteredList = remember(explorerViewModel, today, zone) {
+        combine(
+            explorerViewModel.listState,
+            explorerViewModel.searchState,
+            explorerViewModel.filterState,
+            explorerViewModel.sortState,
+            explorerViewModel.pathState,
+            explorerViewModel.listingViewsState,
+            explorerViewModel.groupModeState,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val list = values[0] as Map<String, List<LocalFile>>
+            val search = values[1] as String
+            @Suppress("UNCHECKED_CAST")
+            val filter = values[2] as List<IconType>
+            val sort = values[3] as SortType
+            val path = values[4] as String
+            @Suppress("UNCHECKED_CAST")
+            val views = values[5] as Map<String, ViewTotals>
+            val groupMode = values[6] as GroupMode
+            var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
+            if (filter.isNotEmpty()) {
+                finalList = finalList.filter {
+                    val iconType = Utils.guessIconType(it.filename)
+                    filter.contains(iconType)
+                }
             }
-        }
 
-        if (search.isNotEmpty()) {
-            finalList = finalList.filter {
-                it.filename.contains(search, ignoreCase = true)
+            if (search.isNotEmpty()) {
+                finalList = finalList.filter {
+                    it.filename.contains(search, ignoreCase = true)
+                }
             }
-        }
 
-        finalList = when {
-            path.startsWith(tagPrefix) -> clusteredByParent(finalList)
-            groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, today, zone)
-            groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(finalList)
-            else -> finalList
-        }
+            finalList = when {
+                path.startsWith(tagPrefix) -> clusteredByParent(finalList)
+                groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, today, zone)
+                groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(finalList)
+                else -> finalList
+            }
 
-        finalList
+            finalList
+        }
     }.collectAsState(emptyList())
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
