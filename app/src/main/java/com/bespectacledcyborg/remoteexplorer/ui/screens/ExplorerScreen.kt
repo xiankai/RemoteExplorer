@@ -79,6 +79,8 @@ fun ExplorerScreen(
 
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val pathState by explorerViewModel.pathState.collectAsState()
+    val today = LocalDate.now()
+    val zone = ZoneId.systemDefault()
     val filteredList = combine(
         explorerViewModel.listState,
         explorerViewModel.searchState,
@@ -114,7 +116,7 @@ fun ExplorerScreen(
 
         finalList = when {
             path.startsWith(tagPrefix) -> clusteredByParent(finalList)
-            groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, LocalDate.now(), ZoneId.systemDefault())
+            groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, today, zone)
             groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(finalList)
             else -> finalList
         }
@@ -130,8 +132,9 @@ fun ExplorerScreen(
     val groupMode by explorerViewModel.groupModeState.collectAsState()
     val connections by explorerViewModel.connectionsState.collectAsState()
     val browsingConnection by explorerViewModel.connectionState.collectAsState()
-    val today = LocalDate.now()
-    val zone = ZoneId.systemDefault()
+    val parentGroupHeads = remember(filteredList.value) {
+        filteredList.value.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
+    }
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
@@ -349,7 +352,7 @@ fun ExplorerScreen(
                     groupLabel = when (groupMode) {
                         GroupMode.BY_DATE -> { group -> group }
                         GroupMode.BY_PARENT_FOLDER -> { group ->
-                            filteredList.value.firstOrNull { parentGroupOf(it) == group }
+                            parentGroupHeads[group]
                                 ?.let { head ->
                                     val name = connections.firstOrNull { it.id == head.connectionId }?.name
                                         ?: connectionName
@@ -366,8 +369,7 @@ fun ExplorerScreen(
                     onGroupClick = when (groupMode) {
                         GroupMode.BY_DATE -> null
                         GroupMode.BY_PARENT_FOLDER -> { group ->
-                            filteredList.value.firstOrNull { parentGroupOf(it) == group }
-                                ?.let { explorerViewModel.changePath(it.parentPath) }
+                            parentGroupHeads[group]?.let { explorerViewModel.changePath(it.parentPath) }
                         }
                         GroupMode.UNGROUPED -> { group -> explorerViewModel.changePath(group) }
                     },
