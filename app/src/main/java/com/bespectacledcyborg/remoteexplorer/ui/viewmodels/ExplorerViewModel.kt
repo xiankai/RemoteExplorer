@@ -21,6 +21,8 @@ import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
+import com.bespectacledcyborg.remoteexplorer.data.GroupMode
+import com.bespectacledcyborg.remoteexplorer.data.GroupModes
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagSearch
 import com.bespectacledcyborg.remoteexplorer.data.displayLabels
@@ -201,6 +203,7 @@ class ExplorerViewModel(
     private val coverPreferences: CoverPreferences,
     private val folderSortRepository: FolderSortRepository,
     private val lastLocation: LastLocation,
+    private val groupModes: GroupModes,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
     private val sourceKind: (Int) -> String = { "unknown" },
 ) : AndroidViewModel(application) {
@@ -470,6 +473,19 @@ class ExplorerViewModel(
     fun inheritSort() {
         val folder = currentFolder() ?: return
         viewModelScope.launch(Dispatchers.IO) { folderSortRepository.clear(folder) }
+    }
+
+    val groupModeState: StateFlow<GroupMode> =
+        combine(folderSorts, _connection, _path, groupModes.changes) { sorts, connection, path, _ ->
+            if (connection == null || path != newestAdditionsPath) GroupMode.UNGROUPED
+            else groupModes.modeAt(sorts.identityOf(connection.id, path))
+        }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, GroupMode.UNGROUPED)
+
+    fun group(mode: GroupMode) {
+        val folder = currentFolder() ?: return
+        groupModes.choose(folder, mode)
     }
 
     private fun currentFolder(): FileIdentity? {

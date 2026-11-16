@@ -46,7 +46,14 @@ import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
+import com.bespectacledcyborg.remoteexplorer.ui.components.addedOn
+import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByAddedOn
 import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
+import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParentInOrder
+import com.bespectacledcyborg.remoteexplorer.ui.components.parentGroupOf
+import com.bespectacledcyborg.remoteexplorer.data.GroupMode
+import java.time.LocalDate
+import java.time.ZoneId
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalTag
@@ -79,6 +86,7 @@ fun ExplorerScreen(
         explorerViewModel.sortState,
         explorerViewModel.pathState,
         explorerViewModel.listingViewsState,
+        explorerViewModel.groupModeState,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val list = values[0] as Map<String, List<LocalFile>>
@@ -89,6 +97,7 @@ fun ExplorerScreen(
         val path = values[4] as String
         @Suppress("UNCHECKED_CAST")
         val views = values[5] as Map<String, ViewTotals>
+        val groupMode = values[6] as GroupMode
         var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
         if (filter.isNotEmpty()) {
             finalList = finalList.filter {
@@ -98,14 +107,16 @@ fun ExplorerScreen(
         }
 
         if (search.isNotEmpty()) {
-            // The result used to be discarded, so this filter did nothing at all.
             finalList = finalList.filter {
                 it.filename.contains(search, ignoreCase = true)
             }
         }
 
-        if (path.startsWith(tagPrefix)) {
-            finalList = clusteredByParent(finalList)
+        finalList = when {
+            path.startsWith(tagPrefix) -> clusteredByParent(finalList)
+            groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, LocalDate.now(), ZoneId.systemDefault())
+            groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(finalList)
+            else -> finalList
         }
 
         finalList
@@ -116,6 +127,11 @@ fun ExplorerScreen(
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
+    val groupMode by explorerViewModel.groupModeState.collectAsState()
+    val connections by explorerViewModel.connectionsState.collectAsState()
+    val browsingConnection by explorerViewModel.connectionState.collectAsState()
+    val today = LocalDate.now()
+    val zone = ZoneId.systemDefault()
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
@@ -322,13 +338,39 @@ fun ExplorerScreen(
                     scrollKey = pathState,
                     initialScroll = explorerViewModel.scrollPositionToRestore(),
                     onScrollPositionChanged = { explorerViewModel.recordScrollPosition(pathState, it) },
-                    groupOf = if (pathState.startsWith(tagPrefix)) {
-                        { it.item.parentPath }
-                    } else {
-                        null
+                    groupOf = when {
+                        pathState.startsWith(tagPrefix) -> { item -> item.item.parentPath }
+                        groupMode == GroupMode.BY_DATE -> { item ->
+                            addedOn(item.item.lastModified, today, zone).label
+                        }
+                        groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
+                        else -> null
                     },
-                    groupLabel = { it.ifEmpty { connectionName } },
-                    onGroupClick = { explorerViewModel.changePath(it) },
+                    groupLabel = when (groupMode) {
+                        GroupMode.BY_DATE -> { group -> group }
+                        GroupMode.BY_PARENT_FOLDER -> { group ->
+                            filteredList.value.firstOrNull { parentGroupOf(it) == group }
+                                ?.let { head ->
+                                    val name = connections.firstOrNull { it.id == head.connectionId }?.name
+                                        ?: connectionName
+                                    when {
+                                        head.parentPath.isEmpty() -> name
+                                        head.connectionId == browsingConnection?.id -> head.parentPath
+                                        else -> "$name · ${head.parentPath}"
+                                    }
+                                }
+                                ?: group
+                        }
+                        GroupMode.UNGROUPED -> { group -> group.ifEmpty { connectionName } }
+                    },
+                    onGroupClick = when (groupMode) {
+                        GroupMode.BY_DATE -> null
+                        GroupMode.BY_PARENT_FOLDER -> { group ->
+                            filteredList.value.firstOrNull { parentGroupOf(it) == group }
+                                ?.let { explorerViewModel.changePath(it.parentPath) }
+                        }
+                        GroupMode.UNGROUPED -> { group -> explorerViewModel.changePath(group) }
+                    },
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible
