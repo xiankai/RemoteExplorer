@@ -81,7 +81,7 @@ fun ExplorerScreen(
     val pathState by explorerViewModel.pathState.collectAsState()
     val zone = ZoneId.systemDefault()
     val today = rememberToday(zone)
-    val filteredList = remember(explorerViewModel, today, zone) {
+    val filteredList = remember(explorerViewModel, today, zone) {  // stack-reviewer-ignore: the view model is the activity's single instance and tagPrefix is a const; the sort, path, search and group mode all arrive as flow values inside the combine, so only the date needs to be a key
         combine(
             explorerViewModel.listState,
             explorerViewModel.searchState,
