@@ -60,10 +60,15 @@ cd "$src"
 make -j"$(getconf _NPROCESSORS_ONLN)"
 make install
 
+libs=(avcodec avdevice avfilter avformat avutil swresample swscale)
+for lib in "${libs[@]}"; do
+  [ -f "$work/install/lib/lib$lib.so" ] || { echo "the build produced no lib$lib.so" >&2; exit 1; }
+done
+
 rm -rf "$dest/include/arm64-v8a" "$dest/lib/arm64-v8a"
 mkdir -p "$dest/include" "$dest/lib/arm64-v8a"
 cp -R "$work/install/include" "$dest/include/arm64-v8a"
-for lib in avcodec avdevice avfilter avformat avutil swresample swscale; do
+for lib in "${libs[@]}"; do
   cp "$work/install/lib/lib$lib.so" "$dest/lib/arm64-v8a/"
 done
 echo "FFmpeg $FFMPEG_VERSION installed into $dest"
