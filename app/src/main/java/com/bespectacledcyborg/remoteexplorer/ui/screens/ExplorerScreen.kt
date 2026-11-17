@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -90,27 +91,16 @@ fun ExplorerScreen(
         val path = values[4] as String
         @Suppress("UNCHECKED_CAST")
         val views = values[5] as Map<String, ViewTotals>
-        var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
-        if (filter.isNotEmpty()) {
-            finalList = finalList.filter {
-                val iconType = Utils.guessIconType(it.filename)
-                filter.contains(iconType)
-            }
-        }
-
-        if (search.isNotEmpty()) {
-            // The result used to be discarded, so this filter did nothing at all.
-            finalList = finalList.filter {
-                it.filename.contains(search, ignoreCase = true)
-            }
-        }
-
-        if (path.startsWith(tagPrefix)) {
-            finalList = clusteredByParent(finalList)
-        }
-
-        finalList
-    }.collectAsState(emptyList())
+        val folder = list[path].orEmpty()
+        val narrowed = folder
+            .sortedWith(explorerViewModel.getSortFunction(sort, views))
+            .keepingTypes(filter)
+            .matchingSearch(search)
+        ShownListing(
+            entries = if (path.startsWith(tagPrefix)) clusteredByParent(narrowed) else narrowed,
+            emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty()),
+        )
+    }.collectAsState(ShownListing.NONE)
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
@@ -127,7 +117,7 @@ fun ExplorerScreen(
 
                 FileType.FILE -> {
                     if (item.item.isBrowsable()) {
-                        val browsableImages = filteredList.value.filter { it.isBrowsable() }
+                        val browsableImages = filteredList.value.entries.filter { it.isBrowsable() }
                         val initialBrowsableImage = browsableImages.indexOf(item.item)
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
@@ -228,10 +218,12 @@ fun ExplorerScreen(
         }
         navHostController.popBackStack()
     }
+    val search by explorerViewModel.searchState.collectAsState()
+    val searchActive = search.isNotEmpty()
+    BackHandler(enabled = searchActive) { explorerViewModel.clearSearch() }
 
     val folderTags by explorerViewModel.folderTagsState.collectAsState()
 
-    val search by explorerViewModel.searchState.collectAsState()
     val openTagLabel by explorerViewModel.openTagLabelState.collectAsState()
     Scaffold(
         topBar = {
@@ -269,6 +261,7 @@ fun ExplorerScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         when {
+                            searchActive -> explorerViewModel.clearSearch()
                             backToTags -> returnToTags()
                             atRoot -> returnToConnections()
                             else -> explorerViewModel.goBack()
@@ -295,6 +288,17 @@ fun ExplorerScreen(
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                filteredList.value.emptyMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
                 Explorer(
                     getImageUrl = { fullPath, thumbnail ->
                         explorerViewModel.getUrl(
@@ -302,7 +306,7 @@ fun ExplorerScreen(
                             thumbnail
                         )
                     },
-                    items = filteredList.value.map {
+                    items = filteredList.value.entries.map {
                         Item(
                             name = it.filename,
                             type = it.type,
