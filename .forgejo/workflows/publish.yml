@@ -57,6 +57,7 @@ concurrency:
 
 jobs:
   publish:
+    if: vars.ANDROID_CI_LOCAL == '1'
     runs-on: android
     container:
       image: android-ci:latest  # stack-reviewer-ignore: built on this host by the deployer from infra's reviewed docker/android-ci, and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job

@@ -205,6 +205,7 @@ Two systems, deliberately:
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
 | Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
+| Sideload release | **GitHub**, `.github/workflows/release.yml` | a `release-*` tag pushed to Forgejo (the mirror carries it), or run by hand with that tag | APK signed with the sideload key → GitHub release, for Obtainium |
 
 A change that touches only Markdown skips the checks and the release. The reviewer still
 runs.
@@ -220,6 +221,18 @@ t=publish-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master &
 The job builds the tagged commit, refuses one that isn't on master or would install as a
 downgrade, then overwrites the fileserver APK and makes the `v<versionCode>` release. Obtainium
 sees the new file at the same URL.
+
+**The GitHub sideload release** (#179) takes the tag from Forgejo because the push mirror
+prunes any ref GitHub has that Forgejo lacks: a tag GitHub made itself would vanish on the
+next push. To ship, tag master on Forgejo:
+
+```bash
+t=release-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master && git push origin "$t"
+```
+
+It signs with the same `sideload` key, held in GitHub Actions secrets `SIDELOAD_KEYSTORE_*`,
+so a GitHub build installs over a fileserver one. `publish.yml` now runs only while
+`ANDROID_CI_LOCAL=1`.
 
 The sideload job is the one that pays for the NDK, holds a signing key of its own
 (`SIDELOAD_KEYSTORE_*`, generated 2026-09-19, alias `sideload`) and cannot be moved to GitHub,
