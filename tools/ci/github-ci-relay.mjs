@@ -8,7 +8,7 @@ const workflow = env("RELAY_WORKFLOW", "ci.yml");
 const sha = env("RELAY_SHA", "");
 const pollSeconds = Number(env("RELAY_POLL_SECONDS", "90"));
 const deadline = Date.now() + Number(env("RELAY_TIMEOUT_MINUTES", "50")) * 60_000;
-const noRunDeadline = Date.now() + Number(env("RELAY_NO_RUN_MINUTES", "10")) * 60_000;
+let noRunDeadline = Date.now() + Number(env("RELAY_NO_RUN_MINUTES", "10")) * 60_000;
 const token = env("RELAY_GITHUB_TOKEN", "");
 
 if (!/^[0-9a-f]{40}$/.test(sha)) {
@@ -60,7 +60,9 @@ while (Date.now() < deadline) {
 
   if (result.rateLimitedUntil) {
     console.log(`GitHub rate limit reached; waiting until ${new Date(result.rateLimitedUntil).toISOString()}`);
+    const pausedAt = Date.now();
     await waitUntil(result.rateLimitedUntil + 5_000);
+    noRunDeadline += Date.now() - pausedAt;
     continue;
   }
 
