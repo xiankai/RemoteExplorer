@@ -108,7 +108,7 @@ absent — an unreadable meta is deliberately treated as no meta. The tag list s
 per alias group, labelled by its canonical, and counts what opening it lists across the whole
 group.
 
-**Native.** Prebuilt FFmpeg (`app/src/main/cpp/ffmpeg/`) plus a JNI wrapper that decodes the
+**Native.** Prebuilt FFmpeg 7.1.1 (`app/src/main/cpp/ffmpeg/`, LGPL, rebuilt from source by `tools/ffmpeg/build.sh`; see `THIRD_PARTY_NOTICES.md`) plus a JNI wrapper that decodes the
 first video frame. It is the *second* video decoder: `PlatformVideoThumbnailSource` goes
 first and is cheaper, and FFmpeg covers what the device has no codec for — about 7.6% of the
 real library is DivX/Xvid `.avi`, which is why the native build cannot be deleted (#41).
