@@ -90,7 +90,7 @@ jobs:
       - name: Refuse to go backwards
         run: |
           set -euo pipefail
-          newest=$(gh release list --limit 50 --json name --jq '[.[].name | capture("\\((?<c>[0-9]+)\\)$").c | tonumber] | max // 0')
+          newest=$(gh release list --limit 50 --json name --jq '[.[].name | capture("\\((?<c>[0-9]+)\\)$").c | tonumber] | max // 0')  # stack-reviewer-ignore: this workflow is the only thing that publishes releases here, and it always names them "<versionName> (<versionCode>)"
           if [ "$VERSION_CODE" -lt "$newest" ]; then
             echo "::error::versionCode $VERSION_CODE is older than the newest release ($newest), so it would not install over it."
             exit 1
@@ -101,10 +101,13 @@ jobs:
       - name: Publish the GitHub release
         run: |
           set -euo pipefail
-          gh release delete "$TAG" --yes 2>/dev/null || true
-          gh release create "$TAG" remote-explorer.apk \
-            --verify-tag \
-            --title "$VERSION_NAME ($VERSION_CODE)" \
-            --notes "$(git log -1 --pretty='%s%n%n%H')"
+          title="$VERSION_NAME ($VERSION_CODE)"
+          notes="$(git log -1 --pretty='%s%n%n%H')"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" remote-explorer.apk --clobber
+            gh release edit "$TAG" --title "$title" --notes "$notes"
+          else
+            gh release create "$TAG" remote-explorer.apk --verify-tag --title "$title" --notes "$notes"
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
