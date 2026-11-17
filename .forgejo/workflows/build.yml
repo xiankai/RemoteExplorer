@@ -213,7 +213,7 @@ jobs:
         if: vars.ANDROID_CI_LOCAL == '1'
         run: |
           echo "checks-local: ${LOCAL_RESULT}"
-          [ "${LOCAL_RESULT}" = success ]
+          [ "${LOCAL_RESULT}" = success ]  # stack-reviewer-ignore: fail closed on purpose; with ANDROID_CI_LOCAL=1 a skipped checks-local means nothing was checked, so the required status must not go green
         env:
           LOCAL_RESULT: ${{ needs.checks-local.result }}
 

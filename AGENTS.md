@@ -213,7 +213,7 @@ runs.
 `ci.yml` run on the PR's head SHA and passes or fails with it, linking the run. Set the repo
 Actions variable `ANDROID_CI_LOCAL=1` to run them on buildhost's `android` runner instead
 (`checks-local`); `checks` then passes that job's result through, so the required status
-never changes name. The relay reads GitHub without a token, which needs the repo public.
+never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step.
 
 **The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
 release build costs buildhost 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless

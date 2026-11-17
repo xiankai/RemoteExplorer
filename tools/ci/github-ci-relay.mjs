@@ -8,6 +8,7 @@ const workflow = env("RELAY_WORKFLOW", "ci.yml");
 const sha = env("RELAY_SHA", "");
 const pollSeconds = Number(env("RELAY_POLL_SECONDS", "90"));
 const deadline = Date.now() + Number(env("RELAY_TIMEOUT_MINUTES", "50")) * 60_000;
+// stack-reviewer-ignore: the query already filters by workflow, event and head_sha, so a run GitHub returns is never dropped by newest(); a wrong RELAY_WORKFLOW 404s and fails at once
 let noRunDeadline = Date.now() + Number(env("RELAY_NO_RUN_MINUTES", "10")) * 60_000;
 const token = env("RELAY_GITHUB_TOKEN", "");
 
