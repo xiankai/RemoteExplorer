@@ -37,6 +37,7 @@ import com.bespectacledcyborg.remoteexplorer.data.RoutingFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.LoopbackToken
 import com.bespectacledcyborg.remoteexplorer.data.LastLocation
+import com.bespectacledcyborg.remoteexplorer.data.GroupModes
 import com.bespectacledcyborg.remoteexplorer.data.ServerRepository
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.TagRepository
@@ -314,6 +315,7 @@ class ExplorerViewModelFactory(
             coverPreferences,
             FolderSortRepository(db.folderSortDao()),
             LastLocation.of(application),
+            GroupModes.of(application),
             metrics,
             fileDataSource::sourceKind,
         ) as T

@@ -71,7 +71,7 @@ fun <T>Explorer(
     onScrollPositionChanged: (ScrollPosition) -> Unit = {},
     groupOf: ((Item<T>) -> String)? = null,
     groupLabel: (String) -> String = { it },
-    onGroupClick: (String) -> Unit = {},
+    onGroupClick: ((String) -> Unit)? = null,
 ) {
     val entryColumns = if (viewType == ViewType.LIST) 1 else columnCount
     val entries = gridEntries(items, entryColumns, groupOf)
@@ -128,7 +128,7 @@ fun <T>Explorer(
                 items(entries) { entry ->  // stack-reviewer-ignore: the scroll restore and the viewport reporter both index currentEntries, the same list rendered here, and a one-column list never gets fillers
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
-                            groupLabel(entry.group), entry.first, { onGroupClick(entry.group) },
+                            groupLabel(entry.group), entry.first, onGroupClick?.let { open -> { open(entry.group) } },
                         )
                         is GridEntry.Tile -> ListViewItem(
                             entry.item.name,
@@ -155,7 +155,7 @@ fun <T>Explorer(
                 ) { entry ->
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
-                            groupLabel(entry.group), entry.first, { onGroupClick(entry.group) },
+                            groupLabel(entry.group), entry.first, onGroupClick?.let { open -> { open(entry.group) } },
                         )
                         is GridEntry.Filler -> GroupCellBox(entry.cell) {
                             ExplorerItemPlaceholder()
@@ -185,7 +185,7 @@ fun <T>Explorer(
 private val GROUP_CORNER = 12.dp
 
 @Composable
-private fun GroupHeader(label: String, first: Boolean, onClick: () -> Unit) {
+private fun GroupHeader(label: String, first: Boolean, onClick: (() -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,16 +194,18 @@ private fun GroupHeader(label: String, first: Boolean, onClick: () -> Unit) {
                 MaterialTheme.colorScheme.secondaryContainer,
                 RoundedCornerShape(topStart = GROUP_CORNER, topEnd = GROUP_CORNER),
             )
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(
-            Icons.Filled.Folder,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
+        if (onClick != null) {
+            Icon(
+                Icons.Filled.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.titleSmall,
@@ -212,11 +214,13 @@ private fun GroupHeader(label: String, first: Boolean, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "Open $label",
-            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
+        if (onClick != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Open $label",
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
     }
 }
 

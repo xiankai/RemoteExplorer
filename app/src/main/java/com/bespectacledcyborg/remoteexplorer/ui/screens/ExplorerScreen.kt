@@ -47,7 +47,14 @@ import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
+import com.bespectacledcyborg.remoteexplorer.ui.components.addedOn
+import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByAddedOn
 import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParent
+import com.bespectacledcyborg.remoteexplorer.ui.components.clusteredByParentInOrder
+import com.bespectacledcyborg.remoteexplorer.ui.components.parentGroupOf
+import com.bespectacledcyborg.remoteexplorer.data.GroupMode
+import com.bespectacledcyborg.remoteexplorer.ui.components.rememberToday
+import java.time.ZoneId
 import com.bespectacledcyborg.remoteexplorer.ui.components.gallerySwipe
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
@@ -74,32 +81,43 @@ fun ExplorerScreen(
 
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val pathState by explorerViewModel.pathState.collectAsState()
-    val filteredList = combine(
-        explorerViewModel.listState,
-        explorerViewModel.searchState,
-        explorerViewModel.filterState,
-        explorerViewModel.sortState,
-        explorerViewModel.pathState,
-        explorerViewModel.listingViewsState,
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
-        val list = values[0] as Map<String, List<LocalFile>>
-        val search = values[1] as String
-        @Suppress("UNCHECKED_CAST")
-        val filter = values[2] as List<IconType>
-        val sort = values[3] as SortType
-        val path = values[4] as String
-        @Suppress("UNCHECKED_CAST")
-        val views = values[5] as Map<String, ViewTotals>
-        val folder = list[path].orEmpty()
-        val narrowed = folder
-            .sortedWith(explorerViewModel.getSortFunction(sort, views))
-            .keepingTypes(filter)
-            .matchingSearch(search)
-        ShownListing(
-            entries = if (path.startsWith(tagPrefix)) clusteredByParent(narrowed) else narrowed,
-            emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty()),
-        )
+    val zone = ZoneId.systemDefault()
+    val today = rememberToday(zone)
+    val filteredList = remember(explorerViewModel, today, zone) {  // stack-reviewer-ignore: the view model is the activity's single instance and tagPrefix is a const; the sort, path, search and group mode all arrive as flow values inside the combine, so only the date needs to be a key
+        combine(
+            explorerViewModel.listState,
+            explorerViewModel.searchState,
+            explorerViewModel.filterState,
+            explorerViewModel.sortState,
+            explorerViewModel.pathState,
+            explorerViewModel.listingViewsState,
+            explorerViewModel.groupModeState,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val list = values[0] as Map<String, List<LocalFile>>
+            val search = values[1] as String
+            @Suppress("UNCHECKED_CAST")
+            val filter = values[2] as List<IconType>
+            val sort = values[3] as SortType
+            val path = values[4] as String
+            @Suppress("UNCHECKED_CAST")
+            val views = values[5] as Map<String, ViewTotals>
+            val groupMode = values[6] as GroupMode
+            val folder = list[path].orEmpty()
+            val narrowed = folder
+                .sortedWith(explorerViewModel.getSortFunction(sort, views))
+                .keepingTypes(filter)
+                .matchingSearch(search)
+            ShownListing(
+                entries = when {
+                    path.startsWith(tagPrefix) -> clusteredByParent(narrowed)
+                    groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(narrowed, today, zone)
+                    groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(narrowed)
+                    else -> narrowed
+                },
+                emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty()),
+            )
+        }
     }.collectAsState(ShownListing.NONE)
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
@@ -107,12 +125,18 @@ fun ExplorerScreen(
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
+    val groupMode by explorerViewModel.groupModeState.collectAsState()
+    val connections by explorerViewModel.connectionsState.collectAsState()
+    val browsingConnection by explorerViewModel.connectionState.collectAsState()
+    val parentGroupHeads = remember(filteredList.value) {
+        filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
+    }
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
             when (item.type) {
                 FileType.FOLDER -> {
-                    explorerViewModel.openFolder(item.item.fullPath(), filteredList.value)
+                    explorerViewModel.openFolder(item.item.fullPath(), filteredList.value.entries)
                 }
 
                 FileType.FILE -> {
@@ -328,13 +352,38 @@ fun ExplorerScreen(
                     scrollKey = pathState,
                     initialScroll = explorerViewModel.scrollPositionToRestore(),
                     onScrollPositionChanged = { explorerViewModel.recordScrollPosition(pathState, it) },
-                    groupOf = if (pathState.startsWith(tagPrefix)) {
-                        { it.item.parentPath }
-                    } else {
-                        null
+                    groupOf = when {
+                        pathState.startsWith(tagPrefix) -> { item -> item.item.parentPath }
+                        groupMode == GroupMode.BY_DATE -> { item ->
+                            addedOn(item.item.lastModified, today, zone).label
+                        }
+                        groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
+                        else -> null
                     },
-                    groupLabel = { it.ifEmpty { connectionName } },
-                    onGroupClick = { explorerViewModel.changePath(it) },
+                    groupLabel = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
+                        GroupMode.BY_DATE -> { group -> group }
+                        GroupMode.BY_PARENT_FOLDER -> { group ->
+                            parentGroupHeads[group]
+                                ?.let { head ->
+                                    val name = connections.firstOrNull { it.id == head.connectionId }?.name
+                                        ?: connectionName
+                                    when {
+                                        head.parentPath.isEmpty() -> name
+                                        head.connectionId == browsingConnection?.id -> head.parentPath
+                                        else -> "$name · ${head.parentPath}"
+                                    }
+                                }
+                                ?: group
+                        }
+                        GroupMode.UNGROUPED -> { group -> group.ifEmpty { connectionName } }
+                    },
+                    onGroupClick = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
+                        GroupMode.BY_DATE -> null
+                        GroupMode.BY_PARENT_FOLDER -> { group ->
+                            parentGroupHeads[group]?.let { explorerViewModel.changePath(it.parentPath) }
+                        }
+                        GroupMode.UNGROUPED -> { group -> explorerViewModel.changePath(group) }
+                    },
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible

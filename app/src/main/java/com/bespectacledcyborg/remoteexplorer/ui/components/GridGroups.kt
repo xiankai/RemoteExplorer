@@ -2,12 +2,42 @@ package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.util.Date
+import java.util.Locale
 
 internal fun clusteredByParent(files: List<LocalFile>): List<LocalFile> =
     files.groupBy { it.parentPath }
         .toSortedMap(NaturalOrder)
         .values
         .flatten()
+
+internal fun parentGroupOf(file: LocalFile): String = "${file.connectionId}:${file.parentPath}"
+
+internal fun clusteredByParentInOrder(files: List<LocalFile>): List<LocalFile> =
+    files.groupBy(::parentGroupOf).values.flatten()
+
+internal data class AddedOn(val start: LocalDate, val label: String)
+
+private const val NAMED_DAYS = 7L
+
+internal fun addedOn(added: Date, today: LocalDate, zone: ZoneId, locale: Locale = Locale.getDefault()): AddedOn {
+    val day = minOf(added.toInstant().atZone(zone).toLocalDate(), today)
+    val daysAgo = ChronoUnit.DAYS.between(day, today)
+    return when {
+        daysAgo == 0L -> AddedOn(day, "Today")
+        daysAgo == 1L -> AddedOn(day, "Yesterday")
+        daysAgo < NAMED_DAYS -> AddedOn(day, day.dayOfWeek.getDisplayName(TextStyle.FULL, locale))
+        else -> YearMonth.from(day).let { AddedOn(it.atDay(1), it.toString()) }
+    }
+}
+
+internal fun clusteredByAddedOn(files: List<LocalFile>, today: LocalDate, zone: ZoneId): List<LocalFile> =
+    files.sortedByDescending { addedOn(it.lastModified, today, zone).start }  // stack-reviewer-ignore: a future timestamp is clock skew and is filed under Today on purpose (NewestGroupsTest covers it); inside any bucket the chosen sort applies, which is the stable sort's job here
 
 internal data class GroupCell(
     val grouped: Boolean,

@@ -35,6 +35,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.columnsLabel
 import com.bespectacledcyborg.remoteexplorer.ui.components.screenWidthDp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 
 @Composable
 fun ExplorerButtons(
@@ -102,6 +103,10 @@ fun ExplorerButtons(
             onSelect = explorerViewModel::inheritSort,
         ),
     )
+    if (path == newestAdditionsPath) {
+        val groupMode by explorerViewModel.groupModeState.collectAsState()
+        GroupMenu(current = groupMode, onSelect = explorerViewModel::group)
+    }
     IconButton(onClick = explorerViewModel::openNewestAdditions, content = {
         Icon(
             Icons.Filled.NewReleases,
