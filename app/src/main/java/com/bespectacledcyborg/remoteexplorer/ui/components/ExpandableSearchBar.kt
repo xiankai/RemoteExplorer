@@ -1,3 +1,4 @@
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,11 @@ fun ExpandableSearchBar(
     }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    BackHandler(enabled = isSearching) {
+        value = ""
+        isSearching = false
+        onSearch("")
+    }
 
     Crossfade(
         modifier = Modifier.animateContentSize(),

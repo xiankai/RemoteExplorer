@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -102,30 +103,22 @@ fun ExplorerScreen(
             @Suppress("UNCHECKED_CAST")
             val views = values[5] as Map<String, ViewTotals>
             val groupMode = values[6] as GroupMode
-            var finalList = list[path].orEmpty().sortedWith(explorerViewModel.getSortFunction(sort, views))
-            if (filter.isNotEmpty()) {
-                finalList = finalList.filter {
-                    val iconType = Utils.guessIconType(it.filename)
-                    filter.contains(iconType)
-                }
-            }
-
-            if (search.isNotEmpty()) {
-                finalList = finalList.filter {
-                    it.filename.contains(search, ignoreCase = true)
-                }
-            }
-
-            finalList = when {
-                path.startsWith(tagPrefix) -> clusteredByParent(finalList)
-                groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(finalList, today, zone)
-                groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(finalList)
-                else -> finalList
-            }
-
-            finalList
+            val folder = list[path].orEmpty()
+            val narrowed = folder
+                .sortedWith(explorerViewModel.getSortFunction(sort, views))
+                .keepingTypes(filter)
+                .matchingSearch(search)
+            ShownListing(
+                entries = when {
+                    path.startsWith(tagPrefix) -> clusteredByParent(narrowed)
+                    groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(narrowed, today, zone)
+                    groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(narrowed)
+                    else -> narrowed
+                },
+                emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty()),
+            )
         }
-    }.collectAsState(emptyList())
+    }.collectAsState(ShownListing.NONE)
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
@@ -136,19 +129,19 @@ fun ExplorerScreen(
     val connections by explorerViewModel.connectionsState.collectAsState()
     val browsingConnection by explorerViewModel.connectionState.collectAsState()
     val parentGroupHeads = remember(filteredList.value) {
-        filteredList.value.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
+        filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
     }
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
             when (item.type) {
                 FileType.FOLDER -> {
-                    explorerViewModel.openFolder(item.item.fullPath(), filteredList.value)
+                    explorerViewModel.openFolder(item.item.fullPath(), filteredList.value.entries)
                 }
 
                 FileType.FILE -> {
                     if (item.item.isBrowsable()) {
-                        val browsableImages = filteredList.value.filter { it.isBrowsable() }
+                        val browsableImages = filteredList.value.entries.filter { it.isBrowsable() }
                         val initialBrowsableImage = browsableImages.indexOf(item.item)
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
@@ -249,10 +242,12 @@ fun ExplorerScreen(
         }
         navHostController.popBackStack()
     }
+    val search by explorerViewModel.searchState.collectAsState()
+    val searchActive = search.isNotEmpty()
+    BackHandler(enabled = searchActive) { explorerViewModel.clearSearch() }
 
     val folderTags by explorerViewModel.folderTagsState.collectAsState()
 
-    val search by explorerViewModel.searchState.collectAsState()
     val openTagLabel by explorerViewModel.openTagLabelState.collectAsState()
     Scaffold(
         topBar = {
@@ -290,6 +285,7 @@ fun ExplorerScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         when {
+                            searchActive -> explorerViewModel.clearSearch()
                             backToTags -> returnToTags()
                             atRoot -> returnToConnections()
                             else -> explorerViewModel.goBack()
@@ -316,6 +312,17 @@ fun ExplorerScreen(
                     .wrapContentSize(Alignment.TopStart),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                filteredList.value.emptyMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
                 Explorer(
                     getImageUrl = { fullPath, thumbnail ->
                         explorerViewModel.getUrl(
@@ -323,7 +330,7 @@ fun ExplorerScreen(
                             thumbnail
                         )
                     },
-                    items = filteredList.value.map {
+                    items = filteredList.value.entries.map {
                         Item(
                             name = it.filename,
                             type = it.type,
