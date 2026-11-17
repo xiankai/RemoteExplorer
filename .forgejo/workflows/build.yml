@@ -242,7 +242,7 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/repo
-          if [ -n "${PR_NUMBER}" ]; then
+          if [ -n "${PR_NUMBER}" ]; then  # stack-reviewer-ignore: a Markdown-only push to master never starts this workflow, because the push trigger has paths-ignore **.md
             changed=$(git diff --name-only pr-base...HEAD)
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '\.md$'; then
               echo "Only Markdown changed; nothing for shellcheck, unit tests or lint to read."

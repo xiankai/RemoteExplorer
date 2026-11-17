@@ -67,7 +67,7 @@ while (Date.now() < deadline) {
   }
 
   const run = newest(result.runs);
-  if (!run && Date.now() > noRunDeadline) {
+  if (!run && Date.now() > noRunDeadline) { // stack-reviewer-ignore: the push mirror syncs on commit within seconds, so no run after 10 minutes means the mirror or GitHub is broken, which should fail loudly rather than wait out the full timeout
     console.error(`::error::No ${workflow} run on GitHub for ${sha} yet.`);
     console.error(`Check that the push mirror carries this branch: ${workflowPage}`);
     process.exit(1);

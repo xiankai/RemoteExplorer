@@ -1,7 +1,7 @@
 name: ci
 
 on:
-  push:
+  push:  # stack-reviewer-ignore: every branch on purpose; the Forgejo relay needs a run for each PR head, and the repo is meant to be public, where Actions minutes are free
 
 permissions:
   contents: read
