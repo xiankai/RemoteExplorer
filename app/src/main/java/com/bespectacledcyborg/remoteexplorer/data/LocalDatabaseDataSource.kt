@@ -34,14 +34,8 @@ class LocalDatabaseDataSource(
         }
     }
 
-    suspend fun getFiles(connectionId: Int, parentPath: String, filter: String): List<LocalFile> {
-        return withContext(dispatcher) {
-            if (filter.isNotBlank()) {
-                localDatabaseDao.getFilesWithFilter(connectionId, parentPath, filter)
-            } else {
-                localDatabaseDao.getFiles(connectionId, parentPath)
-            }
-        }
+    suspend fun getFiles(connectionId: Int, parentPath: String): List<LocalFile> {
+        return withContext(dispatcher) { localDatabaseDao.getFiles(connectionId, parentPath) }
     }
 
     suspend fun getFolderThumbnails(

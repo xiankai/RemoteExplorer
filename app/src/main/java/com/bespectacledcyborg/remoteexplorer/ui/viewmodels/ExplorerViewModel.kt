@@ -526,7 +526,6 @@ class ExplorerViewModel(
 
     private data class ListingRequest(
         val path: String,
-        val search: String,
         val refresh: RefreshRequest?,
         val showHidden: Boolean,
     )
@@ -561,9 +560,9 @@ class ExplorerViewModel(
         browsingConnectionId = connectionId
         listFilesCollector?.cancel()
         listFilesCollector = viewModelScope.launch(Dispatchers.IO) {
-            combine(pathState, searchState, _refreshRequest, showHiddenFilesState) { path, search, request, showHidden ->
-                ListingRequest(path, search, request, showHidden)
-            }.collectLatest { (path, search, request, showHidden) ->
+            combine(pathState, _refreshRequest, showHiddenFilesState) { path, request, showHidden ->
+                ListingRequest(path, request, showHidden)
+            }.collectLatest { (path, request, showHidden) ->
                 // collectLatest cancels the previous body when a new value arrives, which is
                 // what the hand-rolled job juggling here was approximating.
                 //
@@ -612,7 +611,7 @@ class ExplorerViewModel(
                     var painted = false
 
                     metrics.traced("folder.listing", refresh.name.lowercase()) {
-                        fileRepository.listFiles(connectionId, path, search, refresh, showHidden)
+                        fileRepository.listFiles(connectionId, path, refresh, showHidden)
                             .collect { listing ->
                                 _list.update {
                                     it.plus(path to listing.files.withThumbnailEligibility())

@@ -102,12 +102,6 @@ interface LocalDatabaseDao {
         type: FileType = FileType.FOLDER
     ): List<LocalFile>
 
-    // '%' || :filter || '%' rather than a bare LIKE :filter, which matched only a filename
-    // equal to the search term — i.e. searching for anything short of the exact name found
-    // nothing. LIKE is already case-insensitive for ASCII in SQLite.
-    @Query("SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath AND filename LIKE '%' || :filter || '%'")
-    fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String): List<LocalFile>
-
     @Query(
         "SELECT * FROM LocalFile WHERE connectionId = :connectionId AND parentPath = :parentPath " +
             "AND type = :type AND thumbnailStatus NOT IN (:excluded)"
