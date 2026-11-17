@@ -277,6 +277,7 @@ class ExplorerViewModel(
     fun connect(connection: Connection) {  // stack-reviewer-ignore: resetting before the connect is the point. The stack and path belong to the previous connection, so keeping them when the new one fails to open would leave that failed connection showing a path from somewhere else, which is the bug this change fixes.
         abandonRefreshRequest()
         _navigationStack.update { listOf("") }
+        galleryRun = null
         scrollPositions.reset()
         _path.update { "" }
         locationConnectionId = connection.id
@@ -348,9 +349,30 @@ class ExplorerViewModel(
 
     fun changePath(path: String) {
         abandonRefreshRequest()
-        scrollPositions.push()  // stack-reviewer-ignore: _navigationStack changes in exactly three places, connect, changePath and goBack, and each moves scrollPositions in step with it
+        scrollPositions.push()  // stack-reviewer-ignore: _navigationStack changes in exactly four places, connect, changePath, swipeGallery and goBack, and each moves scrollPositions in step with it
         _path.update { path }
         _navigationStack.update { it.plus(path) }
+        rememberLocation()
+    }
+
+    private var galleryRun: GalleryRun? = null
+
+    fun openFolder(path: String, listing: List<LocalFile>) {
+        galleryRun = GalleryRun(
+            origin = _path.value,
+            galleries = listing.filter { it.type == FileType.FOLDER }.map { it.fullPath() },
+        )
+        changePath(path)
+    }
+
+    fun swipeGallery(step: SwipeStep) {
+        val run = galleryRun ?: return
+        if (!run.isOpenFrom(_navigationStack.value) || !folderSortState.value.isLeaf) return
+        val next = run.neighbour(_path.value, step) ?: return
+        abandonRefreshRequest()
+        scrollPositions.recordTop(ScrollPosition())  // stack-reviewer-ignore: recordTop replaces the top entry in place (ScrollPositions.kt), matching the stack's dropLast(1) + next, so both stay the same depth and Back restores the listing's position
+        _path.update { next }
+        _navigationStack.update { it.dropLast(1) + next }
         rememberLocation()
     }
 
