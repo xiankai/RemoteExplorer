@@ -465,55 +465,6 @@ class FileRepositoryTest {
     }
 
     @Test
-    fun `a filtered listing is asked of the database, not the server`() = runTest {
-        // The cached-and-filtered path is where the LIKE-without-wildcards bug lived: the
-        // repository hands the search term to the DAO and trusts it, so what matters here is
-        // that the DAO is the one asked, with the term passed through untouched.
-        val remote = FakeFileDataSource(listOf(remoteFile("should-not-be-used.jpg")))
-        val dao = FakeLocalDatabaseDao(
-            cached = listOf(cachedFile("Beach.jpg"), cachedFile("city.jpg"))
-        )
-        freshlySynced(dao)
-
-        val emissions = repository(remote, dao).listFiles(1, "Photos", filter = "beach").toList()
-
-        assertEquals(listOf("Beach.jpg"), emissions.single().files.map { it.filename })
-        assertEquals("a cached listing must not reach the server", 0, remote.listCalls)
-        assertEquals("the search term must reach the DAO unaltered", listOf("beach"), dao.filters)
-    }
-
-    @Test
-    fun `a search matching nothing cached does not fall through to the server`() = runTest {
-        // Another face of the `ifEmpty` bug: an empty result looked like an empty cache, so
-        // every keystroke of a term that matched nothing cost a full SMB listing.
-        val remote = FakeFileDataSource(listOf(remoteFile("city.jpg")))
-        val dao = FakeLocalDatabaseDao(cached = listOf(cachedFile("city.jpg")))
-        freshlySynced(dao)
-
-        val emissions = repository(remote, dao)
-            .listFiles(1, "Photos", filter = "nosuchthing")
-            .toList()
-
-        assertEquals(emptyList<String>(), emissions.single().files.map { it.filename })
-        assertEquals(0, remote.listCalls)
-    }
-
-    @Test
-    fun `filters a reconciled listing case-insensitively`() = runTest {
-        // Regression: this used to be a case-sensitive `contains` applied in memory, so
-        // searching "beach" did not match "Beach.jpg" while the database path (SQLite LIKE)
-        // matched it happily. The reconciled listing is now re-read through the same query.
-        val remote = FakeFileDataSource(
-            listOf(remoteFile("Beach.jpg"), remoteFile("city.jpg"))
-        )
-        val dao = FakeLocalDatabaseDao(cached = emptyList())
-
-        val emissions = repository(remote, dao).listFiles(1, "Photos", filter = "beach").toList()
-
-        assertEquals(listOf("Beach.jpg"), emissions.last().files.map { it.filename })
-    }
-
-    @Test
     fun `a folder nobody has opened is listed once to make its cover`() = runTest {
         val remote = FakeFileDataSource(
             listOf("c.jpg", "notes.txt", "a.jpg", "b.jpg", "e.jpg", "d.jpg").map { remoteFile(it) }
@@ -755,24 +706,11 @@ private class FakeLocalDatabaseDao(
     private val files = cached.toMutableList()
     private val syncs = mutableMapOf<Pair<Int, String>, DirectorySync>()
 
-    /** Every filter the repository passed down, so a test can assert it arrived intact. */
-    val filters = mutableListOf<String>()
-
     /** Filenames whose tag relations were cleared by a reconcile. */
     val deletedTagRelations = mutableListOf<String>()
 
     override fun getFiles(connectionId: Int, parentPath: String): List<LocalFile> =
         files.filter { it.connectionId == connectionId && it.parentPath == parentPath }
-
-    override fun getFilesWithFilter(connectionId: Int, parentPath: String, filter: String):
-        List<LocalFile> {
-        filters += filter
-        // Stands in for `filename LIKE '%' || :filter || '%'`: a substring match, and
-        // case-insensitive because SQLite's LIKE is for ASCII. The real query wraps the
-        // wildcards itself, which is why the repository passes the bare term.
-        return getFiles(connectionId, parentPath)
-            .filter { it.filename.contains(filter, ignoreCase = true) }
-    }
 
     override fun getFileStamps(connectionId: Int, parentPath: String): List<LocalFileStamp> =
         getFiles(connectionId, parentPath).map { LocalFileStamp(it.filename, it.lastModified) }

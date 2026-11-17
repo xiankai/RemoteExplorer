@@ -152,7 +152,7 @@ class ExplorerViewModelFactory(
             },
             hasSubfolders = { id, path ->
                 HiddenFiles.visible(
-                    localDatabaseDataSource.getFiles(id, path, "").filter { it.type == FileType.FOLDER },
+                    localDatabaseDataSource.getFiles(id, path).filter { it.type == FileType.FOLDER },
                     pairingRepository.current()::canonicalize,
                 ).isNotEmpty()
             },

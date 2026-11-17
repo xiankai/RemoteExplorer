@@ -280,14 +280,13 @@ class FileRepository(
     fun listFiles(
         connectionId: Int,
         currentPath: String = "",
-        filter: String = "",
         refresh: RefreshMode = RefreshMode.IF_STALE,
         showHidden: Boolean = false,
     ): Flow<DirectoryListing> = flow {
         fun shown(files: List<LocalFile>) =
             if (showHidden) files else HiddenFiles.visible(files, canonicalize)
 
-        val cached = shown(localDatabaseDataSource.getFiles(connectionId, currentPath, filter))
+        val cached = shown(localDatabaseDataSource.getFiles(connectionId, currentPath))
         val lastSyncedAt = localDatabaseDataSource.getLastSyncedAt(connectionId, currentPath)
 
         val stale = lastSyncedAt == null ||
@@ -310,7 +309,7 @@ class FileRepository(
         // mapped remote rows.
         emit(
             DirectoryListing(
-                shown(localDatabaseDataSource.getFiles(connectionId, currentPath, filter)),
+                shown(localDatabaseDataSource.getFiles(connectionId, currentPath)),
                 syncing = false,
             )
         )
@@ -432,7 +431,7 @@ class FileRepository(
     private val coverRows = object : CoverRows {
         override suspend fun isListed(connectionId: Int, folder: String): Boolean =
             localDatabaseDataSource.getLastSyncedAt(connectionId, folder) != null ||
-                localDatabaseDataSource.getFiles(connectionId, folder, "").isNotEmpty()  // stack-reviewer-ignore: an empty filter goes to LocalDatabaseDao.getFiles, which is WHERE connectionId AND parentPath = :parentPath, i.e. this folder's own child rows. Those exist only if the folder was listed at some point, by a build from before DirectorySync existed, which is exactly the case the old folderCover treated as listed too.
+                localDatabaseDataSource.getFiles(connectionId, folder).isNotEmpty()  // stack-reviewer-ignore: LocalDatabaseDao.getFiles is WHERE connectionId AND parentPath = :parentPath, i.e. this folder's own child rows. Those exist only if the folder was listed at some point, by a build from before DirectorySync existed, which is exactly the case the old folderCover treated as listed too.
 
         override suspend fun list(connectionId: Int, folder: String) =
             coverListingSlots.withPermit { listForCover(connectionId, folder) }
@@ -447,7 +446,7 @@ class FileRepository(
 
         override suspend fun subfolders(connectionId: Int, folder: String) =
             HiddenFiles.visible(
-                localDatabaseDataSource.getFiles(connectionId, folder, "")
+                localDatabaseDataSource.getFiles(connectionId, folder)
                     .filter { it.type == FileType.FOLDER },
                 canonicalize,
             )
