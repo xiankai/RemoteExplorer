@@ -201,7 +201,7 @@ Two systems, deliberately:
 
 | | where | trigger | does |
 |---|---|---|---|
-| Pre-merge checks | Forgejo, `.forgejo/workflows/build.yml` | `pull_request` | shellcheck, unit tests, lint |
+| Pre-merge checks | **GitHub**, `.github/workflows/ci.yml`, relayed into Forgejo's `build / checks` | push to any branch (the mirror carries every branch) | shellcheck, unit tests, lint |
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
 | Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
@@ -209,6 +209,12 @@ Two systems, deliberately:
 
 A change that touches only Markdown skips the checks and the release. The reviewer still
 runs.
+
+**The checks run on GitHub-hosted runners** (#179). Forgejo's `checks` job only waits for the
+`ci.yml` run on the PR's head SHA and passes or fails with it, linking the run. Set the repo
+Actions variable `ANDROID_CI_LOCAL=1` to run them on buildhost's `android` runner instead
+(`checks-local`); `checks` then passes that job's result through, so the required status
+never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step.
 
 **The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
 release build costs buildhost 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
@@ -243,7 +249,7 @@ source has no token field.
 `origin` is Forgejo; the release pipeline lives on GitHub and holds the only copy of the
 release keystore (as Actions secrets, which cannot be read back).
 
-**Both workflows run in `android-ci:latest`**, an image infra builds locally on
+**The local workflows run in `android-ci:latest`**, an image infra builds locally on
 buildhost (infra#399) with the SDK, NDK, cmake, shellcheck and Node already in it.
 Nothing is installed per run. It isn't in a registry, so it only exists on that host.
 

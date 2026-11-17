@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:  # stack-reviewer-ignore: every branch on purpose; the Forgejo relay needs a run for each PR head, and the repo is meant to be public, where Actions minutes are free
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+
+      - name: Checks
+        run: |
+          set -uo pipefail
+          failed=0
+
+          echo "::group::shellcheck (-S warning)"
+          git ls-files '*.sh' -z | xargs -0 --no-run-if-empty shellcheck -S warning || failed=1
+          echo "::endgroup::"
+
+          echo "::group::unit tests and lint"
+          ./gradlew --no-daemon --continue -Prex.skipNative testDebugUnitTest lintDebug || failed=1
+          echo "::endgroup::"
+
+          exit "$failed"
+        env:
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Lint report on failure
+        if: failure()
+        run: |
+          report=app/build/reports/lint-results-debug.txt
+          if [ -f "$report" ]; then tail -100 "$report"; else echo "no lint report produced"; fi
