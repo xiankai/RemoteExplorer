@@ -6,10 +6,11 @@ const env = (name, fallback) => process.env[name] ?? fallback;
 const repo = env("RELAY_GITHUB_REPO", "xiankai/RemoteExplorer");
 const workflow = env("RELAY_WORKFLOW", "ci.yml");
 const sha = env("RELAY_SHA", "");
-const pollSeconds = Number(env("RELAY_POLL_SECONDS", "90"));
+const firstPollSeconds = Number(env("RELAY_FIRST_POLL_SECONDS", "480"));
+const pollSeconds = Number(env("RELAY_POLL_SECONDS", "120"));
 const deadline = Date.now() + Number(env("RELAY_TIMEOUT_MINUTES", "50")) * 60_000;
 // stack-reviewer-ignore: the query already filters by workflow, event and head_sha, so a run GitHub returns is never dropped by newest(); a wrong RELAY_WORKFLOW 404s and fails at once
-let noRunDeadline = Date.now() + Number(env("RELAY_NO_RUN_MINUTES", "10")) * 60_000;
+let noRunDeadline = Date.now() + Number(env("RELAY_NO_RUN_MINUTES", "12")) * 60_000;
 const token = env("RELAY_GITHUB_TOKEN", "");
 
 if (!/^[0-9a-f]{40}$/.test(sha)) {
@@ -49,6 +50,9 @@ async function waitUntil(until) {
   if (wait > 0) await sleep(wait);
 }
 
+console.log(`Waiting ${firstPollSeconds}s before asking GitHub about ${sha}: ${workflowPage}`);
+await waitUntil(Date.now() + firstPollSeconds * 1000);
+
 let announced = "";
 while (Date.now() < deadline) {
   const result = await fetchRuns();
@@ -68,7 +72,7 @@ while (Date.now() < deadline) {
   }
 
   const run = newest(result.runs);
-  if (!run && Date.now() > noRunDeadline) { // stack-reviewer-ignore: the push mirror syncs on commit within seconds, so no run after 10 minutes means the mirror or GitHub is broken, which should fail loudly rather than wait out the full timeout
+  if (!run && Date.now() > noRunDeadline) { // stack-reviewer-ignore: the push mirror syncs on commit within seconds, so no run after 12 minutes means the mirror or GitHub is broken, which should fail loudly rather than wait out the full timeout
     console.error(`::error::No ${workflow} run on GitHub for ${sha} yet.`);
     console.error(`Check that the push mirror carries this branch: ${workflowPage}`);
     process.exit(1);

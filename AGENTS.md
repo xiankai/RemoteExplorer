@@ -205,6 +205,7 @@ Two systems, deliberately:
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
 | Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
+| Release tag | Forgejo, `.forgejo/workflows/release-tag.yml` | push to `master`, while `ANDROID_CI_LOCAL` is unset | tags master `release-<versionCode>`, unless only Markdown changed since the last tag |
 | Sideload release | **GitHub**, `.github/workflows/release.yml` | a `release-*` tag pushed to Forgejo (the mirror carries it), or run by hand with that tag | APK signed with the sideload key → GitHub release, for Obtainium |
 
 A change that touches only Markdown skips the checks and the release. The reviewer still
@@ -214,7 +215,7 @@ runs.
 `ci.yml` run on the PR's head SHA and passes or fails with it, linking the run. Set the repo
 Actions variable `ANDROID_CI_LOCAL=1` to run them on buildhost's `android` runner instead
 (`checks-local`); `checks` then passes that job's result through, so the required status
-never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step.
+never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step. It waits 8 minutes before its first call and then polls every 2, which keeps several PRs at once inside GitHub's 60 anonymous calls an hour.
 
 **The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
 release build costs buildhost 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
@@ -230,7 +231,8 @@ sees the new file at the same URL.
 
 **The GitHub sideload release** (#179) takes the tag from Forgejo because the push mirror
 prunes any ref GitHub has that Forgejo lacks: a tag GitHub made itself would vanish on the
-next push. To ship, tag master on Forgejo:
+next push. Every merge to master ships: `release-tag.yml` tags it on Forgejo with the
+commit's timestamp, which is also its versionCode. To ship by hand, tag master on Forgejo:
 
 ```bash
 t=release-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master && git push origin "$t"
