@@ -18,10 +18,6 @@ interface SettingsDao {
     @Query("SELECT * FROM settings LIMIT 1")
     suspend fun getSettingsOnce(): SettingsEntity?
 
-    /**
-     * Nullable, unlike [getSettings]: the default row is inserted on a background coroutine
-     * at startup, so a collector can arrive before it exists.
-     */
     @Query("SELECT * FROM settings LIMIT 1")
     fun observeSettings(): Flow<SettingsEntity?>
 
@@ -40,6 +36,9 @@ interface SettingsDao {
     @Query("UPDATE settings SET coverShuffle = :shuffle")
     suspend fun setCoverShuffle(shuffle: CoverShuffle)
 
+    @Query("UPDATE settings SET firstPageFolders = :folders")
+    suspend fun setFirstPageFolders(folders: String)
+
     @Update
     suspend fun update(settingsEntity: SettingsEntity)
 
@@ -51,37 +50,14 @@ const val AUTO_COLUMN_COUNT = 0
 
 @Entity(tableName = "settings")
 data class SettingsEntity(
-    @PrimaryKey val id: Int = 0, // Singleton, always id = 0
-    val maxStorageCacheSize: Int = 4, // Max cache size in GB
+    @PrimaryKey val id: Int = 0,
+    val maxStorageCacheSize: Int = 4,
     val defaultColumnCount: Int = AUTO_COLUMN_COUNT,
-    /**
-     * Which volume the thumbnail cache lives on — null for internal storage, otherwise a
-     * volume UUID (see `ThumbnailCacheLocation`).
-     *
-     * The UUID and not the path: where a card mounts is not stable, and a stored path that
-     * has stopped existing cannot be told apart from a card that was taken out. Internal
-     * stays the default because a card is usually the slower of the two, and this setting
-     * buys capacity rather than speed.
-     */
     val thumbnailCacheVolume: String? = null,
-    /**
-     * Light, dark, or whatever the device is set to (#65). Light by default, the existing
-     * row included: the owner asked for it, and the dark default was what read as murky.
-     */
     @ColumnInfo(defaultValue = "LIGHT")
     val themeMode: ThemeMode = ThemeMode.LIGHT,
-    /**
-     * When a viewing day starts, in minutes after local midnight (#76). Noon by default, so
-     * a sitting that runs past midnight counts as one day rather than two. Read each time
-     * a view is recorded rather than once at startup, so a change applies from the next
-     * view on. Days already counted keep the day they were given.
-     */
     @ColumnInfo(defaultValue = "$DEFAULT_VIEWING_DAY_START_MINUTES")
     val viewingDayStartMinutes: Int = DEFAULT_VIEWING_DAY_START_MINUTES,
-    /**
-     * The zone viewing days are counted in. Deliberately a setting and not the device's
-     * current zone: the boundary belongs to the viewing habit, not to wherever the phone is.
-     */
     @ColumnInfo(defaultValue = DEFAULT_VIEWING_DAY_ZONE)
     val viewingDayZone: String = DEFAULT_VIEWING_DAY_ZONE,
     @ColumnInfo(defaultValue = "0")
@@ -93,6 +69,8 @@ data class SettingsEntity(
     val defaultSort: SortType = SortType.NAME_ASC,
     @ColumnInfo(defaultValue = "0")
     val showHiddenFiles: Boolean = false,
+    @ColumnInfo(defaultValue = "")
+    val firstPageFolders: String = "",
 )
 
 enum class CoverShuffle(val label: String) {

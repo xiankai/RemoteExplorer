@@ -35,23 +35,13 @@ class AppDatabaseMigrationTest {
 
     private val cipher = ReversingCipher()
 
-    /**
-     * 5 through 8 and 9 through 23 are AutoMigrations; 9 rewrites credentials and so has to
-     * be supplied.
-     */
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 23, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 24, true, EncryptSavedPasswords(cipher))
 
-    /**
-     * The whole declared chain, validated against the exported latest schema. This is the
-     * test that would have caught `fallbackToDestructiveMigration()` wiping the cache on a
-     * version bump before it reached a device, rather than after.
-     */
     @Test
     fun `migrates the full chain from 5 to 21 and matches the exported schema`() {
         helper.createDatabase(TEST_DB, 5).close()
 
-        // A future migration that nobody wires up fails here rather than on a user's device.
         migrateToLatest().close()
     }
 
@@ -447,6 +437,27 @@ class AppDatabaseMigrationTest {
             db.query("SELECT COUNT(*) FROM DirTagRelation").use { row ->
                 assertTrue(row.moveToFirst())
                 assertEquals(1, row.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 24 with no first-page folders and every other setting kept`() {
+        helper.createDatabase(TEST_DB, 23).use { db ->
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, themeMode, coverShuffle, showHiddenFiles) " +
+                        "VALUES (0, 8, 5, 'DARK', 'ALL', 1)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 24, true).use { db ->
+            db.query("SELECT maxStorageCacheSize, themeMode, coverShuffle, showHiddenFiles, firstPageFolders FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals(8, row.getInt(0))
+                assertEquals("DARK", row.getString(1))
+                assertEquals("ALL", row.getString(2))
+                assertEquals(1, row.getInt(3))
+                assertEquals("", row.getString(4))
             }
         }
     }

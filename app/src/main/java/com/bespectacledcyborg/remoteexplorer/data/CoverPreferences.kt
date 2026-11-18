@@ -7,11 +7,13 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FolderCoverChoiceDao
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
-private const val EXAMPLEBOORU = "gallery-dl/examplebooru"
 private val MANGA_TAGS = setOf("manga", "doujinshi")
 
-internal fun isMangaPath(path: String): Boolean =
-    path.trim('/').let { it == EXAMPLEBOORU || it.startsWith("$EXAMPLEBOORU/") }
+fun parseFolderList(text: String): List<String> =
+    text.lines().map { it.trim().trim('/').trim() }.filter { it.isNotEmpty() }.distinct()
+
+internal fun isInsideAnyFolder(path: String, folders: List<String>): Boolean =
+    path.trim('/').let { trimmed -> folders.any { trimmed == it || trimmed.startsWith("$it/") } }
 
 internal fun isMangaTag(tag: String): Boolean =
     tag.split('/', ':').last().trim().lowercase() in MANGA_TAGS
@@ -21,6 +23,7 @@ data class ChosenCover(val applied: CoverMode, val order: CoverOrder)
 class CoverPreferences(
     private val choices: FolderCoverChoiceDao,
     private val shuffleSetting: suspend () -> CoverShuffle,
+    private val firstPageFolders: suspend () -> List<String>,
     private val pairings: () -> Pairings,
     private val directoryTags: suspend (connectionId: Int, path: String) -> List<String>,
     private val aliasCanonicals: suspend (connectionId: Int, tags: List<String>) -> List<String>,
@@ -79,9 +82,10 @@ class CoverPreferences(
 
     private suspend fun isInsideManga(connectionId: Int, path: String): Boolean {
         val canonical = pairings().canonicalize(connectionId, path)
+        if (isInsideAnyFolder(canonical.path, firstPageFolders())) return true
         val lineage = listOf(canonical) + ancestorsOf(canonical)
         val mangaFolder = lineage.firstOrNull { it in mangaFolders }
-            ?: lineage.firstOrNull { isManga(it) }?.also { mangaFolders += it }
+            ?: lineage.firstOrNull { isTaggedManga(it) }?.also { mangaFolders += it }
             ?: return false
         if (mangaFolder != canonical) mangaFolders += canonical
         return true
@@ -92,8 +96,7 @@ class CoverPreferences(
         return (segments.size - 1 downTo 1).map { folder.copy(path = segments.take(it).joinToString("/")) }
     }
 
-    private suspend fun isManga(canonical: FileIdentity): Boolean {
-        if (isMangaPath(canonical.path)) return true
+    private suspend fun isTaggedManga(canonical: FileIdentity): Boolean {
         val tags = directoryTags(canonical.connectionId, canonical.path)
         if (tags.isEmpty()) return false
         return tags.any(::isMangaTag) ||

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SettingsRepository
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.parseFolderList
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.theme.applyThemeMode
@@ -50,6 +51,10 @@ class SettingsViewModel(
 
     fun setCoverShuffle(shuffle: CoverShuffle) {
         viewModelScope.launch { settingsRepository.setCoverShuffle(shuffle) }
+    }
+
+    fun setFirstPageFolders(text: String) {
+        viewModelScope.launch { settingsRepository.setFirstPageFolders(parseFolderList(text)) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

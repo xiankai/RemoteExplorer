@@ -28,6 +28,7 @@ import com.bespectacledcyborg.remoteexplorer.data.sourceDetailsOf
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.HiddenFiles
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
+import com.bespectacledcyborg.remoteexplorer.data.parseFolderList
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import kotlinx.coroutines.withContext
 import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
@@ -125,8 +126,6 @@ class ExplorerViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val sambaFileDataSource = SambaFileDataSource()
-        // The one instance everything that reads a file holds. Each connection is routed
-        // to SMB or to the device's own storage by its type, when it connects.
         val fileDataSource = RoutingFileDataSource(
             smb = sambaFileDataSource,
             local = LocalFileDataSource(),
@@ -135,14 +134,12 @@ class ExplorerViewModelFactory(
             db.localDatabaseDao(),
             defaultDispatcher
         )
-        // Which local folders are copies of which remote ones (#51). One snapshot, read by
-        // the server to name and find a file and by the view model to build its URLs, so
-        // both caches — ours and Sketch's — agree on what a file is called.
         val pairingRepository = PairingRepository(db.pairingDao())
         val settingsDao = db.settingsDao()
         val coverPreferences = CoverPreferences(
             choices = db.folderCoverChoiceDao(),
             shuffleSetting = { settingsDao.getSettingsOnce()?.coverShuffle ?: CoverShuffle.MARKED },
+            firstPageFolders = { parseFolderList(settingsDao.getSettingsOnce()?.firstPageFolders.orEmpty()) },
             pairings = pairingRepository::current,
             directoryTags = { id, path ->
                 withContext(defaultDispatcher) { db.localDatabaseDao().getDirectoryTags(id, path) }
@@ -208,27 +205,19 @@ class ExplorerViewModelFactory(
         val settingsRepository = SettingsRepository(db.settingsDao())
 
         if (!WorkManager.isInitialized()) {
-            // Injecting the needed repositories
             val workerFactory =
                 CustomWorkerFactory(tagRepository, fileRepository, settingsRepository)
             val workManagerConfig = Configuration.Builder()
                 .setWorkerFactory(workerFactory)
-                .setMaxSchedulerLimit(50) // To avoid overloading the samba server
+                .setMaxSchedulerLimit(50)
                 .build()
             WorkManager.initialize(application.applicationContext, workManagerConfig)
         }
 
-        // ThumbnailManager needs WorkManager up and running
         val thumbnailManager = ThumbnailManager(application.applicationContext) {
             settingsRepository.getSettingsOnce()?.thumbnailCacheVolume
         }
 
-        // Resolved per media type, so video can be pointed elsewhere without moving images
-        // with it. All of these are on-device today and none writes to the share.
-        //
-        // The two video decoders cover different formats, so the default is both in order
-        // rather than a choice between them — see FallbackThumbnailSource. `?decoder=` still
-        // selects one on its own, which is how they get measured separately (#41).
         val ffmpegVideoThumbnails = LocalVideoThumbnailSource(fileDataSource)
         val platformVideoThumbnails = PlatformVideoThumbnailSource(fileDataSource)
         val videoThumbnails = FallbackThumbnailSource(
@@ -248,9 +237,6 @@ class ExplorerViewModelFactory(
             }
         }
 
-        // Backed by the listing cache, which already carries a thumbnailStatus per file and
-        // already resets it when a file changes on the share — so a recorded failure
-        // expires on exactly the right event without a second store to keep in step.
         val listingStatuses = object : ThumbnailStatusStore {
             override suspend fun statusOf(connectionId: Int, path: String) =
                 fileRepository.getFileThumbnailStatus(connectionId, path)
@@ -264,9 +250,6 @@ class ExplorerViewModelFactory(
 
         val thumbnailStatuses = PairedThumbnailStatuses(listingStatuses, pairingRepository::current)
 
-        // What has been opened and watched (#76). The playback tracker outlives any one
-        // screen, as the server does, so it gets a scope of its own rather than a view
-        // model's.
         val viewRecorder = ViewRecorder(db.fileViewDao(), settingsRepository::getSettingsOnce)
         val mediaDuration = MediaDuration(fileDataSource)
         val playbackSessions = PlaybackSessions(
