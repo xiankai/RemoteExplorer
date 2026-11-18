@@ -1,0 +1,113 @@
+name: release
+
+on:
+  push:
+    tags: ['release-*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing release-* tag to build and publish
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - name: Refuse anything but a release-* tag
+        run: |
+          case "$TAG" in
+            release-*) ;;
+            *) echo "::error::'$TAG' is not a release-* tag"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: Refuse a commit that is not on master
+        run: |
+          git fetch --quiet origin master
+          git merge-base --is-ancestor HEAD origin/master || {
+            echo "::error::$TAG points at $(git rev-parse HEAD), which is not on master. Tag a commit on master."
+            exit 1
+          }
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+
+      - name: Install the NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" "cmake;3.22.1" >/dev/null
+
+      - name: Restore the sideload signing key
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "::error::the SIDELOAD_KEYSTORE_BASE64 secret is not set"; exit 1; }
+          test -n "$KEYSTORE_PROPS" || { echo "::error::the SIDELOAD_KEYSTORE_PROPERTIES secret is not set"; exit 1; }
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/remote_explorer_keystore.jks
+          printf '%s\n' "$KEYSTORE_PROPS" > keystore.properties
+        env:
+          KEYSTORE_B64: ${{ secrets.SIDELOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PROPS: ${{ secrets.SIDELOAD_KEYSTORE_PROPERTIES }}
+
+      - name: Build the release APK
+        run: ./gradlew --no-daemon assembleRelease -x lintVitalRelease
+        env:
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+
+      - name: Verify the signature and read the version
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          [ -f "$apk" ] || { echo "::error::$apk missing: $(ls app/build/outputs/apk/release/)"; exit 1; }
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$tools/apksigner" verify --verbose "$apk" > verify.txt
+          grep -q '^Verifies$' verify.txt || { cat verify.txt; echo "::error::apksigner did not verify the APK"; exit 1; }
+          lib=$(unzip -l "$apk" | awk '/lib\/arm64-v8a\/libffmpeg.so$/ {print $4}')
+          [ -n "$lib" ] || { echo "::error::the APK has no lib/arm64-v8a/libffmpeg.so"; exit 1; }
+          badging=$("$tools/aapt2" dump badging "$apk")
+          code=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionCode=$/) { print $(i + 1); exit } }' <<<"$badging")
+          name=$(awk -F"'" '/^package:/ { for (i = 1; i < NF; i++) if ($i ~ /versionName=$/) { print $(i + 1); exit } }' <<<"$badging")
+          [ -n "$code" ] && [ -n "$name" ] || { echo "::error::could not read versionCode/versionName"; exit 1; }
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$name" >> "$GITHUB_ENV"
+          cp "$apk" remote-explorer.apk
+
+      - name: Refuse to go backwards
+        run: |
+          set -euo pipefail
+          newest=$(gh release list --limit 50 --json name --jq '[.[].name | capture("\\((?<c>[0-9]+)\\)$").c | tonumber] | max // 0')  # stack-reviewer-ignore: this workflow is the only thing that publishes releases here, and it always names them "<versionName> (<versionCode>)"
+          if [ "$VERSION_CODE" -lt "$newest" ]; then
+            echo "::error::versionCode $VERSION_CODE is older than the newest release ($newest), so it would not install over it."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish the GitHub release
+        run: |
+          set -euo pipefail
+          title="$VERSION_NAME ($VERSION_CODE)"
+          notes="$(git log -1 --pretty='%s%n%n%H')"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" remote-explorer.apk --clobber
+            gh release edit "$TAG" --title "$title" --notes "$notes"
+          else
+            gh release create "$TAG" remote-explorer.apk --verify-tag --title "$title" --notes "$notes"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
