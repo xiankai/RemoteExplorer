@@ -29,11 +29,6 @@ class TagIndexParsingTest {
         assertEquals(false, record?.deleted)
     }
 
-    /**
-     * Fields this build has no use for must not stop it reading the record. samplebooru already
-     * carries `token`, and the generator is free to add more — a parser that refused would
-     * turn every future field into a library-wide outage on older installs.
-     */
     @Test
     fun `ignores fields it does not know`() {
         val record = parseTagIndexLine(
@@ -161,7 +156,6 @@ class TagIndexParsingTest {
         assertEquals(TagAliasMeta(schema = 1, generation = "7"), meta)
     }
 
-    /** A line of the real alias file, with the fields this build does not use left in. */
     @Test
     fun `reads an alias group`() {
         val group = parseTagAliasLine(
@@ -171,8 +165,6 @@ class TagIndexParsingTest {
         )
 
         assertEquals("female/twintails", group?.canonical)
-        // Case is kept: `TT` and `tt` are both real spellings in the index, and lookups
-        // match exactly.
         assertEquals(listOf("TT", "female:twintails", "twintails", "tt", "ツインテール"), group?.members)
     }
 

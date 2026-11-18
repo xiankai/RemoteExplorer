@@ -15,7 +15,6 @@ class TagComparatorTest {
         LocalTagWithMetadata("artist:someone", 1),
     )
 
-    /** By the label the list shows, not the member behind it, and not by case. */
     @Test
     fun `ascending sorts by label, ignoring case`() {
         assertEquals(

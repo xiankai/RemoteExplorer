@@ -221,10 +221,6 @@ class TagIndexDaoTest {
     private fun aliases(connectionId: Int, canonical: String, vararg members: String) =
         members.map { TagAlias(connectionId, it, canonical) }
 
-    /**
-     * The case the layer exists for, with the real spellings: pixiv says `眼鏡`, examplebooru
-     * says `female:glasses`, and either one should find both galleries.
-     */
     @Test
     fun `a tag finds galleries carrying any member of its group`() {
         dao.applyDirectoryTags(1, "gallery-dl/pixiv/1", listOf("眼鏡"), deleted = false)
@@ -237,7 +233,6 @@ class TagIndexDaoTest {
         val expected = listOf("gallery-dl/examplebooru/2", "gallery-dl/pixiv/1")
         assertEquals(expected, dao.getDirectoriesWithTag("眼鏡").map { it.parentPath })
         assertEquals(expected, dao.getDirectoriesWithTag("female:glasses").map { it.parentPath })
-        // The bare leaf is a member too, and carried by nothing — it still widens.
         assertEquals(expected, dao.getDirectoriesWithTag("glasses").map { it.parentPath })
     }
 
@@ -249,7 +244,6 @@ class TagIndexDaoTest {
         assertEquals(listOf("g/a"), dao.getDirectoriesWithTag("solo").map { it.parentPath })
     }
 
-    /** Two members of one group on the same gallery are still one gallery. */
     @Test
     fun `a gallery carrying two members is listed once`() {
         dao.applyDirectoryTags(1, "g/work", listOf("眼鏡", "丸眼鏡"), deleted = false)
@@ -332,10 +326,6 @@ class TagIndexDaoTest {
 
     // ---- the list, one entry per group --------------------------------------------------
 
-    /**
-     * A group is one entry, labelled by its canonical, counting what opening it lists: the
-     * gallery carrying two members once, plus the other gallery and the tagged file.
-     */
     @Test
     fun `a group is one entry counting each gallery and file once`() {
         dao.applyDirectoryTags(1, "g/both", listOf("眼鏡", "female:glasses"), deleted = false)
@@ -351,7 +341,6 @@ class TagIndexDaoTest {
         val group = tags.single { it.canonical == "female/glasses" }
         assertEquals(3, group.count)
         assertEquals("female/glasses", group.label)
-        // Opening goes through a member that is actually present, and widens from there.
         assertEquals(2, dao.getDirectoriesWithTag(group.tag).size)
 
         val loose = tags.single { it.tag == "female:ponytail" }

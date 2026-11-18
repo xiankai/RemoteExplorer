@@ -145,10 +145,8 @@ class ViewRecorderTest {
     @Test
     fun `a tag sums its files and its galleries' contents, through the alias group, each once`() = runTest {
         val local = db.localDatabaseDao()
-        // A sidecar-tagged file, carrying two members of one group.
         local.addFileTagRelation(FileTagRelation(1, "Photos", "beach.jpg", "眼鏡"))
         local.addFileTagRelation(FileTagRelation(1, "Photos", "beach.jpg", "female:glasses"))
-        // A gallery tagged with a member of the same group.
         local.addDirTagRelation(DirTagRelation(1, "Galleries/a", "female:glasses"))
         local.addTagAliases(
             listOf(
@@ -156,7 +154,6 @@ class ViewRecorderTest {
                 TagAlias(1, "female:glasses", "accessory/glasses"),
             )
         )
-        // A tag in no group.
         local.addDirTagRelation(DirTagRelation(1, "Galleries/b", "artist:someone"))
 
         now = 1_000; recorder.recordOpen(beach)
@@ -165,7 +162,7 @@ class ViewRecorderTest {
         recorder.recordOpen(FileIdentity(1, "Galleries/b/2.jpg"))
 
         val totals = recorder.tagTotals()
-        assertEquals(2, totals["accessory/glasses"]!!.openCount) // beach once, not twice
+        assertEquals(2, totals["accessory/glasses"]!!.openCount)
         assertEquals(2_000L, totals["accessory/glasses"]!!.lastOpenedAt)
         assertEquals(2, totals["artist:someone"]!!.openCount)
         assertNull(totals["眼鏡"])

@@ -75,7 +75,6 @@ printf 'Opened through ACTION_VIEW rather than the in-app browser.\n' \
 #   - a directory name with a space, brackets and non-ASCII, because the real library is
 #     full of them and a path that only works when it is [A-Za-z0-9._/-] is how the imagor
 #     spike died
-#   - namespaced tags (artist:...) next to bare ones, since examplebooru and pixiv differ
 #   - one file-scoped record, which is rare but real
 #   - a tombstone, so dropping a path's tags is exercised rather than assumed
 #   - a re-appended record for a path that already appeared, because last-one-wins is what
@@ -109,7 +108,7 @@ log="$index/index.ndjson"
 : > "$log"
 {
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐"],"files":2,"mtime":1790047563,"added_at":1790047563}'
-  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:blush","parody:touhou project"],"files":2,"mtime":1790047600,"added_at":1790047600}'
+  printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] a gallery (with parens)","site":"examplebooru","site_id":"991","title":"a gallery","token":"deadbeef","tags":["artist:someone","character:hagoromo gitsune","female:glasses","parody:touhou project"],"files":2,"mtime":1790047600,"added_at":1790047600}'
   printf '%s\n' '{"scope":"file","path":"gallery-dl/patreon/loose files/single.jpg","site":"patreon","tags":["creator:somebody"],"mtime":1790047700}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[999] deleted gallery","site":"pixiv","tags":["gone"],"files":0,"deleted":true,"mtime":1790047800}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[137128361] 羽衣狐","site":"pixiv","site_id":"137128361","title":"羽衣狐","tags":["Original","羽衣狐","再掲"],"files":2,"mtime":1790047900,"dir_mtime":1790047910,"annotations":["narration"],"added_at":1790047563}'
@@ -134,13 +133,6 @@ printf '{\n  "schema": 1,\n  "generation": 1,\n  "records": %s,\n  "bytes": %s,\
 # regenerating the fixture produces an identical file rather than a spurious diff.
 gzip -nkf "$log"
 
-# The alias layer: groups of raw tags that name the same thing, rewritten whole on every
-# build under a generation of its own. Line shape, key order and spacing are the real
-# generator's (json.dumps with sort_keys). Two groups, both reaching across providers:
-#
-#   - 羽衣狐 (pixiv) and character:hagoromo gitsune (examplebooru), so opening either tag shows
-#     both galleries — the thing the layer exists for, visible on screen
-#   - touhou project with its bare leaf, a member no gallery carries, which must still widen
 aliases="$index/aliases.ndjson"
 {
   printf '%s\n' '{"canonical": "characters/hagoromo gitsune", "confidence": "medium", "members": ["character:hagoromo gitsune", "hagoromo gitsune", "羽衣狐"], "needs_root": false, "sources": ["danbooru"]}'

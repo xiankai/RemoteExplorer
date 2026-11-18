@@ -73,7 +73,6 @@ class AliasFileTagSourceTest {
         assertEquals("7", dao.getTagAliasGeneration(1))
     }
 
-    /** Hidden tags ride on the meta and are replaced with the groups, both ways. */
     @Test
     fun `hidden tags in the meta leave the tag list, and come back when unhidden`() = runTest {
         dao.applyDirectoryTags(1, "gallery-dl/pixiv/3", listOf("1girl"), deleted = false)
@@ -135,10 +134,6 @@ class AliasFileTagSourceTest {
         assertNull(dao.getTagAliasGeneration(1))
     }
 
-    /**
-     * A meta with no body beside it is a build caught half way, or a hand-deleted file.
-     * Emptying the groups over it would narrow every lookup for nothing.
-     */
     @Test
     fun `a meta with no body keeps the groups it had`() = runTest {
         files.meta = meta(7)
@@ -162,10 +157,6 @@ class AliasFileTagSourceTest {
         assertEquals(1, widened("眼鏡").size)
     }
 
-    /**
-     * Lines but no usable group is a format this build cannot read, not an emptied mapping.
-     * Keep the old groups and leave the generation unrecorded, so a later pass retries.
-     */
     @Test
     fun `a file with no readable group keeps the old ones`() = runTest {
         files.meta = meta(7)
@@ -180,7 +171,6 @@ class AliasFileTagSourceTest {
         assertEquals("7", dao.getTagAliasGeneration(1))
     }
 
-    /** One bad line costs that group, not the file. */
     @Test
     fun `skips a bad line and keeps the rest`() = runTest {
         files.meta = meta(7)

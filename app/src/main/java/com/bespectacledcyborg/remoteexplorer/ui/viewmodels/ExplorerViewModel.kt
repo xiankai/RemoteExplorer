@@ -108,12 +108,6 @@ internal fun <T> viewComparator(
     else -> null
 }
 
-/**
- * The tag list's order: by what the list shows, ignoring case, so `female/glasses` and
- * `Smile` sit where a reader looks for them rather than after every capital. Tags have no
- * modified time, so the two time orders fall back to the name. The view orders sum the
- * files each entry lists or contains ([views], keyed by canonical, else tag).
- */
 internal fun tagComparator(
     sortType: SortType,
     views: Map<String, ViewTotals> = emptyMap(),

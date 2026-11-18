@@ -53,20 +53,8 @@ interface LocalDatabaseDao {
     )
     fun getFilesWithTag(tag: String): List<LocalFile>
 
-    /**
-     * Directories carrying [tag] or one of its aliases, whether or not anyone has browsed
-     * into them.
-     *
-     * The reason a tag listing shows anything at all for a gallery nobody has opened: the
-     * listing cache only knows directories that have been visited, so on a fresh install it
-     * has nothing to say about the entire index.
-     *
-     * One row per gallery. A pixiv work tagged both `眼鏡` and `丸眼鏡` matches twice through
-     * the same group, and listing it twice would be the alias layer showing through. Which
-     * of the matching tags the row carries is arbitrary, and nothing reads it.
-     */
     @Query(
-        // stack-reviewer-ignore: the returned tag is deliberately arbitrary; the only caller (FileRepository.getFilesWithTag via DirTagRelation.asFolder) reads connectionId and parentPath and never the tag, as the KDoc above says.
+        // stack-reviewer-ignore: the returned tag is deliberately arbitrary; the only caller (FileRepository.getFilesWithTag via DirTagRelation.asFolder) reads connectionId and parentPath and never the tag.
         "SELECT connectionId, parentPath, MIN(tag) AS tag FROM DirTagRelation " +
                 "WHERE tag IN ($TAG_AND_ALIASES) " +
                 "GROUP BY connectionId, parentPath ORDER BY parentPath"
@@ -121,39 +109,6 @@ interface LocalDatabaseDao {
         limit: Int = 4
     ): List<String>
 
-    /**
-     * One entry per alias group, and one per tag in no group, with how many entries opening
-     * it will show.
-     *
-     * The number next to something you can open should describe what is inside it, so this
-     * counts listing rows — tagged files plus tagged galleries — rather than the files those
-     * galleries contain. Counting files would put 5,000 next to a tag that opens onto 186
-     * folders, and no amount of explaining makes that read as anything but wrong.
-     *
-     * A group is counted the way opening it lists: every gallery and every file carrying any
-     * of its members, each once. So distinct across the whole group rather than a sum of
-     * per-member counts — a gallery tagged both `眼鏡` and `丸眼鏡` is one gallery. The two
-     * relations are counted separately and added rather than joined, since one query joining
-     * both yields the product of the two matches.
-     *
-     * `tag` is one member actually present, which is what opening, thumbnails and search go
-     * through: any member widens to the whole group ([TAG_AND_ALIASES]). `canonical` is the
-     * group's key, null for a tag in no group. A raw tag that happens to spell some group's
-     * canonical is a tag in no group, not a member.
-     *
-     * Two halves because only a group needs the distinct count. A tag in no group is counted
-     * per tag as it always was, which is most of the list and cheap on the tag indices; the
-     * DISTINCT work is spent on the groups alone. One pass keying every tag to its group and
-     * counting distinct over all ~22k gallery rows cost 55 ms on the live library against
-     * 15 ms for this, same result.
-     *
-     * Neither side touches [LocalFile], which is what lets a tag count a gallery nobody has
-     * browsed into — the under-reporting this index exists to remove.
-     *
-     * A tag someone hid in the tag editor ([TagHidden]) is left out of both halves. Only the
-     * list: opening a gallery still shows it, since hiding says the tag is useless to browse
-     * by, not that it is wrong.
-     */
     @Query(
         "SELECT LocalTag.tag AS tag, NULL AS canonical, " +
                 "( " +
