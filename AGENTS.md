@@ -10,9 +10,8 @@ Tags come from a `TagSource`. Every connection runs the same `CombinedTagSource`
 the index, and a share can have any of them or none. Whichever fills the tables, reads always
 come back out of Room, so browsing by tag stays offline.
 
-XMP sidecars are not read any more (#112). Their tags, the per-file ones in SDSync's
-`Download` included, reach the app through the index's `scope: file` records
-(infra#412). `FileType.TAG` and `LocalFile.tagStatus` stay in the schema only so rows
+XMP sidecars are not read any more (#112). Their tags reach the app through the index's
+`scope: file` records. `FileType.TAG` and `LocalFile.tagStatus` stay in the schema only so rows
 cached before the change still load; nothing writes them.
 
 Written pre-agentically between Nov 2024 and Apr 2025, dormant until Mar 2026. Treat older
@@ -73,27 +72,26 @@ container's duration, clamped by wall clock). Folders and tags are queries over 
 never stored rollups. A viewing day starts at a configured time (noon) in a configured zone
 (`Asia/Tokyo`), both read at write time.
 
-**The tag index protocol** (generator side: infra#199). Files live under
-`gallery-dl/_index/` relative to the share root — on the real library, share `library`,
-which is `/srv/library`. Three independent parts, each with its own contract:
+**The tag index protocol.** Files live under `gallery-dl/_index/` relative to the share
+root. Three independent parts, each with its own contract:
 
 - `index.ndjson` (+ `.gz`) and `index.meta.json` — an append-only log of directory-scoped
   records, last record per path wins. Same `generation` → range-read from the stored byte
   offset (`TagIndexIngest`); a different one → full pull that *replaces* the connection's
   rows. A resume whose first line will not parse means the log was replaced underneath,
-  and re-pulls. Rebuilt daily at 6am.
+  and re-pulls.
 - `aliases.ndjson` and `aliases.meta.json` — groups of raw tags that mean the same thing
   (`眼鏡` ↔ `female:glasses`). Rewritten whole on every build and the generation bumps
   every time, so there is no offset: a new generation replaces the connection's `TagAlias`
   rows. Resolved at **query time**: opening a tag lists everything carrying any member of
   its group, one hop, never chained. `canonical` is the group's key and nothing parses it,
-  but since the curated digiKam tags became the canonicals (infra#232) it reads as a
+  but since the curated digiKam tags became the canonicals it reads as a
   name, so the list shows it — minus the `?/` the editor puts on one still waiting for a root.
   The meta also carries `hidden`: tags hidden in the editor, groups already expanded. They
   arrive with the groups into `TagHidden` and are left out of the tag list, not out of a
   gallery's own tags.
 
-- `annotations.ndjson` and `annotations.meta.json` — author captions (infra#312),
+- `annotations.ndjson` and `annotations.meta.json` — author captions,
   read with the same generation/byte-offset protocol as the index, keyed by `path` + `id`,
   last record wins. Only a live `quality: narration` record is kept; a tombstone or any other
   verdict (`not`, `minor`) removes it. An `llm:translate-en:*` record with `derived_from` is
@@ -203,7 +201,7 @@ Two systems, deliberately:
 |---|---|---|---|
 | Pre-merge checks | **GitHub**, `.github/workflows/ci.yml`, relayed into Forgejo's `build / checks` | push to any branch (the mirror carries every branch) | shellcheck, unit tests, lint |
 | Automated review | Forgejo, `.forgejo/workflows/review.yml` | CODEOWNERS auto-request | `stack-reviewer` posts findings |
-| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → fileserver (one copy, overwritten) + Forgejo release (latest 3 kept) |
+| Sideload publish | Forgejo, `.forgejo/workflows/publish.yml` | daily at noon (skipped if master is unchanged), `publish-*` tag, or run by hand | signed APK → the sideload file server (one copy, overwritten) + Forgejo release (latest 3 kept) |
 | Release | **GitHub** `xiankai/RemoteExplorer` | push to `master` | `bundleRelease` → Play internal, draft |
 | Release tag | Forgejo, `.forgejo/workflows/release-tag.yml` | push to `master`, while `ANDROID_CI_LOCAL` is unset | tags master `release-<versionCode>`, unless only Markdown changed since the last tag |
 | Sideload release | **GitHub**, `.github/workflows/release.yml` | a `release-*` tag pushed to Forgejo (the mirror carries it), or run by hand with that tag | APK signed with the sideload key → GitHub release, for Obtainium |
@@ -213,12 +211,12 @@ runs.
 
 **The checks run on GitHub-hosted runners** (#179). Forgejo's `checks` job only waits for the
 `ci.yml` run on the PR's head SHA and passes or fails with it, linking the run. Set the repo
-Actions variable `ANDROID_CI_LOCAL=1` to run them on buildhost's `android` runner instead
+Actions variable `ANDROID_CI_LOCAL=1` to run them on a self-hosted Forgejo runner labelled `android` instead
 (`checks-local`); `checks` then passes that job's result through, so the required status
 never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step. It waits 8 minutes before its first call and then polls every 2, which keeps several PRs at once inside GitHub's 60 anonymous calls an hour.
 
 **The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
-release build costs buildhost 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
+release build costs the self-hosted runner 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
 the newest release already is master, in which case it stops before the build. To ship sooner:
 
 ```bash
@@ -226,7 +224,7 @@ t=publish-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master &
 ```
 
 The job builds the tagged commit, refuses one that isn't on master or would install as a
-downgrade, then overwrites the fileserver APK and makes the `v<versionCode>` release. Obtainium
+downgrade, then overwrites the APK on the sideload file server and makes the `v<versionCode>` release. Obtainium
 sees the new file at the same URL.
 
 **The GitHub sideload release** (#179) takes the tag from Forgejo because the push mirror
@@ -239,20 +237,23 @@ t=release-$(date +%Y%m%d-%H%M); git fetch origin && git tag "$t" origin/master &
 ```
 
 It signs with the same `sideload` key, held in GitHub Actions secrets `SIDELOAD_KEYSTORE_*`,
-so a GitHub build installs over a fileserver one. `publish.yml` now runs only while
-`ANDROID_CI_LOCAL=1`.
+so a GitHub build installs over one from the sideload file server. `publish.yml` now runs
+only while `ANDROID_CI_LOCAL=1`, and uploads to the repo Actions variable
+`SIDELOAD_UPLOAD_URL`: the full URL of the APK file on a server that accepts `PUT` and WebDAV
+`MOVE`. The step fails if it is unset.
 
 The sideload job is the one that pays for the NDK, holds a signing key of its own
 (`SIDELOAD_KEYSTORE_*`, generated 2026-09-19, alias `sideload`) and cannot be moved to GitHub,
-because fileserver is only reachable from the self-hosted. Obtainium installs from the fileserver URL; it
+because the sideload file server is only reachable from the runner's network. Obtainium
+installs from that file's URL; it
 could read the Forgejo releases instead only if this repo were public, since its Forgejo
 source has no token field.
 
 `origin` is Forgejo; the release pipeline lives on GitHub and holds the only copy of the
 release keystore (as Actions secrets, which cannot be read back).
 
-**The local workflows run in `android-ci:latest`**, an image infra builds locally on
-buildhost (infra#399) with the SDK, NDK, cmake, shellcheck and Node already in it.
+**The local workflows run in `android-ci:latest`**, an image built locally on the runner
+host with the SDK, NDK, cmake, shellcheck and Node already in it.
 Nothing is installed per run. It isn't in a registry, so it only exists on that host.
 
 **The PR checks skip the native build and the APK.** The arm64-only prebuilts mean CI could
@@ -269,7 +270,7 @@ compile nothing. That mistake shipped once and was caught by reading a CI log. M
 Never use the flag to produce an installable artifact — the APK would ship without
 `libffmpeg.so` and die inside `System.loadLibrary` at the first video thumbnail.
 
-Workflows here follow `infra`'s proven conventions: `pull_request` rather than
+Workflows here follow these conventions: `pull_request` rather than
 `pull_request_target` for anything executing PR code, no third-party Actions, the ephemeral
 run token unset before PR code runs, and jobs combined because the runner pool is capacity 2.
 

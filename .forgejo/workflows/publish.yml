@@ -1,23 +1,7 @@
-# Publish a signed release APK to the self-hosted file server, for sideloading via Obtainium,
-# and record it as a Forgejo release.
-#
-# TWO DESTINATIONS, DELIBERATELY DIFFERENT SHAPES. fileserver holds ONE COPY, ALWAYS OVERWRITTEN:
-# a fixed URL with no version in the name, because the tablet installs from it and a stable
-# URL is the whole point. Forgejo keeps the LATEST THREE releases, because a list of what
-# shipped when is worth something to a human and three is enough to answer "did the last
-# build break it" without unbounded storage. Neither is a backup of the other; the fileserver copy
-# is the one the tablet consumes, and it is uploaded first so a release failure cannot keep
-# a working APK away from it.
-#
 # OBTAINIUM CAN ONLY READ THE RELEASES IF THIS REPO IS PUBLIC. Its Forgejo source (still
 # named "Codeberg" in the app) has no token field, so a private repo's releases are invisible
 # to it. That is a repo-visibility decision, not a CI one. The Firebase key in git history no
 # longer argues against it: its project was shut down (#15).
-#
-# WHY THIS RUNS HERE AND NOT ON GITHUB. fileserver is published at
-# files.example.invalid, a TAILNET host, so a GitHub-hosted runner cannot
-# reach it. The Forgejo runner is on the self-hosted and can. That is the whole reason this is a
-# second pipeline rather than a step bolted onto the existing GitHub release job.
 #
 # SECURITY MODEL: never `pull_request*`. This job holds the signing key, so it must never
 # execute code from an unmerged branch: whatever starts it, the checkout refuses a commit
@@ -26,13 +10,6 @@
 # THE NATIVE BUILD RUNS HERE, unlike build.yml. A release APK contains libffmpeg.so, so
 # -Prex.skipNative would produce an APK that installs and then dies inside System.loadLibrary
 # at the first video thumbnail. The NDK and cmake come from the android-ci image.
-#
-# DAILY AT NOON, NOT ON EVERY MERGE (#118, #123). A release build costs buildhost 20-odd
-# minutes, so it runs once a day at 12:00 Asia/Tokyo, and a day whose master is already the
-# newest release stops before the build. A `publish-*` tag or a manual run still publishes
-# straight away, whether or not anything changed. The pattern stays clear of the
-# `v<versionCode>` tags this job creates for its releases. Re-publishing a commit replaces
-# its release.
 name: publish
 on:
   push:
@@ -43,9 +20,6 @@ on:
 
 concurrency:
   group: publish
-  # NOT cancel-in-progress. The fileserver upload is staged and moved into place, but the release
-  # step deletes and recreates a release in several requests, and a cancel between them
-  # leaves a release without its APK.
   cancel-in-progress: false
 
 # GRADLE CACHE: RESTORE ONLY, never saved from here. This job holds the signing key, and
@@ -60,7 +34,7 @@ jobs:
     if: vars.ANDROID_CI_LOCAL == '1'
     runs-on: android
     container:
-      image: android-ci:latest  # stack-reviewer-ignore: built on this host by the deployer from infra's reviewed docker/android-ci, and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job
+      image: android-ci:latest  # stack-reviewer-ignore: built locally on the runner host from a reviewed Dockerfile and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job
     timeout-minutes: 45
     steps:
       - name: Checkout the commit that was asked for, if it is on master
@@ -70,7 +44,7 @@ jobs:
           test -n "${RUN_TOKEN}" || { echo "::error::no ephemeral run token available"; exit 1; }
           git config --global http.extraHeader "Authorization: token ${RUN_TOKEN}"
           git clone --quiet --no-tags --filter=blob:none --branch master \
-            "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" /tmp/repo
           git -C /tmp/repo fetch --quiet origin "+${GITHUB_REF}:refs/publish/trigger"  # stack-reviewer-ignore: the destination is refs/publish/trigger, not a branch, so git's "refusing to fetch into checked-out branch" guard does not apply; reproduced locally for refs/heads/master (dispatch) and refs/tags/publish-* (tag): clone --branch master, this fetch, checkout ^{commit} and the ancestor check all pass
           git config --global --unset-all http.extraHeader
           cd /tmp/repo
@@ -83,7 +57,7 @@ jobs:
           echo "PUBLISH_SHA=${commit}" >> "$GITHUB_ENV"
           if [ "${GITHUB_EVENT_NAME}" = schedule ]; then
             released=$(curl -fsS -H "Authorization: token ${RUN_TOKEN}" \
-              "https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}/releases?limit=50" \
+              "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/releases?limit=50" \
               | jq -r 'sort_by(.id) | last | .target_commitish // ""')
             if [ "$released" = "$commit" ]; then
               echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -180,7 +154,7 @@ jobs:
           set -euo pipefail
           cd /tmp/repo
           apk=app/build/outputs/apk/release/app-release.apk
-          api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
+          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
           # NO `| head -1` HERE, and no pipe into awk either. aapt2 keeps writing after the
           # first line, so a reader that exits early kills it with SIGPIPE, the pipeline
           # returns 141 under `set -o pipefail`, and the step fails with a signed APK already
@@ -206,28 +180,29 @@ jobs:
           RUN_TOKEN: ${{ github.token }}
           ANDROID_HOME: /opt/android-sdk
 
-      - name: Upload to fileserver, replacing the previous copy
+      - name: Upload to the sideload file server, replacing the previous copy
         if: steps.checkout.outputs.publish == 'true'
         run: |
           set -euo pipefail
+          [ -n "${UPLOAD_URL}" ] || { echo "::error::the SIDELOAD_UPLOAD_URL repo variable is not set; it must be the full URL of the APK on the sideload file server"; exit 1; }
           cd /tmp/repo
           apk=app/build/outputs/apk/release/app-release.apk
-          staging="${FILESERVER_URL}.upload"
+          staging="${UPLOAD_URL}.upload"
           want=$(stat -c %s "$apk")
           code=$(curl -sS -o /dev/null -w '%{http_code}' -T "$apk" "$staging")
           case "$code" in
             2*) ;;
-            *)  echo "::error::fileserver upload failed with HTTP $code"; exit 1 ;;
+            *)  echo "::error::sideload upload failed with HTTP $code"; exit 1 ;;
           esac
           got=$(curl -sSI "$staging" | awk -F': ' 'tolower($1) == "content-length" { print $2 + 0 }')
-          [ "$got" = "$want" ] || { echo "::error::fileserver holds $got bytes of a $want-byte APK; the live copy was left alone"; exit 1; }
-          code=$(curl -sS -o /dev/null -w '%{http_code}' -X MOVE -H "Destination: ${FILESERVER_URL}" -H 'Overwrite: T' "$staging")
+          [ "$got" = "$want" ] || { echo "::error::the server holds $got bytes of a $want-byte APK; the live copy was left alone"; exit 1; }
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X MOVE -H "Destination: ${UPLOAD_URL}" -H 'Overwrite: T' "$staging")
           case "$code" in
-            2*) echo "uploaded to $FILESERVER_URL ($want bytes)" ;;
+            2*) echo "uploaded to $UPLOAD_URL ($want bytes)" ;;
             *)  echo "::error::moving the upload into place failed with HTTP $code"; exit 1 ;;
           esac
         env:
-          FILESERVER_URL: https://files.example.invalid/apps/remote-explorer.apk
+          UPLOAD_URL: ${{ vars.SIDELOAD_UPLOAD_URL }}
 
       - name: Publish a release, keeping only the latest three
         if: steps.checkout.outputs.publish == 'true'
@@ -235,7 +210,7 @@ jobs:
           set -euo pipefail
           cd /tmp/repo
           apk=app/build/outputs/apk/release/app-release.apk
-          api="https://forgejo.example.invalid/api/v1/repos/${GITHUB_REPOSITORY}"
+          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
 
           tag="v${VERSION_CODE}"
 

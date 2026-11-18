@@ -20,7 +20,7 @@ jobs:
           set -euo pipefail
           auth=(-c "http.extraHeader=Authorization: token ${RUN_TOKEN}")
           git "${auth[@]}" clone --quiet --filter=blob:none --no-checkout --branch master \
-            "https://forgejo.example.invalid/${GITHUB_REPOSITORY}.git" /tmp/repo
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" /tmp/repo
           cd /tmp/repo
           head=$(git rev-parse HEAD)
           if git tag --points-at "$head" | grep -q '^release-'; then
