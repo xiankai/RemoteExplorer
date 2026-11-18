@@ -89,6 +89,16 @@ class SettingsRepository(
         settingsDao.setCoverShuffle(shuffle)
     }
 
+    fun firstPageFolders(): Flow<List<String>> =
+        settingsDao.observeSettings()
+            .filterNotNull()
+            .map { parseFolderList(it.firstPageFolders) }
+            .distinctUntilChanged()
+
+    suspend fun setFirstPageFolders(folders: List<String>) {
+        settingsDao.setFirstPageFolders(folders.joinToString("\n"))
+    }
+
     suspend fun update(settings: SettingsEntity) {
         settingsDao.update(settings)
     }

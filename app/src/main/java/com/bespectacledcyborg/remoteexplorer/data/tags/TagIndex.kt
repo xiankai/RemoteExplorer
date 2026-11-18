@@ -44,11 +44,6 @@ object TagIndex {
     const val ANNOTATIONS = "$DIRECTORY/annotations.ndjson"
     const val ANNOTATIONS_META = "$DIRECTORY/annotations.meta.json"
 
-    /**
-     * Unknown keys are ignored rather than fatal, which is the whole forward-compatibility
-     * story here: samplebooru records already carry a `token` this app has no use for, and the
-     * generator is free to add more without every older build refusing to read the index.
-     */
     val json = Json { ignoreUnknownKeys = true }
 }
 
@@ -149,18 +144,6 @@ internal fun parseScope(scope: String?): TagScope? = when (scope) {
     else -> null
 }
 
-/**
- * Splits a namespaced tag into its namespace and value, or null for a bare one.
- *
- * samplebooru and examplebooru emit `namespace:value` (`artist:foo`, `female:blush`); pixiv emits
- * bare tags, mostly Japanese. The colon is a safe delimiter because a value can contain
- * spaces but never a colon, so the first one splits losslessly.
- *
- * Values are deliberately not lowercased or normalised anywhere in this path. A raw tag
- * cannot be re-derived without going back to the provider, and examplebooru may never be
- * fetchable again, so normalisation belongs at query time against the alias layer — where a
- * correction costs a small download rather than a re-ingest of everything.
- */
 fun splitNamespacedTag(tag: String): Pair<String, String>? {
     val colon = tag.indexOf(':')
     if (colon <= 0 || colon == tag.length - 1) return null

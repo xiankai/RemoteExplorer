@@ -6,32 +6,6 @@ import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
 import kotlinx.serialization.Serializable
 import java.io.BufferedReader
 
-/**
- * Keeps the alias layer — which raw tags mean the same thing — in step with the share.
- *
- * The index is source-faithful: `眼鏡` from pixiv and `female:glasses` from examplebooru are
- * both stored as given, and match nothing of each other. The generator derives groups of
- * them into `aliases.ndjson`, one group per line:
- *
- * ```
- * {"canonical":"female/glasses","members":["glasses","female:glasses","眼鏡"],…}
- * ```
- *
- * and a tag lookup widens to every member of the tag's group at query time. They are kept
- * apart rather than expanded into relations because the mapping is the part that changes
- * most — curated, heuristic, often corrected — and a correction should be a small download,
- * not a re-ingest of every gallery.
- *
- * **Its own generation, and nothing like the index's protocol.** The file is small and
- * rewritten whole on every build, and the generation bumps on every build, so there is no
- * offset to resume from: a different generation means take the whole file and replace what
- * this connection had. Run as a source of its own rather than inside [IndexFileTagSource] so
- * that it cannot be gated on the index having changed — the index rebuilds once a day, the
- * aliases whenever someone makes a decision in the editor.
- *
- * `canonical` is an opaque group key. It is often not a tag at all (`?/1girl` is a group
- * whose root nobody has chosen yet), so it is stored to join on and never shown.
- */
 class AliasFileTagSource(
     private val files: TagIndexFiles,
     private val localDatabaseDataSource: LocalDatabaseDataSource,

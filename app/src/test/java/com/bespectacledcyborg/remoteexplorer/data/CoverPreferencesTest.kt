@@ -27,6 +27,7 @@ class CoverPreferencesTest {
 
     private val choices = Choices()
     private var shuffle = CoverShuffle.MARKED
+    private var firstPageFolders = emptyList<String>()
     private var pairings = Pairings.NONE
     private val tags = mutableMapOf<Pair<Int, String>, List<String>>()
     private val aliases = mutableMapOf<String, String>()
@@ -36,6 +37,7 @@ class CoverPreferencesTest {
     private val preferences = CoverPreferences(
         choices = choices,
         shuffleSetting = { shuffle },
+        firstPageFolders = { firstPageFolders },
         pairings = { pairings },
         directoryTags = { id, path -> tags[id to path].orEmpty() },
         aliasCanonicals = { _, list -> list.mapNotNull { aliases[it] } },
@@ -97,6 +99,7 @@ class CoverPreferencesTest {
 
     @Test
     fun `the applied mode names what the cover follows, not what was stored`() = runTest {
+        firstPageFolders = listOf("gallery-dl/examplebooru")
         preferences.choose(1, "newest", CoverMode.NEWEST)
         preferences.choose(1, "kept", CoverMode.SHUFFLE)
         preferences.choose(1, "every", CoverMode.SHUFFLE_EVERY_VISIT)
@@ -126,7 +129,16 @@ class CoverPreferencesTest {
     }
 
     @Test
-    fun `a gallery under examplebooru is never shuffled, examplebooru itself and samplebooru are`() = runTest {
+    fun `with no folders configured, no path keeps its first page`() = runTest {
+        shuffle = CoverShuffle.ALL
+
+        assertFalse(preferences.keepsFirstPage(1, "gallery-dl/examplebooru/[123] work"))
+        assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/examplebooru/[123] work"))
+    }
+
+    @Test
+    fun `a gallery under a configured folder is never shuffled, the folder itself and its neighbours are`() = runTest {
+        firstPageFolders = listOf("gallery-dl/examplebooru")
         shuffle = CoverShuffle.ALL
         withSubfolders += 1 to "gallery-dl/examplebooru"
         preferences.choose(1, "gallery-dl/examplebooru/[123] work", CoverMode.SHUFFLE)
@@ -134,8 +146,19 @@ class CoverPreferencesTest {
         assertFalse(preferences.keepsFirstPage(1, "gallery-dl/examplebooru"))
         assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/examplebooru"))
         assertEquals(CoverOrder.Name, order("gallery-dl/examplebooru/[123] work"))
+        assertEquals(CoverOrder.Name, order("gallery-dl/examplebooru/[123] work/part 2"))
         assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/samplebooru/[456] other"))
         assertEquals(CoverOrder.Shuffled(7), order("gallery-dl/examplebooru-mirror"))
+    }
+
+    @Test
+    fun `a folder taken off the list lets its galleries shuffle again`() = runTest {
+        firstPageFolders = listOf("gallery-dl/examplebooru")
+        assertTrue(preferences.keepsFirstPage(1, "gallery-dl/examplebooru/[1] work"))
+
+        firstPageFolders = emptyList()
+
+        assertFalse(preferences.keepsFirstPage(1, "gallery-dl/examplebooru/[1] work"))
     }
 
     @Test
@@ -217,6 +240,18 @@ class CoverPreferencesTest {
     }
 
     @Test
+    fun `a configured folder matches a paired local copy by either its own path or its share's`() = runTest {
+        pairings = Pairings(listOf(Pairing(2, "", 1, "gallery-dl")))
+
+        firstPageFolders = listOf("examplebooru")
+        assertTrue(preferences.keepsFirstPage(2, "examplebooru/[1] a gallery"))
+
+        firstPageFolders = listOf("gallery-dl/examplebooru")
+        assertTrue(preferences.keepsFirstPage(2, "examplebooru/[1] a gallery"))
+        assertFalse(preferences.keepsFirstPage(2, "samplebooru/[1] a gallery"))
+    }
+
+    @Test
     fun `a manga folder tagged later still reaches folders already asked about`() = runTest {
         assertFalse(preferences.keepsFirstPage(1, "g/series/vol 1"))
 
@@ -252,7 +287,17 @@ class CoverPreferencesTest {
         assertTrue(isMangaTag("type/manga "))
         assertFalse(isMangaTag("manga/artist"))
         assertFalse(isMangaTag("mangaka"))
-        assertTrue(isMangaPath("/gallery-dl/examplebooru/"))
-        assertFalse(isMangaPath("gallery-dl/exampleboorux"))
+    }
+
+    @Test
+    fun `a folder list is one trimmed path per line, matching the folder and its descendants`() {
+        val folders = parseFolderList(" /gallery-dl/examplebooru/ \n\n  books\ngallery-dl/examplebooru\n")
+
+        assertEquals(listOf("gallery-dl/examplebooru", "books"), folders)
+        assertTrue(isInsideAnyFolder("/gallery-dl/examplebooru/", folders))
+        assertTrue(isInsideAnyFolder("books/vol 1", folders))
+        assertFalse(isInsideAnyFolder("gallery-dl/examplebooruX", folders))
+        assertFalse(isInsideAnyFolder("gallery-dl", folders))
+        assertFalse(isInsideAnyFolder("books", emptyList()))
     }
 }

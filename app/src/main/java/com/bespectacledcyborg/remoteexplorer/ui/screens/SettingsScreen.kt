@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bespectacledcyborg.remoteexplorer.data.GridColumns
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.data.parseFolderList
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle
 import com.bespectacledcyborg.remoteexplorer.data.db.ThemeMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.TextFieldDialog
@@ -129,6 +132,11 @@ fun SettingsScreen(
                 }
             }
 
+            FirstPageFoldersField(
+                folders = settings.firstPageFolders,
+                onSave = settingsViewModel::setFirstPageFolders,
+            )
+
             TextFieldDialog(
                 title = "Max Storage Cache Size",
                 value = settings.maxStorageCacheSize,
@@ -136,7 +144,6 @@ fun SettingsScreen(
                     if (newSize.toInt() <= 0) {
                         throw Error("must be more than 0")
                     }
-                    // TODO: throw error if newSize exceeds system size or is lower than current cache usage
                     settingsViewModel.setMaxStorageCacheSize(newSize.toInt())
                     newSize
                 },
@@ -147,10 +154,6 @@ fun SettingsScreen(
 
             Box {
                 var selectingVolume by remember { mutableStateOf(false) }
-                // Read when the menu opens rather than once at composition: a card can be
-                // inserted or removed while this screen is on top of it, and a picker
-                // offering a volume that is no longer there is worse than one that is a
-                // moment out of date.
                 val volumes = remember(selectingVolume) {
                     settingsViewModel.thumbnailVolumes()
                 }
@@ -159,10 +162,6 @@ fun SettingsScreen(
                 TextButton(
                     onClick = { selectingVolume = !selectingVolume },
                     content = {
-                        // A volume that has been removed still has a setting pointing at
-                        // it, and saying so is more use than silently showing "Internal" —
-                        // the cache really is falling back, and the user is the only one
-                        // who can put the card back.
                         Text(
                             "Thumbnail Cache: " +
                                     (chosen?.label ?: "${settings.thumbnailCacheVolume} (not available)")
@@ -187,9 +186,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Where a viewing day starts, and in which zone (#76). Side by side because
-            // they only mean anything together. Both are read each time a view is recorded,
-            // so a change applies from the next one, and days already counted stay put.
             Box {
                 var selectingDayStart by remember { mutableStateOf(false) }
                 TextButton(
@@ -334,6 +330,46 @@ private fun AppVersionRow() {
             }
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
+}
+
+@Composable
+private fun FirstPageFoldersField(folders: String, onSave: (String) -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    val listed = parseFolderList(folders)
+    TextButton(
+        onClick = { editing = true },
+        content = {
+            Text(
+                "Folders that keep their first page as cover: " +
+                    if (listed.isEmpty()) "None" else listed.joinToString(", ")
+            )
+        },
+    )
+    if (editing) {
+        var draft by remember { mutableStateOf(listed.joinToString("\n")) }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("Folders that keep their first page as cover") },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    minLines = 3,
+                    supportingText = { Text("One folder per line, relative to the share root") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSave(draft)
+                    editing = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = false }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 private fun clockTime(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
