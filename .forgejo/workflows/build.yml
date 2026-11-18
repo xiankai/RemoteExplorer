@@ -173,14 +173,14 @@ jobs:
           echo "::group::unit tests and lint"
           tasks=(testDebugUnitTest lintDebug)
           [ "${EVENT}" = push ] && tasks+=(mergeExtDexRelease)
-          ./gradlew --no-daemon --continue -Prex.skipNative "${tasks[@]}" || failed=1
+          ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process --continue -Prex.skipNative "${tasks[@]}" || failed=1
           echo "::endgroup::"
 
           exit "$failed"
         env:
           ANDROID_HOME: /opt/android-sdk
           EVENT: ${{ github.event_name }}
-          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false -Dorg.gradle.jvmargs=-Xmx2g
 
       - name: Tidy the Gradle cache before it is saved
         # Runs before the cache action's post step, which is what saves. That post step only
