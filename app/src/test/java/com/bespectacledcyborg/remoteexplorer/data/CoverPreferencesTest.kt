@@ -240,6 +240,18 @@ class CoverPreferencesTest {
     }
 
     @Test
+    fun `a configured folder matches a paired local copy by either its own path or its share's`() = runTest {
+        pairings = Pairings(listOf(Pairing(2, "", 1, "gallery-dl")))
+
+        firstPageFolders = listOf("examplebooru")
+        assertTrue(preferences.keepsFirstPage(2, "examplebooru/[1] a gallery"))
+
+        firstPageFolders = listOf("gallery-dl/examplebooru")
+        assertTrue(preferences.keepsFirstPage(2, "examplebooru/[1] a gallery"))
+        assertFalse(preferences.keepsFirstPage(2, "samplebooru/[1] a gallery"))
+    }
+
+    @Test
     fun `a manga folder tagged later still reaches folders already asked about`() = runTest {
         assertFalse(preferences.keepsFirstPage(1, "g/series/vol 1"))
 

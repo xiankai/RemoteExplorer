@@ -82,7 +82,8 @@ class CoverPreferences(
 
     private suspend fun isInsideManga(connectionId: Int, path: String): Boolean {
         val canonical = pairings().canonicalize(connectionId, path)
-        if (isInsideAnyFolder(canonical.path, firstPageFolders())) return true
+        val folders = firstPageFolders()
+        if (isInsideAnyFolder(path, folders) || isInsideAnyFolder(canonical.path, folders)) return true
         val lineage = listOf(canonical) + ancestorsOf(canonical)
         val mangaFolder = lineage.firstOrNull { it in mangaFolders }
             ?: lineage.firstOrNull { isTaggedManga(it) }?.also { mangaFolders += it }
