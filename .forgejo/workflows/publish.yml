@@ -120,10 +120,10 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/repo
-          ./gradlew --no-daemon assembleRelease -x lintVitalRelease
+          ./gradlew --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process assembleRelease -x lintVitalRelease
         env:
           ANDROID_HOME: /opt/android-sdk
-          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false
+          GRADLE_OPTS: -Dorg.gradle.configuration-cache=false -Dorg.gradle.jvmargs=-Xmx2g
 
 
       - name: Verify the APK is actually signed
