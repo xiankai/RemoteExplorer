@@ -161,6 +161,18 @@ typealias ThumbnailsMap = Map<String, List<String>>
 /** How long a folder that failed to list for its cover waits before it is tried again. */
 private const val COVER_RETRY_MILLIS = 30_000L
 
+data class ListingCreated(val listing: List<LocalFile>, val byPath: Map<String, Date>) {
+    fun readyFor(folder: List<LocalFile>, sort: SortType, path: String): Boolean =
+        !needsCreatedDates(sort, path) || listing == folder
+
+    companion object {
+        val NONE = ListingCreated(emptyList(), emptyMap())
+    }
+}
+
+internal fun needsCreatedDates(sort: SortType, path: String): Boolean =
+    sort == SortType.ADDED_DESC || path == newestAdditionsPath
+
 internal fun coverOrderFor(sortType: SortType): CoverOrder = when (sortType) {
     SortType.NAME_DESC -> CoverOrder.NameDesc
     SortType.LAST_MODIFIED_DESC, SortType.ADDED_DESC -> CoverOrder.Newest
@@ -1128,22 +1140,22 @@ class ExplorerViewModel(
             .flowOn(Dispatchers.IO)
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    val listingCreatedState: StateFlow<Map<String, Date>> =
+    val listingCreatedState: StateFlow<ListingCreated> =
         combine(_list, _path, sortState) { list, path, sort ->
-            list[path].orEmpty().takeIf { sort == SortType.ADDED_DESC || path == newestAdditionsPath }
+            list[path].orEmpty().takeIf { needsCreatedDates(sort, path) }
         }
             .map { files ->
                 if (files.isNullOrEmpty()) {
-                    emptyMap()
+                    ListingCreated.NONE
                 } else try {
-                    fileRepository.createdDates(files, pairingRepository.current())
+                    ListingCreated(files, fileRepository.createdDates(files, pairingRepository.current()))
                 } catch (e: Exception) {
                     Log.w("ExplorerViewModel", "Could not read created dates", e)
-                    emptyMap()
+                    ListingCreated(files, emptyMap())
                 }
             }
             .flowOn(Dispatchers.IO)
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ListingCreated.NONE)
 
     private suspend fun fetchTagThumbnails(
         tags: List<LocalTagWithMetadata>

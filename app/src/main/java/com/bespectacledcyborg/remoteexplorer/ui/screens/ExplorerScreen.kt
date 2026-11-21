@@ -56,7 +56,6 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.parentGroupOf
 import com.bespectacledcyborg.remoteexplorer.data.GroupMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.rememberToday
 import java.time.ZoneId
-import java.util.Date
 import com.bespectacledcyborg.remoteexplorer.ui.components.gallerySwipe
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
@@ -69,6 +68,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.resolveColumnCount
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ExplorerButtons
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ListingCreated
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.flow.combine
 import java.net.URLConnection
@@ -106,9 +106,9 @@ fun ExplorerScreen(
             @Suppress("UNCHECKED_CAST")
             val views = values[5] as Map<String, ViewTotals>
             val groupMode = values[6] as GroupMode
-            @Suppress("UNCHECKED_CAST")
-            val created = values[7] as Map<String, Date>
-            val folder = list[path].orEmpty()
+            val listingCreated = values[7] as ListingCreated
+            val created = listingCreated.byPath
+            val folder = list[path].orEmpty().takeIf { listingCreated.readyFor(it, sort, path) }.orEmpty()
             val narrowed = folder
                 .sortedWith(explorerViewModel.getSortFunction(sort, views, created))
                 .keepingTypes(filter)
@@ -361,7 +361,7 @@ fun ExplorerScreen(
                     groupOf = when {
                         pathState.startsWith(tagPrefix) -> { item -> item.item.parentPath }
                         groupMode == GroupMode.BY_DATE -> { item ->
-                            addedOn(item.item.createdAt(listingCreated), today, zone).label
+                            addedOn(item.item.createdAt(listingCreated.byPath), today, zone).label
                         }
                         groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
                         else -> null

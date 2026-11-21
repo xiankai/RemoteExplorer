@@ -44,8 +44,6 @@ fun TagButtons(
             )
         }
     )
-    // Name both ways, and every view order (#76): a tag sums the files it lists or
-    // contains. The time orders stay off, since a tag has no modified time to sort by.
     SortMenu(
         current = sortState.value,
         options = SortType.entries.filter {
