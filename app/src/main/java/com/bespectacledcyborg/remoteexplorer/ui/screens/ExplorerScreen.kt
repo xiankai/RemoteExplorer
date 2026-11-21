@@ -39,6 +39,7 @@ import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
+import com.bespectacledcyborg.remoteexplorer.data.createdAt
 import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
@@ -55,6 +56,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.parentGroupOf
 import com.bespectacledcyborg.remoteexplorer.data.GroupMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.rememberToday
 import java.time.ZoneId
+import java.util.Date
 import com.bespectacledcyborg.remoteexplorer.ui.components.gallerySwipe
 import com.bespectacledcyborg.remoteexplorer.ui.components.Route
 import com.bespectacledcyborg.remoteexplorer.ui.components.TagStrip
@@ -92,6 +94,7 @@ fun ExplorerScreen(
             explorerViewModel.pathState,
             explorerViewModel.listingViewsState,
             explorerViewModel.groupModeState,
+            explorerViewModel.listingCreatedState,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val list = values[0] as Map<String, List<LocalFile>>
@@ -103,15 +106,17 @@ fun ExplorerScreen(
             @Suppress("UNCHECKED_CAST")
             val views = values[5] as Map<String, ViewTotals>
             val groupMode = values[6] as GroupMode
+            @Suppress("UNCHECKED_CAST")
+            val created = values[7] as Map<String, Date>
             val folder = list[path].orEmpty()
             val narrowed = folder
-                .sortedWith(explorerViewModel.getSortFunction(sort, views))
+                .sortedWith(explorerViewModel.getSortFunction(sort, views, created))
                 .keepingTypes(filter)
                 .matchingSearch(search)
             ShownListing(
                 entries = when {
                     path.startsWith(tagPrefix) -> clusteredByParent(narrowed)
-                    groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(narrowed, today, zone)
+                    groupMode == GroupMode.BY_DATE -> clusteredByAddedOn(narrowed, created, today, zone)
                     groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(narrowed)
                     else -> narrowed
                 },
@@ -121,6 +126,7 @@ fun ExplorerScreen(
     }.collectAsState(ShownListing.NONE)
     val thumbnails by explorerViewModel.thumbnailsState.collectAsState()
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
+    val listingCreated by explorerViewModel.listingCreatedState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
@@ -355,7 +361,7 @@ fun ExplorerScreen(
                     groupOf = when {
                         pathState.startsWith(tagPrefix) -> { item -> item.item.parentPath }
                         groupMode == GroupMode.BY_DATE -> { item ->
-                            addedOn(item.item.lastModified, today, zone).label
+                            addedOn(item.item.createdAt(listingCreated), today, zone).label
                         }
                         groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
                         else -> null

@@ -49,7 +49,7 @@ fun TagButtons(
     SortMenu(
         current = sortState.value,
         options = SortType.entries.filter {
-            it != SortType.LAST_MODIFIED_ASC && it != SortType.LAST_MODIFIED_DESC
+            it != SortType.LAST_MODIFIED_DESC && it != SortType.ADDED_DESC
         },
         onSelect = explorerViewModel::sortTags,
     )

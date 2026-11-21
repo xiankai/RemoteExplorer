@@ -23,12 +23,6 @@ sealed interface CoverOrder {
             rows.sortedWith(byName.reversed())
     }
 
-    data object Oldest : CoverOrder {
-        override val label = "oldest"
-        override fun subfolders(rows: List<LocalFile>, folder: String) =
-            rows.sortedWith(compareBy<LocalFile> { it.lastModified }.then(byName))
-    }
-
     data object Newest : CoverOrder {
         override val label = "newest"
         override fun subfolders(rows: List<LocalFile>, folder: String) =

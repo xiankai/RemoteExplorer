@@ -108,6 +108,9 @@ class LocalDatabaseDataSource(
     suspend fun getNewestDirectories(limit: Int): List<IndexedDirectory> =
         withContext(dispatcher) { localDatabaseDao.getNewestDirectories(limit) }
 
+    suspend fun getIndexedDirectories(connectionId: Int, paths: List<String>): List<IndexedDirectory> =
+        withContext(dispatcher) { localDatabaseDao.getIndexedDirectories(connectionId, paths) }
+
     suspend fun getDirectoriesWithTag(tag: LocalTag): List<DirTagRelation> {
         return withContext(dispatcher) {
             localDatabaseDao.getDirectoriesWithTag(tag.tag)

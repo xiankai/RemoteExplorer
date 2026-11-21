@@ -36,7 +36,7 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 24, true, EncryptSavedPasswords(cipher))
+        helper.runMigrationsAndValidate(TEST_DB, 25, true, EncryptSavedPasswords(cipher), RetireOldestFirst)
 
     @Test
     fun `migrates the full chain from 5 to 21 and matches the exported schema`() {
@@ -458,6 +458,41 @@ class AppDatabaseMigrationTest {
                 assertEquals("ALL", row.getString(2))
                 assertEquals(1, row.getInt(3))
                 assertEquals("", row.getString(4))
+            }
+        }
+    }
+
+    @Test
+    fun `arrives at 25 with oldest first retired and newest first renamed by where it was chosen`() {
+        helper.createDatabase(TEST_DB, 24).use { db ->
+            db.execSQL("INSERT INTO Connection (id, name, lastModified) VALUES (1, 'nas', 0)")
+            db.execSQL(
+                "INSERT INTO FolderSort (connectionId, path, sort) VALUES " +
+                        "(1, 'old', 'LAST_MODIFIED_ASC'), (1, 'new', 'LAST_MODIFIED_DESC'), " +
+                        "(1, 'named', 'NAME_DESC'), (1, 'Newest: additions', 'LAST_MODIFIED_DESC')"
+            )
+            db.execSQL(
+                "INSERT INTO settings (id, maxStorageCacheSize, defaultColumnCount, defaultSort) " +
+                        "VALUES (0, 8, 5, 'LAST_MODIFIED_ASC')"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 25, true, RetireOldestFirst).use { db ->
+            val sorts = db.query("SELECT path, sort FROM FolderSort ORDER BY path").use { row ->
+                buildMap { while (row.moveToNext()) put(row.getString(0), row.getString(1)) }
+            }
+            assertEquals(
+                mapOf(
+                    "Newest: additions" to "ADDED_DESC",
+                    "named" to "NAME_DESC",
+                    "new" to "LAST_MODIFIED_DESC",
+                    "old" to "LAST_MODIFIED_DESC",
+                ),
+                sorts,
+            )
+            db.query("SELECT defaultSort FROM settings").use { row ->
+                assertTrue(row.moveToFirst())
+                assertEquals("LAST_MODIFIED_DESC", row.getString(0))
             }
         }
     }

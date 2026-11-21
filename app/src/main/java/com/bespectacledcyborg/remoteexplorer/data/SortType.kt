@@ -8,8 +8,8 @@ enum class SortType(
 ) {
     NAME_ASC("Name, A to Z"),
     NAME_DESC("Name, Z to A"),
-    LAST_MODIFIED_ASC("Oldest first"),
-    LAST_MODIFIED_DESC("Newest first"),
+    LAST_MODIFIED_DESC("Recently updated"),
+    ADDED_DESC("Recently created"),
 
     /** Popularity: most opens first, the most recently opened breaking a tie. */
     MOST_VIEWED("Most viewed", usesViews = true),

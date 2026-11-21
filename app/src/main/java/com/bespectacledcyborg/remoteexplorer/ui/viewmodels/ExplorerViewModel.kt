@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.ui.viewmodels
 
 import android.app.Application
 import android.util.Log
+import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -47,6 +48,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.ViewTotals
 import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.data.isPseudoFolder
+import com.bespectacledcyborg.remoteexplorer.data.createdAt
 import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
@@ -128,17 +130,17 @@ internal fun tagComparator(
 internal fun fileComparator(
     sortType: SortType,
     views: Map<String, ViewTotals> = emptyMap(),
+    created: Map<String, Date> = emptyMap(),
 ): Comparator<LocalFile> {
     val byName = compareBy<LocalFile, String>(NaturalOrder) { it.filename }
     viewComparator(sortType, { views[it.fullPath()] ?: ViewTotals.NONE }, byName)
         ?.let { return it }
-    // Two files modified in the same instant (a gallery downloaded in one go often is) fall
-    // back to the name, so the time orders do not shuffle between listings.
     return when (sortType) {
         SortType.NAME_DESC -> byName.reversed()
-        SortType.LAST_MODIFIED_ASC -> compareBy<LocalFile> { it.lastModified }.then(byName)
         SortType.LAST_MODIFIED_DESC ->
             compareByDescending<LocalFile> { it.lastModified }.then(byName)
+        SortType.ADDED_DESC ->
+            compareByDescending<LocalFile> { it.createdAt(created) }.then(byName)
         else -> byName
     }
 }
@@ -161,8 +163,7 @@ private const val COVER_RETRY_MILLIS = 30_000L
 
 internal fun coverOrderFor(sortType: SortType): CoverOrder = when (sortType) {
     SortType.NAME_DESC -> CoverOrder.NameDesc
-    SortType.LAST_MODIFIED_ASC -> CoverOrder.Oldest
-    SortType.LAST_MODIFIED_DESC -> CoverOrder.Newest
+    SortType.LAST_MODIFIED_DESC, SortType.ADDED_DESC -> CoverOrder.Newest
     else -> CoverOrder.Name
 }
 
@@ -668,8 +669,11 @@ class ExplorerViewModel(
         }
     }
 
-    fun getSortFunction(sortType: SortType, views: Map<String, ViewTotals> = emptyMap()): Comparator<LocalFile> =
-        fileComparator(sortType, views)
+    fun getSortFunction(
+        sortType: SortType,
+        views: Map<String, ViewTotals> = emptyMap(),
+        created: Map<String, Date> = emptyMap(),
+    ): Comparator<LocalFile> = fileComparator(sortType, views, created)
 
     fun recordOpen(file: LocalFile) {
         val canonical = pairingRepository.current().canonicalize(file.connectionId, file.fullPath())
@@ -1118,6 +1122,23 @@ class ExplorerViewModel(
                     viewRecorder.totalsFor(connectionId, files, pairingRepository.current())
                 } catch (e: Exception) {
                     Log.w("ExplorerViewModel", "Could not read view totals", e)
+                    emptyMap()
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val listingCreatedState: StateFlow<Map<String, Date>> =
+        combine(_list, _path, sortState) { list, path, sort ->
+            list[path].orEmpty().takeIf { sort == SortType.ADDED_DESC || path == newestAdditionsPath }
+        }
+            .map { files ->
+                if (files.isNullOrEmpty()) {
+                    emptyMap()
+                } else try {
+                    fileRepository.createdDates(files, pairingRepository.current())
+                } catch (e: Exception) {
+                    Log.w("ExplorerViewModel", "Could not read created dates", e)
                     emptyMap()
                 }
             }

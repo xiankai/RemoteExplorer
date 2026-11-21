@@ -70,9 +70,22 @@ class NewestGroupsTest {
             gallery(1, "p", "d", "2026-11-17T07:00"),
         )
 
-        val clustered = clusteredByAddedOn(byName, tuesday, zone).map { it.filename }
+        val clustered = clusteredByAddedOn(byName, emptyMap(), tuesday, zone).map { it.filename }
 
         assertEquals(listOf("b", "d", "c", "a"), clustered)
+    }
+
+    @Test
+    fun `date buckets read the created date over the modified one`() {
+        val galleries = listOf(
+            gallery(1, "p", "a", "2026-11-17T08:00"),
+            gallery(1, "p", "b", "2026-09-01T12:00"),
+        )
+        val created = mapOf("p/b" to at("2026-11-17T09:00"), "p/a" to at("2026-09-01T12:00"))
+
+        val clustered = clusteredByAddedOn(galleries, created, tuesday, zone).map { it.filename }
+
+        assertEquals(listOf("b", "a"), clustered)
     }
 
     @Test
