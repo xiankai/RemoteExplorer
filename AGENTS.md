@@ -252,9 +252,12 @@ source has no token field.
 `origin` is Forgejo; the release pipeline lives on GitHub and holds the only copy of the
 release keystore (as Actions secrets, which cannot be read back).
 
-**The local workflows run in `android-ci:latest`**, an image built locally on the runner
-host with the SDK, NDK, cmake, shellcheck and Node already in it.
-Nothing is installed per run. It isn't in a registry, so it only exists on that host.
+**The local workflows run in the registry's `android-ci:live`**, an image with the SDK, NDK,
+cmake, shellcheck and Node already in it. Nothing is installed per run. It is built into the
+Forgejo registry and promoted to `:live` after a reviewed merge. The runner never pulls it:
+it has no registry login and runs the copy the `android-ci` stack keeps on the host, so the
+repo Actions variable `ANDROID_CI_IMAGE`, which both workflows name, must hold the full ref
+exactly.
 
 **The PR checks skip the native build and the APK.** The arm64-only prebuilts mean CI could
 not run the result anyway. `assembleDebug` is covered on a developer machine by

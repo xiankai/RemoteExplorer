@@ -34,7 +34,7 @@ jobs:
     if: vars.ANDROID_CI_LOCAL == '1'
     runs-on: android
     container:
-      image: android-ci:latest  # stack-reviewer-ignore: built locally on the runner host from a reviewed Dockerfile and never pulled from a registry; anyone able to rebuild it can already edit the runner, so a digest pin adds a manual bump per rebuild without narrowing who controls the job
+      image: ${{ vars.ANDROID_CI_IMAGE }}  # stack-reviewer-ignore: the registry's android-ci:live, pushed to the registry from a reviewed Dockerfile and moved to :live only by a promotion after a reviewed merge; the runner has no registry login and runs the copy the android-ci stack keeps on the host, so :live carries the same trust as the old local tag and a digest pin would add a manual bump per promotion without narrowing who controls the job
     timeout-minutes: 45
     steps:
       - name: Checkout the commit that was asked for, if it is on master
