@@ -66,6 +66,7 @@ import com.bespectacledcyborg.remoteexplorer.data.db.AppDatabase
 import com.bespectacledcyborg.remoteexplorer.data.db.ConnectionType
 import com.bespectacledcyborg.remoteexplorer.data.db.CredentialConverters
 import com.bespectacledcyborg.remoteexplorer.data.db.EncryptSavedPasswords
+import com.bespectacledcyborg.remoteexplorer.data.db.RetireOldestFirst
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
 import com.bespectacledcyborg.remoteexplorer.data.db.ThumbnailStatus
 import com.bespectacledcyborg.remoteexplorer.data.tasks.ScanTagsWorker
@@ -339,7 +340,7 @@ class MainActivity : ComponentActivity() {
             AppDatabase::class.java, "remote-explorer"
         )
             .addTypeConverter(CredentialConverters(credentialCipher))
-            .addMigrations(EncryptSavedPasswords(credentialCipher))
+            .addMigrations(EncryptSavedPasswords(credentialCipher), RetireOldestFirst)
             // No destructive fallback. It was silently deleting the database on any schema
             // mismatch, and this database is not purely a cache: LocalFile rows can be
             // re-fetched from the share, but Connection rows are hand-entered hostnames and

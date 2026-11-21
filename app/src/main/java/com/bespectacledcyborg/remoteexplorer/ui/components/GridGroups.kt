@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.ui.components
 
+import com.bespectacledcyborg.remoteexplorer.data.createdAt
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.utils.NaturalOrder
 import java.time.LocalDate
@@ -36,8 +37,13 @@ internal fun addedOn(added: Date, today: LocalDate, zone: ZoneId, locale: Locale
     }
 }
 
-internal fun clusteredByAddedOn(files: List<LocalFile>, today: LocalDate, zone: ZoneId): List<LocalFile> =
-    files.sortedByDescending { addedOn(it.lastModified, today, zone).start }  // stack-reviewer-ignore: a future timestamp is clock skew and is filed under Today on purpose (NewestGroupsTest covers it); inside any bucket the chosen sort applies, which is the stable sort's job here
+internal fun clusteredByAddedOn(
+    files: List<LocalFile>,
+    created: Map<String, Date>,
+    today: LocalDate,
+    zone: ZoneId,
+): List<LocalFile> =
+    files.sortedByDescending { addedOn(it.createdAt(created), today, zone).start }  // stack-reviewer-ignore: a future timestamp is clock skew and is filed under Today on purpose (NewestGroupsTest covers it); inside any bucket the chosen sort applies, which is the stable sort's job here
 
 internal data class GroupCell(
     val grouped: Boolean,

@@ -4,6 +4,7 @@ import LocalDatabaseDataSource
 import com.bespectacledcyborg.remoteexplorer.data.db.DirTagRelation
 import com.bespectacledcyborg.remoteexplorer.data.db.DirectorySync
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
+import com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalDatabaseDao
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAlias
 import com.bespectacledcyborg.remoteexplorer.data.db.TagAliasIngest
@@ -95,6 +96,26 @@ class FileRepositoryTest {
             metrics = metrics,
             sourceKind = { "local" },
         )
+    }
+
+    @Test
+    fun `a paired local folder is created when its share twin arrived in the index`() = runTest {
+        val dao = FakeLocalDatabaseDao(cached = emptyList())
+        dao.indexedDirectories += IndexedDirectory(1, "gallery-dl/pixiv/[1] x", 1_790_047_563)
+        val indexed = cachedFile("[1] x").copy(connectionId = 2, parentPath = "pixiv", type = FileType.FOLDER)
+        val unindexed = indexed.copy(filename = "[2] y")
+        val image = indexed.copy(filename = "cover.jpg", type = FileType.FILE)
+        val pairings = Pairings(
+            listOf(Pairing(
+                localConnectionId = 2, localSubPath = "",
+                remoteConnectionId = 1, remoteSubPath = "gallery-dl",
+            ))
+        )
+
+        val created = repository(FakeFileDataSource(), dao)
+            .createdDates(listOf(indexed, unindexed, image), pairings)
+
+        assertEquals(mapOf("pixiv/[1] x" to Date(1_790_047_563_000)), created)
     }
 
     @Test
@@ -705,6 +726,7 @@ private class FakeLocalDatabaseDao(
 ) : LocalDatabaseDao {
     private val files = cached.toMutableList()
     private val syncs = mutableMapOf<Pair<Int, String>, DirectorySync>()
+    val indexedDirectories = mutableListOf<IndexedDirectory>()
 
     /** Filenames whose tag relations were cleared by a reconcile. */
     val deletedTagRelations = mutableListOf<String>()
@@ -861,6 +883,8 @@ private class FakeLocalDatabaseDao(
     override fun deleteIndexedDirectory(connectionId: Int, parentPath: String) = notUsed()
     override fun upsertIndexedDirectory(directory: com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory) = notUsed()
     override fun getNewestDirectories(limit: Int): List<com.bespectacledcyborg.remoteexplorer.data.db.IndexedDirectory> = notUsed()
+    override fun getIndexedDirectories(connectionId: Int, paths: List<String>) =
+        indexedDirectories.filter { it.connectionId == connectionId && it.parentPath in paths }
 
     private fun notUsed(): Nothing =
         throw UnsupportedOperationException("not part of the behaviour under test")

@@ -32,7 +32,7 @@ import java.util.Date
         IndexedDirectory::class,
     ],
     exportSchema = true,
-    version = 24,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
+    version = 25,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
     autoMigrations = [
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),

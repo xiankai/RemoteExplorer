@@ -42,7 +42,7 @@ class FolderSorts(
     private fun inheritedAlong(connectionId: ConnectionId, lineage: List<String>, path: String): SortType =
         lineage.drop(1)
             .firstNotNullOfOrNull { chosen[identityOf(connectionId, it)] }
-            ?: if (path == newestAdditionsPath) SortType.LAST_MODIFIED_DESC else default
+            ?: if (path == newestAdditionsPath) SortType.ADDED_DESC else default
 
     private fun lineageOf(path: String): List<String> {
         if (isPseudoFolder(path)) return listOf(path)
