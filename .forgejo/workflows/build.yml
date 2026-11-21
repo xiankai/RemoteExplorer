@@ -63,7 +63,7 @@ jobs:
     # page and the PR shows a pending check.
     runs-on: android
     container:
-      image: ${{ vars.ANDROID_CI_IMAGE }}
+      image: ${{ vars.ANDROID_CI_IMAGE }}  # stack-reviewer-ignore: the variable is set on the repo and documented in AGENTS.md; this job runs only under ANDROID_CI_LOCAL=1, and an unset image fails the job at container setup, which is the loud failure wanted rather than a silent fallback to a stale image
     # 40, not 25: a cold run was already ~20 min at worst, and one that misses the cache also
     # pays for compressing and saving it afterwards.
     timeout-minutes: 40
