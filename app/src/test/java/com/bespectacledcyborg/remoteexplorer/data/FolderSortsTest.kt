@@ -78,8 +78,8 @@ class FolderSortsTest {
     }
 
     @Test
-    fun `newest additions defaults to newest first and can be changed`() {
-        assertEquals(SortType.LAST_MODIFIED_DESC, sorts().choiceAt(share, newestAdditionsPath).current)
+    fun `newest additions defaults to recently created and can be changed`() {
+        assertEquals(SortType.ADDED_DESC, sorts().choiceAt(share, newestAdditionsPath).current)
 
         val chosen = sorts(FolderSort(share, newestAdditionsPath, SortType.NAME_ASC))
         assertEquals(SortType.NAME_ASC, chosen.choiceAt(share, newestAdditionsPath).current)
@@ -110,7 +110,7 @@ class FolderSortsTest {
     @Test
     fun `newest additions is never treated as a leaf`() {
         val choice = sorts().choiceAt(share, newestAdditionsPath, hasSubfolders = false)
-        assertEquals(SortType.LAST_MODIFIED_DESC, choice.current)
+        assertEquals(SortType.ADDED_DESC, choice.current)
         assertFalse(choice.isLeaf)
     }
 }

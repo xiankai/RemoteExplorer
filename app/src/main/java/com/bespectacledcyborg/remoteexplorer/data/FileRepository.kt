@@ -109,6 +109,10 @@ const val NEWEST_ADDITIONS = 200
 
 private const val TAG = "FileRepository"
 
+private const val SQL_IN_CHUNK = 900
+
+fun LocalFile.createdAt(created: Map<String, Date>): Date = created[fullPath()] ?: lastModified
+
 class ShareUnreachableException(connectionId: ConnectionId) :
     java.io.IOException("Share $connectionId failed recently; not retried yet")
 
@@ -345,6 +349,18 @@ class FileRepository(
 
     suspend fun getNewestAdditions(): List<LocalFile> =
         localDatabaseDataSource.getNewestDirectories(NEWEST_ADDITIONS).map { it.asFolder() }
+
+    suspend fun createdDates(files: List<LocalFile>, pairings: Pairings): Map<String, Date> {
+        val folders = files.filter { it.type == FileType.FOLDER }
+            .associate { it.fullPath() to pairings.canonicalize(it.connectionId, it.fullPath()) }
+        val indexed = folders.values.groupBy({ it.connectionId }, { it.path })
+            .flatMap { (connectionId, paths) ->
+                paths.distinct().chunked(SQL_IN_CHUNK)
+                    .flatMap { localDatabaseDataSource.getIndexedDirectories(connectionId, it) }
+            }
+            .associate { FileIdentity(it.connectionId, it.parentPath) to Date(it.addedAt * 1000) }
+        return folders.mapNotNull { (listed, identity) -> indexed[identity]?.let { listed to it } }.toMap()
+    }
 
     fun openFileDirectly(connectionId: Int, fullPath: String): SourceFile {
         return fileDataSource.openFile(connectionId, fullPath)

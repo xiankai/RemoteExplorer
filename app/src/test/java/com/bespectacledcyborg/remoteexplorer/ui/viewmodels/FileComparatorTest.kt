@@ -35,10 +35,17 @@ class FileComparatorTest {
         assertEquals(listOf("101.jpg", "100.jpg", "10.jpg", "2.jpg", "1.jpg"), descending)
     }
 
-    /** b and c share a time, so they fall back to the name either way round. */
     @Test
-    fun `time orders, ties by name`() {
-        assertEquals(listOf("d", "b", "c", "a"), sorted(SortType.LAST_MODIFIED_ASC))
+    fun `recently updated puts the latest modified first, ties by name`() {
         assertEquals(listOf("a", "b", "c", "d"), sorted(SortType.LAST_MODIFIED_DESC))
+    }
+
+    @Test
+    fun `recently created reads the created date, falling back to modified`() {
+        val created = mapOf("d" to Date(10), "c" to Date(0))
+
+        val order = files.sortedWith(fileComparator(SortType.ADDED_DESC, created = created)).map { it.filename }
+
+        assertEquals(listOf("d", "a", "b", "c"), order)
     }
 }

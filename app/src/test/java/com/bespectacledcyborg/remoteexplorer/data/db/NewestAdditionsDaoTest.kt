@@ -102,13 +102,27 @@ class NewestAdditionsDaoTest {
     }
 
     @Test
-    fun `a listed gallery is a folder dated by when it arrived`() {
+    fun `a listed gallery is a folder with no modified date of its own`() {
         apply(1, false, gallery("gallery-dl/pixiv/[1] x", 1_790_047_563))
 
         val folder = dao.getNewestDirectories(1).single().asFolder()
         assertEquals(FileType.FOLDER, folder.type)
         assertEquals("gallery-dl/pixiv", folder.parentPath)
         assertEquals("[1] x", folder.filename)
-        assertEquals(Date(1_790_047_563_000), folder.lastModified)
+        assertEquals(Date(0), folder.lastModified)
+    }
+
+    @Test
+    fun `a browsed folder finds its arrival by its full path`() {
+        apply(1, false, gallery("gallery-dl/pixiv/[1] x", 1_790_047_563), gallery("gallery-dl/pixiv/[2] y", 5))
+        val browsed = LocalFile(
+            connectionId = 1, parentPath = "gallery-dl/pixiv", filename = "[1] x",
+            type = FileType.FOLDER, canHaveThumbnail = false, lastModified = Date(0),
+        )
+
+        val found = dao.getIndexedDirectories(1, listOf(browsed.fullPath()))
+
+        assertEquals(listOf(IndexedDirectory(1, "gallery-dl/pixiv/[1] x", 1_790_047_563)), found)
+        assertEquals(emptyList<IndexedDirectory>(), dao.getIndexedDirectories(2, listOf(browsed.fullPath())))
     }
 }
