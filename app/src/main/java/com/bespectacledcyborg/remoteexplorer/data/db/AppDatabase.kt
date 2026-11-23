@@ -30,9 +30,10 @@ import java.util.Date
         FolderCoverChoice::class,
         FolderSort::class,
         IndexedDirectory::class,
+        PendingMove::class,
     ],
     exportSchema = true,
-    version = 25,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
+    version = 26,  // stack-reviewer-ignore: an AUTO install resolved through the 180dp rule before this change too; columnsFor keeps that exact branch, and ColumnCountTest's "auto follows the width" pins it
     autoMigrations = [
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
@@ -52,6 +53,7 @@ import java.util.Date
         AutoMigration(from = 21, to = 22),
         AutoMigration(from = 22, to = 23, spec = RepullTagIndex::class),
         AutoMigration(from = 23, to = 24),
+        AutoMigration(from = 25, to = 26),
     ]
 )
 @TypeConverters(Converters::class, CredentialConverters::class)
@@ -64,6 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun annotationDao(): AnnotationDao
     abstract fun folderCoverChoiceDao(): FolderCoverChoiceDao
     abstract fun folderSortDao(): FolderSortDao
+    abstract fun pathMoveDao(): PathMoveDao
 }
 
 class RepullTagIndex : AutoMigrationSpec {

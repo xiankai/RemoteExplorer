@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
+import com.bespectacledcyborg.remoteexplorer.data.FileIdentity
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,6 +15,21 @@ import kotlin.io.path.createTempDirectory
  * wrong photo appears and nothing errors.
  */
 class ThumbnailCacheKeyTest {
+
+    @Test
+    fun `a moved file's cached thumbnail is renamed to its new key, replacing a stale one`() {
+        val cache = createTempDirectory().toFile()
+        val from = FileIdentity(1, "Photos/beach.jpg")
+        val to = FileIdentity(1, "Archive/beach.jpg")
+        File(cache, thumbnailCacheKey(from.connectionId, from.path)).writeText("beach")
+        File(cache, thumbnailCacheKey(to.connectionId, to.path)).writeText("stale")
+
+        moveCachedThumbnails(cache, listOf(from to to, FileIdentity(1, "never-cached.jpg") to FileIdentity(1, "x.jpg")))
+
+        assertFalse(File(cache, thumbnailCacheKey(from.connectionId, from.path)).exists())
+        assertEquals("beach", File(cache, thumbnailCacheKey(to.connectionId, to.path)).readText())
+        assertEquals(1, cache.list()!!.size)
+    }
 
     @Test
     fun `the same file on the same connection keeps the same key`() {

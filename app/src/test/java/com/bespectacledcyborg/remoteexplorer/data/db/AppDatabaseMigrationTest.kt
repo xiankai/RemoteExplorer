@@ -36,7 +36,7 @@ class AppDatabaseMigrationTest {
     private val cipher = ReversingCipher()
 
     private fun migrateToLatest() =
-        helper.runMigrationsAndValidate(TEST_DB, 25, true, EncryptSavedPasswords(cipher), RetireOldestFirst)
+        helper.runMigrationsAndValidate(TEST_DB, 26, true, EncryptSavedPasswords(cipher), RetireOldestFirst)
 
     @Test
     fun `migrates the full chain from 5 to 21 and matches the exported schema`() {

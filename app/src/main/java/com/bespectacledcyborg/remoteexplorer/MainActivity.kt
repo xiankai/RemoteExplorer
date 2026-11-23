@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 import com.bespectacledcyborg.remoteexplorer.data.LocalFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.SourceResolver
+import com.bespectacledcyborg.remoteexplorer.data.StoredPendingMoves
 import com.bespectacledcyborg.remoteexplorer.data.RoutingFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.SambaFileDataSource
 import com.bespectacledcyborg.remoteexplorer.data.LoopbackToken
@@ -172,6 +173,7 @@ class ExplorerViewModelFactory(
             keepsFirstPage = coverPreferences::keepsFirstPage,
             canonicalize = { id, path -> pairingRepository.current().canonicalize(id, path) },
             ensureOpen = connectionOpener::ensureOpen,
+            pendingMoves = StoredPendingMoves(db.pathMoveDao()),
         )
         val tagIndexFiles = SmbTagIndexFiles(sambaFileDataSource)
         val tagRepository = TagRepository(
