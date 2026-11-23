@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.bespectacledcyborg.remoteexplorer.data.Caption
 import com.bespectacledcyborg.remoteexplorer.data.CaptionRepository
+import com.bespectacledcyborg.remoteexplorer.data.ConnectionList
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.CoverOrder
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
@@ -227,6 +228,13 @@ class ExplorerViewModel(
     val connectionState: StateFlow<Connection?> = _connection.asStateFlow()
     private val _connections: MutableStateFlow<List<Connection>> = MutableStateFlow(emptyList())
     val connectionsState: StateFlow<List<Connection>> = _connections.asStateFlow()
+    private val localRootsChecked = MutableStateFlow(0)
+    val shownConnectionsState: StateFlow<List<Connection>> =
+        combine(_connections, pairingRepository.loadedPairings, localRootsChecked) { connections, pairings, _ ->
+            ConnectionList(connections, pairings, ConnectionList::isReadableLocalRoot).shown()
+        }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _connectionName = MutableStateFlow("")
     val connectionNameState = _connectionName.asStateFlow()
 
@@ -406,11 +414,20 @@ class ExplorerViewModel(
         if (restoreAttempted) return false
         restoreAttempted = true
         val connections = connectionRepository.getConnections().first()
-        val location = withContext(Dispatchers.IO) { lastLocation.resolve(connections) } ?: return false
+        val pairings = pairingRepository.loadedPairings.first()
+        val location = withContext(Dispatchers.IO) {
+            lastLocation.resolve(connections)?.let {
+                ConnectionList(connections, pairings, ConnectionList::isReadableLocalRoot).entryFor(it)
+            }
+        } ?: return false
         if (locationConnectionId != null) return false  // stack-reviewer-ignore: it sits after the suspending resolve and before connect, so it fires exactly when the user opened a connection while the restore was reading, and the restore then stands down instead of clobbering it
         connect(location.connection)
         location.folderStack.drop(1).forEach(::changePath)
         return true
+    }
+
+    fun recheckLocalRoots() {
+        localRootsChecked.update { it + 1 }
     }
 
     fun leaveConnection() {
@@ -638,7 +655,10 @@ class ExplorerViewModel(
                                 fetchThumbnails(connectionId, listing.files)
                                 if (!listing.syncing) {
                                     metrics.record(LoadMetric.FOLDER_SETTLED, elapsed, folderAttributes)
-                                    scanTagsJob(connectionId, refresh == RefreshMode.FORCE)
+                                    scanTagsJob(
+                                        pairingRepository.current().canonicalize(connectionId, path).connectionId,
+                                        refresh == RefreshMode.FORCE,
+                                    )
                                 }
                             }
                     }

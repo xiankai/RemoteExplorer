@@ -49,6 +49,14 @@ otherwise, whichever side the request came from, opening that connection on dema
 the two apart: a key computed from the *served* identity splits the cache again. Pairings are
 edited from the local root's connection screen and shown, read-only, on the share's.
 
+A paired pair is **one entry** on the connections list (#190): a share copied to a local root
+whose folder is there and readable is left off the list (`ConnectionList`), since the local
+root's listing already merges both sides. Pull the card or revoke all-files access and the
+share is listed again. The share stays reachable from the local root's connection screen
+(Open / Edit), a remembered location on it restores into the local copy, and browsing a paired
+folder schedules the tag scan for the share — a hidden share is never opened, so nothing
+else would refresh its tags.
+
 **The central trick.** `ServerRepository` runs an embedded Ktor/Jetty HTTP server on
 localhost that re-serves SMB files over HTTP with `Range` support. Everything downstream
 then consumes plain URLs — Sketch loads thumbnails, `ACTION_VIEW` hands video to external

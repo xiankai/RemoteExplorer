@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -32,7 +33,8 @@ fun ConnectionsScreen(
     explorerViewModel: ExplorerViewModel,
     navHostController: NavHostController,
 ) {
-    val connections by explorerViewModel.connectionsState.collectAsState()
+    val connections by explorerViewModel.shownConnectionsState.collectAsState()
+    LaunchedEffect(Unit) { explorerViewModel.recheckLocalRoots() }
 
     val connectionItems: List<Item<Connection?>> = connections.map {
         Item(

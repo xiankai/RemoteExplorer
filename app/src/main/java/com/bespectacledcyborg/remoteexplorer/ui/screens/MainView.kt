@@ -104,6 +104,18 @@ fun Routes(
                 pairings = explorerViewModel.pairingsState.collectAsState().value,
                 onSavePairing = explorerViewModel::savePairing,
                 onDeletePairing = explorerViewModel::deletePairing,
+                onOpenShare = { share ->
+                    explorerViewModel.connect(share)
+                    navHostController.navigate(Route.ExplorerRoute) {
+                        popUpTo<Route.ConnectionDetailsRoute> { inclusive = true }
+                    }
+                },
+                onEditShare = { share ->
+                    explorerViewModel.editConnection(share)
+                    navHostController.navigate(Route.ConnectionDetailsRoute) {
+                        popUpTo<Route.ConnectionDetailsRoute> { inclusive = true }
+                    }
+                },
                 testResult = explorerViewModel.connectionTestState.collectAsState().value,
                 onSave = {
                     explorerViewModel.addConnection(it)
