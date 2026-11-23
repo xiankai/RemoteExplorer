@@ -53,6 +53,8 @@ fun PairingSection(
     pairings: List<Pairing>,
     onSave: (Pairing) -> Unit,
     onDelete: (Pairing) -> Unit,
+    onOpenShare: (Connection) -> Unit = {},
+    onEditShare: (Connection) -> Unit = {},
 ) {
     val byId = connections.associateBy { it.id }
     var adding by remember { mutableStateOf(false) }
@@ -70,14 +72,21 @@ fun PairingSection(
                 Spacer(modifier = Modifier.height(8.dp))
                 if (mine.isEmpty()) Text("Not paired with a share")
                 mine.forEach { pairing ->
+                    val share = byId[pairing.remoteConnectionId]
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "${describe(connection, pairing.localSubPath)}  ←  " +
-                                    describe(byId[pairing.remoteConnectionId], pairing.remoteSubPath),
+                                    describe(share, pairing.remoteSubPath),
                             modifier = Modifier.weight(1f),
                         )
                         IconButton(onClick = { onDelete(pairing) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Remove pairing")
+                        }
+                    }
+                    if (share != null) {
+                        Row {
+                            TextButton(onClick = { onOpenShare(share) }) { Text("Open ${share.name}") }
+                            TextButton(onClick = { onEditShare(share) }) { Text("Edit ${share.name}") }
                         }
                     }
                 }

@@ -75,6 +75,8 @@ fun ConnectionDetailsScreen(
     pairings: List<Pairing> = emptyList(),
     onSavePairing: (Pairing) -> Unit = {},
     onDeletePairing: (Pairing) -> Unit = {},
+    onOpenShare: (Connection) -> Unit = {},
+    onEditShare: (Connection) -> Unit = {},
 ) {
     val id by remember { mutableIntStateOf(connection?.id ?: 0) }
     var name by remember { mutableStateOf(connection?.name ?: "") }
@@ -316,6 +318,8 @@ fun ConnectionDetailsScreen(
                         pairings = pairings,
                         onSave = onSavePairing,
                         onDelete = onDeletePairing,
+                        onOpenShare = onOpenShare,
+                        onEditShare = onEditShare,
                     )
                 } else if (type == ConnectionType.LOCAL) {
                     Spacer(modifier = Modifier.height(16.dp))
