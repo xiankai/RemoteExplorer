@@ -17,6 +17,8 @@ import com.bespectacledcyborg.remoteexplorer.data.db.FolderSort
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.data.db.Pairing
 import com.bespectacledcyborg.remoteexplorer.data.db.SettingsEntity
+import com.bespectacledcyborg.remoteexplorer.data.views.ViewRecorder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,12 +46,13 @@ class FileOperationsTest {
     private val local = LocalFileDataSource(hasAllFilesAccess = { true })
     private var pairings = Pairings(listOf(Pairing(PHONE, "", SHARE, "Library")))
     private val thumbnailMoves = mutableListOf<Pair<FileIdentity, FileIdentity>>()
+    private var localOpens: () -> Unit = {}
 
     private val operations by lazy {
         FileOperations(
             local = local,
             isLocalRoot = { it == PHONE },
-            ensureOpen = {},
+            ensureOpen = { if (it == PHONE) localOpens() },
             pairings = { pairings },
             listedNames = { id, path -> db.localDatabaseDao().getFiles(id, path).map { it.filename } },
             paths = db.pathMoveDao(),
@@ -58,6 +61,7 @@ class FileOperationsTest {
                     thumbnailMoves += moves
                 }
             },
+            dispatcher = Dispatchers.Unconfined,
             clock = { 42L },
         )
     }
@@ -145,6 +149,43 @@ class FileOperationsTest {
             ),
             thumbnailMoves.toSet(),
         )
+    }
+
+    @Test
+    fun `history and covers written by their real writers read back at the new path`() = runTest {
+        val views = ViewRecorder(db.fileViewDao(), settings = { db.settingsDao().getSettingsOnce() }, clock = { 7L })
+        val covers = CoverPreferences(
+            choices = db.folderCoverChoiceDao(),
+            shuffleSetting = { com.bespectacledcyborg.remoteexplorer.data.db.CoverShuffle.MARKED },
+            firstPageFolders = { emptyList() },
+            pairings = { pairings },
+            directoryTags = { _, _ -> emptyList() },
+            aliasCanonicals = { _, _ -> emptyList() },
+            hasSubfolders = { _, _ -> false },
+        )
+        views.recordOpen(pairings.canonicalize(PHONE, "pixiv/100_%a/1.jpg"))
+        covers.choose(PHONE, "pixiv/100_%a", CoverMode.NEWEST)
+
+        operations.move(PHONE, "pixiv/100_%a", "archive")
+
+        val moved = pairings.canonicalize(PHONE, "archive/100_%a")
+        assertEquals(1, db.fileViewDao().get(moved.connectionId, moved.path, "1.jpg")?.openCount)
+        assertEquals(CoverMode.NEWEST, covers.choiceFor(PHONE, "archive/100_%a"))
+    }
+
+    @Test
+    fun `an unreachable local root is not mistaken for a NAS-only entry`() = runTest {
+        localOpens = { throw AllFilesAccessMissing() }
+
+        assertEquals(FileOperationResult.Refused(Refusal.LOCAL_UNAVAILABLE), operations.rename(PHONE, "pixiv/100_%a", "b"))
+        assertEquals(FileOperationResult.Refused(Refusal.LOCAL_UNAVAILABLE), operations.createFolder(PHONE, "pixiv", "b"))
+    }
+
+    @Test
+    fun `an entry whose existing name would not be accepted today can still be moved`() = runTest {
+        java.io.File(root, "pixiv/what?").mkdirs()
+
+        assertEquals(FileOperationResult.Done(PHONE, "archive/what?"), operations.move(PHONE, "pixiv/what?", "archive"))
     }
 
     @Test

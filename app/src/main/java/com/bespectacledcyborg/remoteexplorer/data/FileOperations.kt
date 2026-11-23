@@ -4,10 +4,16 @@ import com.bespectacledcyborg.remoteexplorer.data.db.PathMove
 import com.bespectacledcyborg.remoteexplorer.data.db.PathMoveDao
 import com.bespectacledcyborg.remoteexplorer.data.db.PendingMove
 import com.bespectacledcyborg.remoteexplorer.data.db.movedPath
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 enum class Refusal {
     INVALID_NAME,
     NOT_FOUND,
+    LOCAL_UNAVAILABLE,
     NAS_ONLY,
     NAME_TAKEN,
     INTO_ITSELF,
@@ -50,12 +56,20 @@ class FileOperations(
     private val listedNames: suspend (ConnectionId, String) -> List<String>,
     private val paths: PathMoveDao,
     private val thumbnails: ThumbnailMover,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    suspend fun createFolder(connectionId: ConnectionId, parentPath: String, name: String): FileOperationResult {
-        if (!EntryNames.isValid(name)) return refuse(Refusal.INVALID_NAME)
-        val parent = localSideOf(connectionId, parentPath, mustBeFolder = true)
-            ?: return refuse(Refusal.NAS_ONLY)
+    suspend fun createFolder(connectionId: ConnectionId, parentPath: String, name: String): FileOperationResult =
+        withContext(dispatcher) {
+            if (!EntryNames.isValid(name)) return@withContext refuse(Refusal.INVALID_NAME)
+            when (val parent = localSideOf(connectionId, parentPath, mustBeFolder = true)) {
+                LocalSide.Missing -> refuse(Refusal.NAS_ONLY)
+                LocalSide.Unavailable -> refuse(Refusal.LOCAL_UNAVAILABLE)
+                is LocalSide.Found -> createIn(connectionId, parent.identity, name)
+            }
+        }
+
+    private suspend fun createIn(connectionId: ConnectionId, parent: FileIdentity, name: String): FileOperationResult {
         if (isTaken(parent, name, except = null)) return refuse(Refusal.NAME_TAKEN)
 
         val created = parent.child(name)
@@ -64,15 +78,18 @@ class FileOperations(
         return FileOperationResult.Done(connectionId, frameOf(connectionId, created).path)
     }
 
-    suspend fun rename(connectionId: ConnectionId, path: String, newName: String): FileOperationResult =
-        relocate(connectionId, path, Pairings.normalize(path).substringBeforeLast('/', ""), newName)
+    suspend fun rename(connectionId: ConnectionId, path: String, newName: String): FileOperationResult {
+        if (!EntryNames.isValid(newName)) return refuse(Refusal.INVALID_NAME)
+        return relocate(connectionId, path, Pairings.normalize(path).substringBeforeLast('/', ""), newName)
+    }
 
     suspend fun move(connectionId: ConnectionId, path: String, toFolder: String): FileOperationResult =
         relocate(connectionId, path, Pairings.normalize(toFolder), Pairings.normalize(path).substringAfterLast('/'))
 
-    suspend fun sizeOf(connectionId: ConnectionId, path: String): EntrySize? {
-        val entry = localSideOf(connectionId, path, mustBeFolder = false) ?: return null
-        return local.measure(entry.connectionId, entry.path, LARGE_MOVE_FILES)
+    suspend fun sizeOf(connectionId: ConnectionId, path: String): EntrySize? = withContext(dispatcher) {
+        val entry = localSideOf(connectionId, path, mustBeFolder = false) as? LocalSide.Found
+            ?: return@withContext null
+        local.measure(entry.identity.connectionId, entry.identity.path, LARGE_MOVE_FILES)
     }
 
     private suspend fun relocate(
@@ -80,13 +97,29 @@ class FileOperations(
         path: String,
         toFolder: String,
         name: String,
+    ): FileOperationResult = withContext(dispatcher) {
+        if (Pairings.normalize(path).isEmpty()) return@withContext refuse(Refusal.NOT_FOUND)
+        val source = when (val side = localSideOf(connectionId, path, mustBeFolder = false)) {
+            is LocalSide.Found -> side.identity
+            LocalSide.Unavailable -> return@withContext refuse(Refusal.LOCAL_UNAVAILABLE)
+            LocalSide.Missing -> return@withContext refuse(
+                if (listedHere(connectionId, path)) Refusal.NAS_ONLY else Refusal.NOT_FOUND
+            )
+        }
+        val folder = when (val side = localSideOf(connectionId, toFolder, mustBeFolder = true)) {
+            is LocalSide.Found -> side.identity
+            LocalSide.Unavailable -> return@withContext refuse(Refusal.LOCAL_UNAVAILABLE)
+            LocalSide.Missing -> return@withContext refuse(Refusal.NAS_ONLY)
+        }
+        relocateWithin(connectionId, source, folder, name)
+    }
+
+    private suspend fun relocateWithin(
+        connectionId: ConnectionId,
+        source: FileIdentity,
+        folder: FileIdentity,
+        name: String,
     ): FileOperationResult {
-        if (!EntryNames.isValid(name)) return refuse(Refusal.INVALID_NAME)
-        if (Pairings.normalize(path).isEmpty()) return refuse(Refusal.NOT_FOUND)
-        val source = localSideOf(connectionId, path, mustBeFolder = false)
-            ?: return refuse(if (listedHere(connectionId, path)) Refusal.NAS_ONLY else Refusal.NOT_FOUND)
-        val folder = localSideOf(connectionId, toFolder, mustBeFolder = true)
-            ?: return refuse(Refusal.NAS_ONLY)
         if (folder.connectionId != source.connectionId) return refuse(Refusal.CROSSES_PAIRING)
         if (Pairings.relativeTo(folder.path, source.path) != null) return refuse(Refusal.INTO_ITSELF)
 
@@ -102,8 +135,10 @@ class FileOperations(
             return refuse(Refusal.NAME_TAKEN)
         }
 
-        local.move(source.connectionId, source.path, target.path)
-        carry(source, target)
+        withContext(NonCancellable) {
+            local.move(source.connectionId, source.path, target.path)
+            carry(source, target)
+        }
         return FileOperationResult.Done(connectionId, frameOf(connectionId, target).path)
     }
 
@@ -145,7 +180,13 @@ class FileOperations(
         }.filter { (from, to) -> from != to }
     }
 
-    private suspend fun localSideOf(connectionId: ConnectionId, path: String, mustBeFolder: Boolean): FileIdentity? {
+    private sealed interface LocalSide {
+        data class Found(val identity: FileIdentity) : LocalSide
+        data object Missing : LocalSide
+        data object Unavailable : LocalSide
+    }
+
+    private suspend fun localSideOf(connectionId: ConnectionId, path: String, mustBeFolder: Boolean): LocalSide {
         val normalized = Pairings.normalize(path)
         val current = pairings()
         val canonical = current.canonicalize(connectionId, normalized)
@@ -153,14 +194,24 @@ class FileOperations(
             if (isLocalRoot(connectionId)) add(FileIdentity(connectionId, normalized))
             addAll(current.localCopiesOf(canonical))
         }.distinct()
-        return candidates.firstOrNull { candidate ->
-            runCatching { ensureOpen(candidate.connectionId) }.isSuccess &&
-                if (mustBeFolder) {
-                    local.isFolder(candidate.connectionId, candidate.path)
-                } else {
-                    local.exists(candidate.connectionId, candidate.path)
-                }
+        var unavailable = false
+        for (candidate in candidates) {
+            try {
+                ensureOpen(candidate.connectionId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                unavailable = true
+                continue
+            }
+            val present = if (mustBeFolder) {
+                local.isFolder(candidate.connectionId, candidate.path)
+            } else {
+                local.exists(candidate.connectionId, candidate.path)
+            }
+            if (present) return LocalSide.Found(candidate)
         }
+        return if (unavailable) LocalSide.Unavailable else LocalSide.Missing
     }
 
     private suspend fun isTaken(folder: FileIdentity, name: String, except: String?): Boolean {

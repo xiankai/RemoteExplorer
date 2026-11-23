@@ -2,6 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import android.os.Environment
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -93,7 +94,12 @@ class LocalFileDataSource(
         if (caseOnly) {
             val step = java.io.File(source.parentFile, ".${source.name}.rename-${System.nanoTime()}")
             Files.move(source.toPath(), step.toPath(), StandardCopyOption.ATOMIC_MOVE)
-            Files.move(step.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            try {
+                Files.move(step.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            } catch (e: IOException) {
+                Files.move(step.toPath(), source.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                throw e
+            }
         } else {
             Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
         }

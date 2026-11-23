@@ -21,6 +21,8 @@ class StoredPendingMoves(private val dao: PathMoveDao) : PendingMoves {
     override suspend fun namesIn(folder: FileIdentity): Set<String> =
         dao.pendingNames(folder.connectionId, folder.path).toSet()
 
-    override suspend fun settle(folder: FileIdentity, listed: Set<String>, now: Long) =
+    override suspend fun settle(folder: FileIdentity, listed: Set<String>, now: Long) {
+        if (dao.pendingNames(folder.connectionId, folder.path).isEmpty()) return
         dao.settleListed(folder.connectionId, folder.path, listed, now - PENDING_MOVE_TTL_MILLIS)
+    }
 }
