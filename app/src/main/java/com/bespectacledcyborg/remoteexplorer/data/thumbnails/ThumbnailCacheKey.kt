@@ -1,6 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.data.thumbnails
 
 import com.bespectacledcyborg.remoteexplorer.data.tasks.THUMBNAIL_SIZE
+import com.bespectacledcyborg.remoteexplorer.data.FileIdentity
 import java.io.File
 import java.security.MessageDigest
 
@@ -59,3 +60,13 @@ internal fun deleteOtherSizes(files: Array<File>): List<File> {
 private fun suffixFor(size: Int) = "-$size.jpg"
 
 private const val KEY_BYTES = 16
+
+internal fun moveCachedThumbnails(cache: File, moves: List<Pair<FileIdentity, FileIdentity>>) {
+    for ((from, to) in moves) {
+        val cached = File(cache, thumbnailCacheKey(from.connectionId, from.path))
+        if (!cached.exists()) continue
+        val moved = File(cache, thumbnailCacheKey(to.connectionId, to.path))
+        moved.delete()
+        cached.renameTo(moved)
+    }
+}

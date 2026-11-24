@@ -2,9 +2,13 @@ package com.bespectacledcyborg.remoteexplorer.data
 
 import android.os.Environment
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 
@@ -68,6 +72,70 @@ class LocalFileDataSource(
         return LocalSourceFile(RandomAccessFile(file, "r"))
     }
 
+    fun exists(connectionId: ConnectionId, path: String): Boolean =
+        runCatching { resolve(connectionId, path).exists() }.getOrDefault(false)
+
+    fun isFolder(connectionId: ConnectionId, path: String): Boolean =
+        runCatching { resolve(connectionId, path).isDirectory }.getOrDefault(false)
+
+    fun namesIn(connectionId: ConnectionId, folder: String): List<String> =
+        resolve(connectionId, folder).list()?.toList().orEmpty()
+
+    fun createFolder(connectionId: ConnectionId, path: String) {
+        Files.createDirectory(leaf(connectionId, path).toPath())
+    }
+
+    fun move(connectionId: ConnectionId, from: String, to: String) {
+        val source = resolve(connectionId, from)
+        val target = leaf(connectionId, to)
+        if (!source.exists()) throw FileNotFoundException(from)
+        val caseOnly = target.exists() && Files.isSameFile(source.toPath(), target.toPath())
+        if (target.exists() && !caseOnly) throw FileAlreadyExistsException(target.toPath().toString())
+        if (caseOnly) {
+            val step = java.io.File(source.parentFile, ".${source.name}.rename-${System.nanoTime()}")
+            Files.move(source.toPath(), step.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            try {
+                Files.move(step.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            } catch (e: IOException) {
+                Files.move(step.toPath(), source.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                throw e
+            }
+        } else {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        }
+    }
+
+    fun filesUnder(connectionId: ConnectionId, path: String): List<String> {
+        val start = resolve(connectionId, path)
+        if (start.isFile) return listOf(Pairings.normalize(path))
+        return start.walkTopDown()
+            .onEnter { !isSyncthingInternal(it.name) || it == start }
+            .filter { it.isFile && !isSyncthingInternal(it.name) }
+            .map { Pairings.join(path, it.relativeTo(start).invariantSeparatorsPath) }
+            .toList()
+    }
+
+    fun measure(connectionId: ConnectionId, path: String, fileCap: Int): EntrySize {
+        val start = resolve(connectionId, path)
+        var files = 0
+        var bytes = 0L
+        for (file in start.walkTopDown().onEnter { !isSyncthingInternal(it.name) || it == start }) {
+            if (!file.isFile) continue
+            files++
+            bytes += file.length()
+            if (files >= fileCap) return EntrySize(files, bytes, complete = false)
+        }
+        return EntrySize(files, bytes, complete = true)
+    }
+
+    private fun leaf(connectionId: ConnectionId, path: String): java.io.File {
+        val name = path.substringAfterLast('/')
+        if (name.isEmpty() || name == "." || name == ".." || isSyncthingInternal(name)) {
+            throw FileNotFoundException(path)
+        }
+        return java.io.File(resolve(connectionId, path.substringBeforeLast('/', "")), name)
+    }
+
     /**
      * [path] under the connection's root, or a [FileNotFoundException].
      *
@@ -89,6 +157,8 @@ class LocalFileDataSource(
         return resolved
     }
 }
+
+data class EntrySize(val files: Int, val bytes: Long, val complete: Boolean)
 
 /** What [LocalFileDataSource] needs to open a root. */
 data class LocalRootDetails(

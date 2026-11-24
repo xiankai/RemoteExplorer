@@ -3,6 +3,7 @@ package com.bespectacledcyborg.remoteexplorer.data
 import android.content.Context
 import android.content.SharedPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.Connection
+import com.bespectacledcyborg.remoteexplorer.data.db.movedPath
 
 private const val PREFERENCES_NAME = "last_location"
 private const val CONNECTION_ID_KEY = "connectionId"
@@ -22,6 +23,13 @@ class LastLocation(private val preferences: SharedPreferences) {
             .putInt(CONNECTION_ID_KEY, connectionId)
             .putString(PATH_KEY, path)
             .apply()
+    }
+
+    fun follow(connectionId: Int, from: String, to: String) {
+        if (storedConnectionId() != connectionId) return
+        val stored = preferences.getString(PATH_KEY, null) ?: return
+        val moved = movedPath(stored, from, to) ?: return
+        preferences.edit().putString(PATH_KEY, moved).apply()
     }
 
     fun forget() {

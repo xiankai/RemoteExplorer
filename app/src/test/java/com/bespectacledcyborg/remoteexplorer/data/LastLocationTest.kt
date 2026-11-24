@@ -32,6 +32,18 @@ class LastLocationTest {
     }
 
     @Test
+    fun aRememberedFolderFollowsItsMoveButNotASiblingWithTheSamePrefix() {
+        lastLocation.remember(5, "gallery-dl/artist/set")
+        lastLocation.follow(5, "gallery-dl/artist", "archive/artist")
+        assertEquals(Location(nas, "archive/artist/set"), lastLocation.resolve(listOf(nas, laptop)))
+
+        lastLocation.remember(5, "gallery-dl/artist2")
+        lastLocation.follow(5, "gallery-dl/artist", "archive/artist")
+        lastLocation.follow(9, "gallery-dl/artist2", "elsewhere")
+        assertEquals(Location(nas, "gallery-dl/artist2"), lastLocation.resolve(listOf(nas, laptop)))
+    }
+
+    @Test
     fun restoresTheLastFolderOfTheLastConnection() {
         lastLocation.remember(5, "")
         lastLocation.remember(5, "gallery-dl/artist")

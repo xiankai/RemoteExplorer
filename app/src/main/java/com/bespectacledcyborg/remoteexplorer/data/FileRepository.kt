@@ -137,6 +137,7 @@ class FileRepository(
     private val onShareUnreachable: (FileIdentity, Exception) -> Unit = { share, e ->
         Log.w(TAG, "Paired share ${share.connectionId} unreachable at ${share.path}", e)
     },
+    private val pendingMoves: PendingMoves = PendingMoves.NONE,
 ) {
     private val shareFailedAt = ConcurrentHashMap<ConnectionId, Long>()
 
@@ -180,7 +181,7 @@ class FileRepository(
 
         val share = canonicalize(connectionId, parentPath)
         val listed = if (share.connectionId == connectionId) {
-            timedListing(connectionId, parentPath, forced)
+            withoutPendingMoves(FileIdentity(connectionId, parentPath), timedListing(connectionId, parentPath, forced))
         } else {
             mergedListing(connectionId, parentPath, share, forced)
         }
@@ -201,6 +202,13 @@ class FileRepository(
         }
         localDatabaseDataSource.reconcileDirectory(connectionId, parentPath, rows, Date(clock()))
         clearCoverSkips(connectionId, parentPath)
+    }
+
+    private suspend fun withoutPendingMoves(folder: FileIdentity, listed: List<File>): List<File> {
+        val names = listed.mapTo(HashSet()) { it.filename }
+        pendingMoves.settle(folder, names, clock())
+        val hidden = pendingMoves.namesIn(folder)
+        return if (hidden.isEmpty()) listed else listed.filterNot { it.filename in hidden }
     }
 
     private fun timedListing(connectionId: ConnectionId, path: String, forced: Boolean): List<File> {
@@ -257,8 +265,11 @@ class FileRepository(
         shareFailedAt.remove(share.connectionId)
         return try {
             ShareListing.Listed(
-                timedListing(share.connectionId, share.path, forced)
-                    .filterNot { isSyncthingInternal(it.filename) }
+                withoutPendingMoves(
+                    share,
+                    timedListing(share.connectionId, share.path, forced)
+                        .filterNot { isSyncthingInternal(it.filename) },
+                )
             )
         } catch (e: CancellationException) {
             throw e

@@ -16,6 +16,7 @@ import com.bespectacledcyborg.remoteexplorer.data.tasks.ThumbnailGenerationWorke
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.maxThumbnailCacheBytes
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.resolveThumbnailCacheDir
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.deleteOtherSizes
+import com.bespectacledcyborg.remoteexplorer.data.thumbnails.moveCachedThumbnails
 import com.bespectacledcyborg.remoteexplorer.data.thumbnails.thumbnailCacheKey
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ThumbnailsMap
 import java.io.File
@@ -39,7 +40,11 @@ class ThumbnailManager(
      * stale.
      */
     private val volumeId: suspend () -> String?,
-) {
+) : ThumbnailMover {
+    override suspend fun move(moves: List<Pair<FileIdentity, FileIdentity>>) {
+        if (moves.isNotEmpty()) moveCachedThumbnails(thumbnailCache(), moves)
+    }
+
     private val pendingThumbnails = ConcurrentHashMap<String, Boolean>()
     private val workManager by lazy { WorkManager.getInstance(context) }
 

@@ -923,6 +923,7 @@ class PairedListingTest {
         metrics: LoadMetrics = LoadMetrics.NONE,
         open: (ConnectionId) -> Unit = {},
         canonicalize: (ConnectionId, String) -> FileIdentity = pairings::canonicalize,
+        pendingMoves: PendingMoves = PendingMoves.NONE,
     ): FileRepository {
         val dispatcher = UnconfinedTestDispatcher()
         return FileRepository(
@@ -940,7 +941,34 @@ class PairedListingTest {
                 open(it)
             },
             onShareUnreachable = { share, _ -> unreachable += share },
+            pendingMoves = pendingMoves,
         )
+    }
+
+    private class RecordedPendingMoves(var names: Map<FileIdentity, Set<String>>) : PendingMoves {
+        val settled = mutableListOf<Pair<FileIdentity, Set<String>>>()
+        override suspend fun namesIn(folder: FileIdentity) = names[folder].orEmpty()
+        override suspend fun settle(folder: FileIdentity, listed: Set<String>, now: Long) {
+            settled += folder to listed
+        }
+    }
+
+    @Test
+    fun `a name moved locally stays hidden on the share until Syncthing carries it`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("renamed", folder = true)),
+                (NAS to "gallery-dl/pixiv") to listOf(entry("original", folder = true), entry("nas.jpg")),
+            )
+        )
+        val share = FileIdentity(NAS, "gallery-dl/pixiv")
+        val pending = RecordedPendingMoves(mapOf(share to setOf("original")))
+
+        val files = repository(source, FakeLocalDatabaseDao(cached = emptyList()), pendingMoves = pending)
+            .listFiles(LOCAL, "pixiv").toList().last().files
+
+        assertEquals(listOf("nas.jpg", "renamed"), files.map { it.filename }.sorted())
+        assertEquals(listOf(share to setOf("original", "nas.jpg")), pending.settled)
     }
 
     @Test
