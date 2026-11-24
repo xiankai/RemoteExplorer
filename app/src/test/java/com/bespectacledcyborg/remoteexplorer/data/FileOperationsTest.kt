@@ -360,6 +360,28 @@ class FileOperationsTest {
     }
 
     @Test
+    fun `nothing under a pending old name is written on the NAS, as source, destination or new parent`() = runTest {
+        writeOnNas("Library/outside/x/1.jpg")
+        pairings = Pairings(listOf(Pairing(PHONE, "", SHARE, "Library")))
+        operations.move(PHONE, "pixiv", "archive")
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNC_PENDING),
+            operations.rename(PHONE, "pixiv/100_%a", "x", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNC_PENDING),
+            operations.move(PHONE, "outside/x", "pixiv/100_%a2", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNC_PENDING),
+            operations.createFolder(PHONE, "pixiv/100_%a", "new", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/100_%a").isDirectory)
+        assertTrue(java.io.File(nasRoot, "Library/outside/x").isDirectory)
+    }
+
+    @Test
     fun `a NAS folder that holds a paired folder, or a move across a pairing on the NAS, is refused`() = runTest {
         pairings = Pairings(listOf(Pairing(PHONE, "", SHARE, "Library/pixiv")))
         writeOnNas("outside/x/1.jpg")
@@ -383,7 +405,7 @@ class FileOperationsTest {
 
         nasMoveFailure = java.nio.file.AccessDeniedException("Library/pixiv/nas-only")
         assertEquals(
-            FileOperationResult.Refused(Refusal.NAS_ACCESS_DENIED),
+            FileOperationResult.Refused(Refusal.NAS_WRITE_REFUSED),
             operations.rename(PHONE, "pixiv/nas-only", "renamed", confirmedOnNas = true),
         )
         nasMoveFailure = java.io.IOException("connection reset")

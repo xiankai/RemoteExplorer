@@ -17,7 +17,7 @@ enum class Refusal {
     NOT_FOUND,
     LOCAL_UNAVAILABLE,
     NAS_UNAVAILABLE,
-    NAS_ACCESS_DENIED,
+    NAS_WRITE_REFUSED,
     NEEDS_NAS_CONFIRMATION,
     CROSSES_SIDES,
     SYNC_PENDING,
@@ -77,7 +77,9 @@ class FileOperations(
         refusingOnNasFailure {
             when (val parent = sideOf(connectionId, parentPath, mustBeFolder = true)) {
                 is Side.Local -> createIn(connectionId, local, parent.identity, name)
-                is Side.Nas -> createIn(connectionId, share, parent.identity, name, needsConfirmation = !confirmedOnNas)
+                is Side.Nas ->
+                    if (isPendingAlong(parent.identity)) refuse(Refusal.SYNC_PENDING)
+                    else createIn(connectionId, share, parent.identity, name, needsConfirmation = !confirmedOnNas)
                 is Side.Absent -> refuse(parent.reason)
             }
         }
@@ -178,10 +180,7 @@ class FileOperations(
         name: String,
         confirmed: Boolean,
     ): FileOperationResult {
-        val pending = paths.pendingNames(source.connectionId, source.path.substringBeforeLast('/', ""))
-        if (pending.any { it.equals(source.path.substringAfterLast('/'), ignoreCase = true) }) {
-            return refuse(Refusal.SYNC_PENDING)
-        }
+        if (isPendingAlong(source) || isPendingAlong(folder)) return refuse(Refusal.SYNC_PENDING)
         return relocateWithin(connectionId, share, source, folder, name, needsConfirmation = !confirmed)
     }
 
@@ -212,6 +211,14 @@ class FileOperations(
             carry(source, target, files)
         }
         return FileOperationResult.Done(connectionId, frameOf(connectionId, target).path)
+    }
+
+    private suspend fun isPendingAlong(identity: FileIdentity): Boolean {
+        val segments = Pairings.normalize(identity.path).split('/').filter { it.isNotEmpty() }
+        return segments.indices.any { depth ->
+            val parent = segments.take(depth).joinToString("/")
+            paths.pendingNames(identity.connectionId, parent).any { it.equals(segments[depth], ignoreCase = true) }
+        }
     }
 
     private fun pairingAt(identity: FileIdentity) =
@@ -353,7 +360,7 @@ class FileOperations(
         } catch (e: CancellationException) {
             throw e
         } catch (e: AccessDeniedException) {
-            throw NasFailure(Refusal.NAS_ACCESS_DENIED)
+            throw NasFailure(Refusal.NAS_WRITE_REFUSED)
         } catch (e: FileAlreadyExistsException) {
             throw NasFailure(Refusal.NAME_TAKEN)
         } catch (e: Exception) {
