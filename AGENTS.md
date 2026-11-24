@@ -223,6 +223,12 @@ Actions variable `ANDROID_CI_LOCAL=1` to run them on a self-hosted Forgejo runne
 (`checks-local`); `checks` then passes that job's result through, so the required status
 never changes name. The relay reads GitHub without a token, which needs the repo public; for a private one, pass a read-only token as `RELAY_GITHUB_TOKEN` in the relay step. It waits 8 minutes before its first call and then polls every 2, which keeps several PRs at once inside GitHub's 60 anonymous calls an hour.
 
+Turning `ANDROID_CI_LOCAL=1` on? Also turn the `android` runner's Actions cache back on first,
+or the Gradle cache steps restore nothing: one homelab-infra PR that sets `cache.enabled: true`
+in `stacks/act-runner/runner-config-android.yml` and restores its `172.17.0.1:40716` publish
+(homelab-infra README, "Runner scopes"; homelab-infra#234). Turn both off again when the
+variable is unset.
+
 **The sideload build runs daily at noon** (#118, #123): merging doesn't publish, because each
 release build costs the self-hosted runner 20-odd minutes. At 12:00 Asia/Tokyo the job builds master, unless
 the newest release already is master, in which case it stops before the build. To ship sooner:
