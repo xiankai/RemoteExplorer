@@ -43,16 +43,27 @@ class FileOperationsTest {
 
     private lateinit var db: AppDatabase
     private lateinit var root: java.io.File
+    private lateinit var nasRoot: java.io.File
     private val local = LocalFileDataSource(hasAllFilesAccess = { true })
+    private val nasDisk = LocalFileDataSource(hasAllFilesAccess = { true })
+    private var nasMoveFailure: Exception? = null
+    private val nas = object : EntryTree by nasDisk {
+        override fun move(connectionId: ConnectionId, from: String, to: String) {
+            nasMoveFailure?.let { throw it }
+            nasDisk.move(connectionId, from, to)
+        }
+    }
     private var pairings = Pairings(listOf(Pairing(PHONE, "", SHARE, "Library")))
     private val thumbnailMoves = mutableListOf<Pair<FileIdentity, FileIdentity>>()
     private var localOpens: () -> Unit = {}
+    private var nasOpens: () -> Unit = {}
 
     private val operations by lazy {
         FileOperations(
             local = local,
+            share = nas,
             isLocalRoot = { it == PHONE },
-            ensureOpen = { if (it == PHONE) localOpens() },
+            ensureOpen = { if (it == PHONE) localOpens() else nasOpens() },
             pairings = { pairings },
             listedNames = { id, path -> db.localDatabaseDao().getFiles(id, path).map { it.filename } },
             paths = db.pathMoveDao(),
@@ -87,10 +98,14 @@ class FileOperationsTest {
         )
         db.settingsDao().insert(SettingsEntity())
         local.connect(LocalRootDetails(PHONE, root.path))
-        write("pixiv/100_%a/1.jpg")
-        write("pixiv/100_%a/2.jpg")
-        write("pixiv/100_%a2/1.jpg")
+        nasRoot = folder.newFolder("nas")
+        nasDisk.connect(LocalRootDetails(SHARE, nasRoot.path))
+        listOf("pixiv/100_%a/1.jpg", "pixiv/100_%a/2.jpg", "pixiv/100_%a2/1.jpg").forEach {
+            write(it)
+            writeOnNas("Library/$it")
+        }
         java.io.File(root, "archive").mkdirs()
+        java.io.File(nasRoot, "Library/archive").mkdirs()
     }
 
     @After
@@ -98,6 +113,10 @@ class FileOperationsTest {
 
     private fun write(path: String) {
         java.io.File(root, path).apply { parentFile!!.mkdirs() }.writeText(path)
+    }
+
+    private fun writeOnNas(path: String) {
+        java.io.File(nasRoot, path).apply { parentFile!!.mkdirs() }.writeText(path)
     }
 
     private fun rows(sql: String): List<String> {
@@ -233,18 +252,164 @@ class FileOperationsTest {
     }
 
     @Test
-    fun `an entry only on the NAS is refused, not created locally`() = runTest {
+    fun `a NAS-only entry is renamed on the NAS only once confirmed, and its records follow`() = runTest {
+        writeOnNas("Library/pixiv/nas-only/1.jpg")
         db.localDatabaseDao().insertNewFiles(listOf(listed(PHONE, "pixiv", "nas-only")))
+        db.fileViewDao().recordOpen(SHARE, "Library/pixiv/nas-only", "1.jpg", at = 5, day = 1)
+        db.folderSortDao().upsert(FolderSort(SHARE, "Library/pixiv/nas-only", SortType.NAME_DESC))
 
         assertEquals(
-            FileOperationResult.Refused(Refusal.NAS_ONLY),
+            FileOperationResult.Refused(Refusal.NEEDS_NAS_CONFIRMATION),
             operations.rename(PHONE, "pixiv/nas-only", "renamed"),
         )
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/nas-only").isDirectory)
+
+        val result = operations.rename(PHONE, "pixiv/nas-only", "renamed", confirmedOnNas = true)
+
+        assertEquals(FileOperationResult.Done(PHONE, "pixiv/renamed"), result)
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/renamed/1.jpg").isFile)
+        assertFalse(java.io.File(nasRoot, "Library/pixiv/nas-only").exists())
+        assertFalse(java.io.File(root, "pixiv/renamed").exists())
+        assertEquals(listOf("Library/pixiv/renamed|1.jpg"), rows("SELECT parentPath, filename FROM FileView"))
+        assertEquals(listOf("Library/pixiv/renamed"), rows("SELECT path FROM FolderSort"))
+        assertEquals(emptyList<String>(), rows("SELECT * FROM PendingMove"))
+        assertEquals(emptyList<String>(), rows("SELECT filename FROM LocalFile WHERE filename = 'nas-only'"))
         assertEquals(
-            FileOperationResult.Refused(Refusal.NAS_ONLY),
-            operations.move(PHONE, "pixiv/100_%a", "pixiv/nas-only"),
+            listOf(FileIdentity(SHARE, "Library/pixiv/nas-only/1.jpg") to FileIdentity(SHARE, "Library/pixiv/renamed/1.jpg")),
+            thumbnailMoves,
+        )
+    }
+
+    @Test
+    fun `browsing the share, a NAS-only entry is moved on the NAS`() = runTest {
+        writeOnNas("Library/pixiv/nas-only/1.jpg")
+
+        val result = operations.move(SHARE, "Library/pixiv/nas-only", "Library/archive", confirmedOnNas = true)
+
+        assertEquals(FileOperationResult.Done(SHARE, "Library/archive/nas-only"), result)
+        assertTrue(java.io.File(nasRoot, "Library/archive/nas-only/1.jpg").isFile)
+    }
+
+    @Test
+    fun `a new folder in a NAS-only folder is made on the NAS once confirmed`() = runTest {
+        java.io.File(nasRoot, "Library/nas-folder").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NEEDS_NAS_CONFIRMATION),
+            operations.createFolder(PHONE, "nas-folder", "new"),
+        )
+        assertEquals(
+            FileOperationResult.Done(PHONE, "nas-folder/new"),
+            operations.createFolder(PHONE, "nas-folder", "new", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/nas-folder/new").isDirectory)
+        assertFalse(java.io.File(root, "nas-folder").exists())
+    }
+
+    @Test
+    fun `a move between a local entry and a NAS-only folder, either way, is refused`() = runTest {
+        writeOnNas("Library/pixiv/nas-only/1.jpg")
+        java.io.File(nasRoot, "Library/nas-folder").mkdirs()
+        java.io.File(root, "local-only").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_SIDES),
+            operations.move(PHONE, "pixiv/100_%a", "nas-folder", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_SIDES),
+            operations.move(PHONE, "pixiv/nas-only", "local-only", confirmedOnNas = true),
         )
         assertTrue(java.io.File(root, "pixiv/100_%a").isDirectory)
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/nas-only").isDirectory)
+    }
+
+    @Test
+    fun `an entry on neither side is not found`() = runTest {
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NOT_FOUND),
+            operations.rename(PHONE, "pixiv/nowhere", "x", confirmedOnNas = true),
+        )
+    }
+
+    @Test
+    fun `a NAS name the local copy of the folder already has is taken, whatever its case`() = runTest {
+        writeOnNas("Library/pixiv/nas-only/1.jpg")
+        writeOnNas("Library/pixiv/Other/1.jpg")
+        write("pixiv/Local-Only/1.jpg")
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NAME_TAKEN),
+            operations.rename(PHONE, "pixiv/nas-only", "OTHER", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NAME_TAKEN),
+            operations.rename(PHONE, "pixiv/nas-only", "local-only", confirmedOnNas = true),
+        )
+    }
+
+    @Test
+    fun `the old name of a move Syncthing has not carried yet is not renamed again on the NAS`() = runTest {
+        operations.move(PHONE, "pixiv/100_%a", "archive")
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNC_PENDING),
+            operations.rename(PHONE, "pixiv/100_%a", "x", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/100_%a").isDirectory)
+    }
+
+    @Test
+    fun `a NAS folder that holds a paired folder, or a move across a pairing on the NAS, is refused`() = runTest {
+        pairings = Pairings(listOf(Pairing(PHONE, "", SHARE, "Library/pixiv")))
+        writeOnNas("outside/x/1.jpg")
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.HOLDS_PAIRED_FOLDER),
+            operations.rename(SHARE, "Library", "Lib", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_PAIRING),
+            operations.move(SHARE, "outside/x", "Library/pixiv", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library").isDirectory)
+        assertTrue(java.io.File(nasRoot, "outside/x").isDirectory)
+    }
+
+    @Test
+    fun `a NAS write the share refuses or cannot reach leaves the records alone`() = runTest {
+        writeOnNas("Library/pixiv/nas-only/1.jpg")
+        db.folderSortDao().upsert(FolderSort(SHARE, "Library/pixiv/nas-only", SortType.NAME_DESC))
+
+        nasMoveFailure = java.nio.file.AccessDeniedException("Library/pixiv/nas-only")
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NAS_ACCESS_DENIED),
+            operations.rename(PHONE, "pixiv/nas-only", "renamed", confirmedOnNas = true),
+        )
+        nasMoveFailure = java.io.IOException("connection reset")
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NAS_UNAVAILABLE),
+            operations.rename(PHONE, "pixiv/nas-only", "renamed", confirmedOnNas = true),
+        )
+        nasMoveFailure = null
+        nasOpens = { throw java.io.IOException("unreachable") }
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NAS_UNAVAILABLE),
+            operations.rename(PHONE, "pixiv/nas-only", "renamed", confirmedOnNas = true),
+        )
+        assertEquals(listOf("Library/pixiv/nas-only"), rows("SELECT path FROM FolderSort"))
+        assertTrue(thumbnailMoves.isEmpty())
+    }
+
+    @Test
+    fun `an unreachable local root is never written through the NAS instead`() = runTest {
+        localOpens = { throw AllFilesAccessMissing() }
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.LOCAL_UNAVAILABLE),
+            operations.rename(PHONE, "pixiv/100_%a", "b", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/pixiv/100_%a").isDirectory)
     }
 
     @Test

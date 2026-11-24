@@ -110,6 +110,16 @@ class Pairings(pairings: List<Pairing>) {
             it.localConnectionId == connectionId && relativeTo(it.localSubPath, path) != null
         }
 
+    fun remotePairingOf(connectionId: ConnectionId, path: String): Pairing? =
+        byRemote.firstOrNull {
+            it.remoteConnectionId == connectionId && relativeTo(path, it.remoteSubPath) != null
+        }
+
+    fun holdsRemotePairedFolder(connectionId: ConnectionId, path: String): Boolean =
+        byRemote.any {
+            it.remoteConnectionId == connectionId && relativeTo(it.remoteSubPath, path) != null
+        }
+
     companion object {
         val NONE = Pairings(emptyList())
 
