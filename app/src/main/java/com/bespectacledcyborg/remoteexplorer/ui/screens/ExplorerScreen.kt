@@ -33,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.CoverChoiceSheet
@@ -143,12 +144,18 @@ fun ExplorerScreen(
         filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
     }
 
-    var pendingHandOff by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingPlaybackName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
-        pendingHandOff?.invoke()
-        pendingHandOff = null
+        val name = pendingPlaybackName
+        val path = pendingPlaybackPath
+        pendingPlaybackName = null
+        pendingPlaybackPath = null
+        if (name != null && path != null) {
+            handOffToExternalApp(context, name, explorerViewModel.getUrl(path))
+        }
     }
 
     val handleItemClick = { item: Item<LocalFile> ->
@@ -165,14 +172,14 @@ fun ExplorerScreen(
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
                     } else {
-                        val url = explorerViewModel.getUrl(item.item.fullPath())
-                        val handOff = { handOffToExternalApp(context, item.name, url) }
+                        val path = item.item.fullPath()
                         val isPlayback = Utils.guessIconType(item.name) in PLAYBACK_TYPES
                         if (isPlayback && !context.canPostNotifications()) {
-                            pendingHandOff = handOff
+                            pendingPlaybackName = item.name
+                            pendingPlaybackPath = path
                             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
-                            handOff()
+                            handOffToExternalApp(context, item.name, explorerViewModel.getUrl(path))
                         }
                     }
                 }
