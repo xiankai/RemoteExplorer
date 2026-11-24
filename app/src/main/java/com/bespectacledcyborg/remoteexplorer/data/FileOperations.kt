@@ -337,7 +337,7 @@ class FileOperations(
         val wanted = name.lowercase()
         val onSide = onTree(tree) { tree.namesIn(folder.connectionId, folder.path) }
         val onCopies = framesOf(folder)
-            .filter { it != folder && local.isFolder(it.connectionId, it.path) }
+            .filter { it != folder && isLocalRoot(it.connectionId) && local.isFolder(it.connectionId, it.path) }
             .flatMap { local.namesIn(it.connectionId, it.path) }
         val listed = framesOf(folder).flatMap { listedNames(it.connectionId, it.path) }
         return (onSide + onCopies + listed).any { it.lowercase() == wanted && it != except }
