@@ -1,9 +1,14 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens
 
+import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.CoverChoiceSheet
@@ -138,6 +144,20 @@ fun ExplorerScreen(
         filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
     }
 
+    var pendingPlaybackName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        val name = pendingPlaybackName
+        val path = pendingPlaybackPath
+        pendingPlaybackName = null
+        pendingPlaybackPath = null
+        if (name != null && path != null) {
+            handOffToExternalApp(context, name, explorerViewModel.getUrl(path))
+        }
+    }
+
     val handleItemClick = { item: Item<LocalFile> ->
         {
             when (item.type) {
@@ -152,22 +172,14 @@ fun ExplorerScreen(
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
                     } else {
-                        val intent = Intent(Intent.ACTION_VIEW)
-                        val mimeType = URLConnection.guessContentTypeFromName(item.name)
-                        val url = explorerViewModel.getUrl(item.item.fullPath())
-                        intent.setDataAndType(url.toUri(), mimeType)
-
-                        try {
-                            context.startActivity(intent)
-                            if (Utils.guessIconType(item.name) in PLAYBACK_TYPES) {
-                                ExternalPlaybackService.start(context, item.name)
-                            }
-                        } catch (e: ActivityNotFoundException) {
-                            Toast.makeText(
-                                context,
-                                "No application found for file type: $mimeType",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        val path = item.item.fullPath()
+                        val isPlayback = Utils.guessIconType(item.name) in PLAYBACK_TYPES
+                        if (isPlayback && !context.canPostNotifications()) {
+                            pendingPlaybackName = item.name
+                            pendingPlaybackPath = path
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            handOffToExternalApp(context, item.name, explorerViewModel.getUrl(path))
                         }
                     }
                 }
@@ -412,4 +424,20 @@ fun ExplorerScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     )
+}
+
+private fun Context.canPostNotifications(): Boolean =
+    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+private fun handOffToExternalApp(context: Context, name: String, url: String) {
+    val mimeType = URLConnection.guessContentTypeFromName(name)
+    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(url.toUri(), mimeType)
+    try {
+        context.startActivity(intent)
+        if (Utils.guessIconType(name) in PLAYBACK_TYPES) {
+            ExternalPlaybackService.start(context, name)
+        }
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No application found for file type: $mimeType", Toast.LENGTH_SHORT).show()
+    }
 }
