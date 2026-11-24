@@ -32,7 +32,7 @@ class LocalFileDataSource(
     // Injected so a JVM test can run against a temp directory: the real check is an
     // Android stub that throws off-device.
     private val hasAllFilesAccess: () -> Boolean = Environment::isExternalStorageManager,
-) : FileDataSource {
+) : FileDataSource, EntryTree {
     private val roots = ConcurrentHashMap<ConnectionId, java.io.File>()
 
     override fun connect(details: SourceDetails) {
@@ -72,20 +72,20 @@ class LocalFileDataSource(
         return LocalSourceFile(RandomAccessFile(file, "r"))
     }
 
-    fun exists(connectionId: ConnectionId, path: String): Boolean =
+    override fun exists(connectionId: ConnectionId, path: String): Boolean =
         runCatching { resolve(connectionId, path).exists() }.getOrDefault(false)
 
-    fun isFolder(connectionId: ConnectionId, path: String): Boolean =
+    override fun isFolder(connectionId: ConnectionId, path: String): Boolean =
         runCatching { resolve(connectionId, path).isDirectory }.getOrDefault(false)
 
-    fun namesIn(connectionId: ConnectionId, folder: String): List<String> =
+    override fun namesIn(connectionId: ConnectionId, folder: String): List<String> =
         resolve(connectionId, folder).list()?.toList().orEmpty()
 
-    fun createFolder(connectionId: ConnectionId, path: String) {
+    override fun createFolder(connectionId: ConnectionId, path: String) {
         Files.createDirectory(leaf(connectionId, path).toPath())
     }
 
-    fun move(connectionId: ConnectionId, from: String, to: String) {
+    override fun move(connectionId: ConnectionId, from: String, to: String) {
         val source = resolve(connectionId, from)
         val target = leaf(connectionId, to)
         if (!source.exists()) throw FileNotFoundException(from)
@@ -105,13 +105,14 @@ class LocalFileDataSource(
         }
     }
 
-    fun filesUnder(connectionId: ConnectionId, path: String): List<String> {
+    override fun filesUnder(connectionId: ConnectionId, path: String, cap: Int): List<String> {
         val start = resolve(connectionId, path)
         if (start.isFile) return listOf(Pairings.normalize(path))
         return start.walkTopDown()
             .onEnter { !isSyncthingInternal(it.name) || it == start }
             .filter { it.isFile && !isSyncthingInternal(it.name) }
             .map { Pairings.join(path, it.relativeTo(start).invariantSeparatorsPath) }
+            .take(cap)
             .toList()
     }
 

@@ -1,8 +1,14 @@
 package com.bespectacledcyborg.remoteexplorer.data
 import android.util.Log
 import com.hierynomus.msdtyp.AccessMask
+import com.hierynomus.mserref.NtStatus
+import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2ShareAccess
+import com.hierynomus.mssmb2.SMBApiException
+import com.hierynomus.protocol.commons.EnumWithValue
+import java.nio.file.AccessDeniedException
+import java.nio.file.FileAlreadyExistsException
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
@@ -27,7 +33,7 @@ data class DiskShareEntry(
     val share: DiskShare?
 )
 
-class SambaFileDataSource : FileDataSource {
+class SambaFileDataSource : FileDataSource, EntryTree {
     private var diskShares: MutableMap<ConnectionId, DiskShareEntry> = mutableMapOf()
 
     override fun connect(details: SourceDetails) {
@@ -103,6 +109,73 @@ class SambaFileDataSource : FileDataSource {
             Log.e("FileSambaDataSource", "samba failed to open file: $path", e)
             if (!e.isMissingFile()) reportOpenFailure(e, connectionId, path)
             throw e
+        }
+    }
+
+    override fun exists(connectionId: ConnectionId, path: String): Boolean = smbCall(path) {
+        val share = accessDiskShare(connectionId)
+        share.folderExists(smbPath(path)) || share.fileExists(smbPath(path))
+    }
+
+    override fun isFolder(connectionId: ConnectionId, path: String): Boolean = smbCall(path) {
+        accessDiskShare(connectionId).folderExists(smbPath(path))
+    }
+
+    override fun namesIn(connectionId: ConnectionId, folder: String): List<String> = smbCall(folder) {
+        accessDiskShare(connectionId).list(smbPath(folder))
+            .map { it.fileName }
+            .filterNot { it == "." || it == ".." }
+    }
+
+    override fun createFolder(connectionId: ConnectionId, path: String) = smbCall(path) {
+        accessDiskShare(connectionId).mkdir(smbPath(path))
+    }
+
+    override fun move(connectionId: ConnectionId, from: String, to: String) = smbCall(from) {
+        val share = accessDiskShare(connectionId)
+        val entry = share.open(
+            smbPath(from),
+            setOf(AccessMask.DELETE, AccessMask.FILE_READ_ATTRIBUTES),
+            null,
+            SMB2ShareAccess.ALL,
+            SMB2CreateDisposition.FILE_OPEN,
+            null,
+        )
+        entry.use { it.rename(smbPath(to), false) }
+    }
+
+    override fun filesUnder(connectionId: ConnectionId, path: String, cap: Int): List<String> = smbCall(path) {
+        val share = accessDiskShare(connectionId)
+        val root = Pairings.normalize(path)
+        if (!share.folderExists(smbPath(root))) return@smbCall listOf(root)
+        val found = mutableListOf<String>()
+        val folders = ArrayDeque(listOf(root))
+        while (folders.isNotEmpty() && found.size < cap) {
+            val folder = folders.removeFirst()
+            for (child in share.list(smbPath(folder))) {
+                if (child.fileName == "." || child.fileName == "..") continue
+                val childPath = Pairings.join(folder, child.fileName)
+                if (EnumWithValue.EnumUtils.isSet(child.fileAttributes, FileAttributes.FILE_ATTRIBUTE_DIRECTORY)) {
+                    folders.addLast(childPath)
+                } else if (found.size < cap) {
+                    found += childPath
+                }
+            }
+        }
+        found
+    }
+
+    private fun smbPath(path: String) = Pairings.normalize(path).replace('/', '\\')
+
+    private inline fun <T> smbCall(path: String, block: () -> T): T = try {
+        block()
+    } catch (e: SMBApiException) {
+        throw when (e.status) {
+            NtStatus.STATUS_ACCESS_DENIED -> AccessDeniedException(path)
+            NtStatus.STATUS_OBJECT_NAME_COLLISION -> FileAlreadyExistsException(path)
+            NtStatus.STATUS_OBJECT_NAME_NOT_FOUND, NtStatus.STATUS_OBJECT_PATH_NOT_FOUND ->
+                java.io.FileNotFoundException(path)
+            else -> e
         }
     }
 
