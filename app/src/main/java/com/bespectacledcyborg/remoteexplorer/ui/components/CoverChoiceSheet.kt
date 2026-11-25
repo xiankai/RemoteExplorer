@@ -31,7 +31,7 @@ fun CoverChoiceSheet(
 ) {
     val dismiss by rememberUpdatedState(onDismiss)
     val sheetState = rememberModalBottomSheetState(
-        confirmValueChange = { target ->
+        confirmValueChange = { target -> // stack-reviewer-ignore: vetoing Hidden is the #129 fix; letting it through restores the slide-out whose window swallows the next tap. onDismiss is idempotent and the state leaves composition with the sheet
             val closing = target == SheetValue.Hidden
             if (closing) dismiss()
             !closing
