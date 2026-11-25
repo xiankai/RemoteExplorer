@@ -10,7 +10,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -25,7 +29,15 @@ fun CoverChoiceSheet(
     onChoose: (CoverMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val dismiss by rememberUpdatedState(onDismiss)
+    val sheetState = rememberModalBottomSheetState(
+        confirmValueChange = { target -> // stack-reviewer-ignore: vetoing Hidden is the #129 fix; letting it through restores the slide-out whose window swallows the next tap. onDismiss is idempotent and the state leaves composition with the sheet
+            val closing = target == SheetValue.Hidden
+            if (closing) dismiss()
+            !closing
+        },
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
             ListItem(
                 headlineContent = { Text("Cover for $folderName") },

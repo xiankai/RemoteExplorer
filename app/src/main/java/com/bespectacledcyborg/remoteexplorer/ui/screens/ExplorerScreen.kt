@@ -7,8 +7,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import java.nio.file.Paths
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -189,11 +191,13 @@ fun ExplorerScreen(
         }
     }
 
-    var coverFolder by remember { mutableStateOf<LocalFile?>(null) }
+    var coverFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    val activity = LocalActivity.current
+    DisposableEffect(lifecycleOwner, activity) {
         val dismissCoverSheetOnStop = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) coverFolder = null
+            val leavingForGood = activity?.isChangingConfigurations != true // stack-reviewer-ignore: ExplorerScreen is only hosted by MainActivity, so activity is never null; if it were, #162's dismiss-on-background is the safe default
+            if (event == Lifecycle.Event.ON_STOP && leavingForGood) coverFolderPath = null
         }
         lifecycleOwner.lifecycle.addObserver(dismissCoverSheetOnStop)
         onDispose { lifecycleOwner.lifecycle.removeObserver(dismissCoverSheetOnStop) }
@@ -201,15 +205,14 @@ fun ExplorerScreen(
     val handleLongItemClick = { item: Item<LocalFile> ->
         {
             if (item.type == FileType.FOLDER) {
-                coverFolder = item.item
+                coverFolderPath = item.item.fullPath()
             } else {
                 Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    coverFolder?.let { folder ->
-        val path = folder.fullPath()
+    coverFolderPath?.let { path ->
         var current by remember(path) { mutableStateOf<CoverMode?>(null) }
         var keepsFirstPage by remember(path) { mutableStateOf(false) }
         LaunchedEffect(path) {
@@ -217,14 +220,14 @@ fun ExplorerScreen(
             current = explorerViewModel.coverChoiceFor(path)
         }
         CoverChoiceSheet(
-            folderName = folder.filename,
+            folderName = Paths.get(path).fileName.toString(),
             current = current,
             keepsFirstPage = keepsFirstPage,
             onChoose = { mode ->
                 explorerViewModel.chooseCover(path, mode)
-                coverFolder = null
+                coverFolderPath = null
             },
-            onDismiss = { coverFolder = null },
+            onDismiss = { coverFolderPath = null },
         )
     }
 
