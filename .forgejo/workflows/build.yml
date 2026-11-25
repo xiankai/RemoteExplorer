@@ -204,7 +204,7 @@ jobs:
   checks:
     needs: checks-local
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: relay
     timeout-minutes: 60
     steps:
       - name: Pass through the local result
