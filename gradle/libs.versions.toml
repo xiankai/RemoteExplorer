@@ -10,7 +10,7 @@ kotlinJson = "1.11.0"
 kotlinxCoroutinesAndroid = "1.11.0"
 ktor = "3.6.1"
 lifecycleRuntime = "2.11.0"
-metadataExtractor = "2.19.0"
+metadataExtractor = "2.22.0"
 sketch = "4.7.0"
 # Pinned to the release built against sketch 4.7.0; bump the two together.
 zoomimage = "1.7.0"
