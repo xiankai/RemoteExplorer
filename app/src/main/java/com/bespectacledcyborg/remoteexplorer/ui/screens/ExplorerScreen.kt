@@ -38,7 +38,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
+import com.bespectacledcyborg.remoteexplorer.ui.components.ConfirmActionDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.CoverChoiceSheet
+import com.bespectacledcyborg.remoteexplorer.ui.components.EntryActionSheet
+import com.bespectacledcyborg.remoteexplorer.ui.components.MoveTargetDialog
+import com.bespectacledcyborg.remoteexplorer.ui.components.NameEntryDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -75,6 +79,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import com.bespectacledcyborg.remoteexplorer.ui.components.resolveColumnCount
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.BreadcrumbHeader
 import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ExplorerButtons
+import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.EntryDialog
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ListingCreated
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
@@ -202,14 +207,74 @@ fun ExplorerScreen(
         lifecycleOwner.lifecycle.addObserver(dismissCoverSheetOnStop)
         onDispose { lifecycleOwner.lifecycle.removeObserver(dismissCoverSheetOnStop) }
     }
+    var actionPath by rememberSaveable { mutableStateOf<String?>(null) }
     val handleLongItemClick = { item: Item<LocalFile> ->
-        {
-            if (item.type == FileType.FOLDER) {
-                coverFolderPath = item.item.fullPath()
-            } else {
-                Toast.makeText(context, item.name, Toast.LENGTH_SHORT).show()
-            }
-        }
+        { actionPath = item.item.fullPath() }
+    }
+
+    val actionEntry = actionPath?.let { path ->
+        filteredList.value.entries.firstOrNull { it.fullPath() == path }
+    }
+    actionEntry?.let { entry ->
+        EntryActionSheet(
+            entryName = entry.filename,
+            isFolder = entry.type == FileType.FOLDER,
+            onRename = {
+                explorerViewModel.renameEntry(entry)
+                actionPath = null
+            },
+            onMove = {
+                explorerViewModel.moveEntry(entry)
+                actionPath = null
+            },
+            onCover = {
+                coverFolderPath = entry.fullPath()
+                actionPath = null
+            },
+            onDismiss = { actionPath = null },
+        )
+    }
+
+    val entryDialog by explorerViewModel.entryDialogState.collectAsState()
+    when (val dialog = entryDialog) {
+        null -> Unit
+        is EntryDialog.NewFolder -> NameEntryDialog(
+            title = "New folder",
+            initial = "",
+            confirmLabel = "Create",
+            onConfirm = explorerViewModel::createFolder,
+            onDismiss = explorerViewModel::dismissEntryDialog,
+        )
+        is EntryDialog.Rename -> NameEntryDialog(
+            title = "Rename",
+            initial = dialog.request.path.substringAfterLast('/'),
+            confirmLabel = "Rename",
+            onConfirm = explorerViewModel::renameEntryTo,
+            onDismiss = explorerViewModel::dismissEntryDialog,
+        )
+        is EntryDialog.Move -> MoveTargetDialog(
+            rootPath = "",
+            foldersIn = { explorerViewModel.foldersIn(it) },
+            onPick = explorerViewModel::moveEntryInto,
+            onDismiss = explorerViewModel::dismissEntryDialog,
+        )
+        is EntryDialog.ConfirmNas -> ConfirmActionDialog(
+            title = "Change it on the share?",
+            text = dialog.request.path.substringAfterLast('/') +
+                " only exists on the share, so there is no Syncthing copy to undo this.",
+            confirmLabel = "Change it",
+            onConfirm = explorerViewModel::confirmNasWrite,
+            onDismiss = explorerViewModel::dismissEntryDialog,
+        )
+        is EntryDialog.ConfirmLarge -> ConfirmActionDialog(
+            title = "That folder is large",
+            text = "It holds " + dialog.size.files + " files and " +
+                (dialog.size.bytes / (1024 * 1024 * 1024)) +
+                " GB, so Syncthing may have to transfer it again.",
+            confirmLabel = "Continue",
+            onConfirm = explorerViewModel::confirmLargeMove,
+            onDismiss = explorerViewModel::dismissEntryDialog,
+        )
     }
 
     coverFolderPath?.let { path ->
