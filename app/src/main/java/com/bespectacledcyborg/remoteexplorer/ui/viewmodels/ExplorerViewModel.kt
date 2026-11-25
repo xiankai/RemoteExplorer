@@ -17,7 +17,12 @@ import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
 import com.bespectacledcyborg.remoteexplorer.data.CoverOrder
 import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
+import com.bespectacledcyborg.remoteexplorer.data.EntrySize
+import com.bespectacledcyborg.remoteexplorer.data.FileOperationResult
+import com.bespectacledcyborg.remoteexplorer.data.FileOperations
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
+import com.bespectacledcyborg.remoteexplorer.data.Refusal
+import com.bespectacledcyborg.remoteexplorer.data.isLarge
 import com.bespectacledcyborg.remoteexplorer.data.LastLocation
 import com.bespectacledcyborg.remoteexplorer.data.PairingRepository
 import com.bespectacledcyborg.remoteexplorer.data.RefreshMode
@@ -72,6 +77,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -210,6 +216,7 @@ class ExplorerViewModel(
     private val captionRepository: CaptionRepository,
     private val coverPreferences: CoverPreferences,
     private val folderSortRepository: FolderSortRepository,
+    private val fileOperations: FileOperations,
     private val lastLocation: LastLocation,
     private val groupModes: GroupModes,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
@@ -1194,5 +1201,135 @@ class ExplorerViewModel(
                 }
             }
         return thumbnails
+    }
+
+    private val _entryDialog = MutableStateFlow<EntryDialog?>(null)
+    val entryDialogState: StateFlow<EntryDialog?> = _entryDialog.asStateFlow()
+
+    fun newFolder() {
+        val path = _path.value
+        if (browsingConnectionId == null) return
+        if (path.startsWith(tagPrefix) || path == newestAdditionsPath) return
+        _entryDialog.update { EntryDialog.NewFolder(path) }
+    }
+
+    fun renameEntry(entry: LocalFile) {
+        _entryDialog.update { EntryDialog.Rename(requestFor(EntryAction.RENAME, entry)) }
+    }
+
+    fun moveEntry(entry: LocalFile) {
+        _entryDialog.update { EntryDialog.Move(requestFor(EntryAction.MOVE, entry)) }
+    }
+
+    private fun requestFor(action: EntryAction, entry: LocalFile) = EntryRequest(
+        action = action,
+        connectionId = entry.connectionId,
+        path = entry.fullPath(),
+        isFolder = entry.type == FileType.FOLDER,
+    )
+
+    fun dismissEntryDialog() {
+        _entryDialog.update { null }
+    }
+
+    fun createFolder(name: String) {
+        val parent = (_entryDialog.value as? EntryDialog.NewFolder)?.parent ?: return
+        val connectionId = browsingConnectionId ?: return
+        submit(EntryRequest(EntryAction.NEW_FOLDER, connectionId, parent, name = name))
+    }
+
+    fun renameEntryTo(newName: String) {
+        val request = (_entryDialog.value as? EntryDialog.Rename)?.request ?: return
+        submit(request.copy(name = newName))
+    }
+
+    fun moveEntryInto(folder: String) {
+        val request = (_entryDialog.value as? EntryDialog.Move)?.request ?: return
+        submit(request.copy(toFolder = folder))
+    }
+
+    fun confirmNasWrite() {
+        val request = (_entryDialog.value as? EntryDialog.ConfirmNas)?.request ?: return
+        submit(request.copy(confirmedOnNas = true))
+    }
+
+    fun confirmLargeMove() {
+        val request = (_entryDialog.value as? EntryDialog.ConfirmLarge)?.request ?: return
+        submit(request.copy(confirmedLarge = true))
+    }
+
+    suspend fun foldersIn(path: String): List<String> {
+        val connectionId = browsingConnectionId ?: return emptyList()
+        val listing = listingOf(connectionId, path, RefreshMode.IF_STALE) ?: return emptyList()
+        return pairingRepository.current()
+            .inFrameOf(connectionId, listing.filter { it.type == FileType.FOLDER })
+            .map { it.fullPath() }
+            .sortedWith(compareBy<String, String>(NaturalOrder) { it.substringAfterLast('/') })
+    }
+
+    private suspend fun listingOf(
+        connectionId: Int,
+        path: String,
+        refresh: RefreshMode,
+    ): List<LocalFile>? = try {
+        fileRepository.listFiles(connectionId, path, refresh, showHiddenFilesState.value).last().files
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("ExplorerViewModel", "Could not list '$path'", e)
+        null
+    }
+
+    private fun submit(request: EntryRequest) {
+        _entryDialog.update { null }
+        viewModelScope.launch(Dispatchers.IO) {
+            val large = if (request.confirmedLarge) null else largeSize(request)
+            if (large != null) {
+                _entryDialog.update { EntryDialog.ConfirmLarge(request, large) }
+                return@launch
+            }
+            run(request)
+        }
+    }
+
+    private suspend fun largeSize(request: EntryRequest): EntrySize? {
+        if (!request.isFolder || request.action == EntryAction.NEW_FOLDER) return null
+        return fileOperations.sizeOf(request.connectionId, request.path)?.takeIf { it.isLarge() }
+    }
+
+    private suspend fun run(request: EntryRequest) {
+        val listingPath = when (request.action) {
+            EntryAction.MOVE -> request.toFolder
+            EntryAction.RENAME -> request.path.substringBeforeLast('/', "")
+            EntryAction.NEW_FOLDER -> request.path
+        }
+        listingOf(request.connectionId, listingPath, RefreshMode.FORCE)
+        val result = when (request.action) {
+            EntryAction.NEW_FOLDER -> fileOperations.createFolder(
+                request.connectionId, request.path, request.name, request.confirmedOnNas,
+            )
+            EntryAction.RENAME -> fileOperations.rename(
+                request.connectionId, request.path, request.name, request.confirmedOnNas,
+            )
+            EntryAction.MOVE -> fileOperations.move(
+                request.connectionId, request.path, request.toFolder, request.confirmedOnNas,
+            )
+        }
+        when (result) {
+            is FileOperationResult.Refused -> when (result.reason) {
+                Refusal.NEEDS_NAS_CONFIRMATION ->
+                    _entryDialog.update { EntryDialog.ConfirmNas(request) }
+                else -> _toast.emit(result.reason.reason())
+            }
+
+            is FileOperationResult.Done -> {
+                if (request.action != EntryAction.NEW_FOLDER) {
+                    lastLocation.follow(request.connectionId, request.path, result.path)
+                }
+                _refreshRequest.update {
+                    RefreshRequest(path = _path.value, token = (it?.token ?: 0) + 1)
+                }
+            }
+        }
     }
 }

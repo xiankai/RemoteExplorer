@@ -21,6 +21,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
+import com.bespectacledcyborg.remoteexplorer.data.FileOperations
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionOpener
@@ -128,9 +129,10 @@ class ExplorerViewModelFactory(
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val sambaFileDataSource = SambaFileDataSource()
+        val localFileDataSource = LocalFileDataSource()
         val fileDataSource = RoutingFileDataSource(
             smb = sambaFileDataSource,
-            local = LocalFileDataSource(),
+            local = localFileDataSource,
         )
         val localDatabaseDataSource = LocalDatabaseDataSource(
             db.localDatabaseDao(),
@@ -286,6 +288,22 @@ class ExplorerViewModelFactory(
             token = LoopbackToken.of(application),
         )
 
+        val lastLocation = LastLocation.of(application)
+        val fileOperations = FileOperations(
+            local = localFileDataSource,
+            share = sambaFileDataSource,
+            isLocalRoot = { id -> connectionDao.getConnectionType(id) == ConnectionType.LOCAL },
+            ensureOpen = connectionOpener::ensureOpen,
+            pairings = pairingRepository::current,
+            listedNames = { id, path ->
+                withContext(defaultDispatcher) {
+                    localDatabaseDataSource.getFiles(id, path).map { it.filename }
+                }
+            },
+            paths = db.pathMoveDao(),
+            thumbnails = thumbnailManager,
+        )
+
         @Suppress("UNCHECKED_CAST")
         return ExplorerViewModel(
             application,
@@ -300,7 +318,8 @@ class ExplorerViewModelFactory(
             CaptionRepository(db.annotationDao(), db.localDatabaseDao(), defaultDispatcher),
             coverPreferences,
             FolderSortRepository(db.folderSortDao()),
-            LastLocation.of(application),
+            fileOperations,
+            lastLocation,
             GroupModes.of(application),
             metrics,
             fileDataSource::sourceKind,

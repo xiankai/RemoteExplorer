@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.Checkbox
@@ -36,6 +37,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.screenWidthDp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.data.SortType
 import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
+import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 
 @Composable
 fun ExplorerButtons(
@@ -167,6 +169,29 @@ fun ExplorerButtons(
                     onClick = onCheckedChange(iconType),
                 )
             }
+        }
+    }
+
+    var selectingMore by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { selectingMore = true }, content = {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = "More",
+            )
+        })
+        DropdownMenu(
+            expanded = selectingMore,
+            onDismissRequest = { selectingMore = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("New folder") },
+                enabled = !path.startsWith(tagPrefix) && path != newestAdditionsPath,
+                onClick = {
+                    explorerViewModel.newFolder()
+                    selectingMore = false
+                },
+            )
         }
     }
 }
