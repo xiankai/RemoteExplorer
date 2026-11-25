@@ -196,7 +196,7 @@ fun ExplorerScreen(
     val activity = LocalActivity.current
     DisposableEffect(lifecycleOwner, activity) {
         val dismissCoverSheetOnStop = LifecycleEventObserver { _, event ->
-            val leavingForGood = activity?.isChangingConfigurations != true
+            val leavingForGood = activity?.isChangingConfigurations != true // stack-reviewer-ignore: ExplorerScreen is only hosted by MainActivity, so activity is never null; if it were, #162's dismiss-on-background is the safe default
             if (event == Lifecycle.Event.ON_STOP && leavingForGood) coverFolderPath = null
         }
         lifecycleOwner.lifecycle.addObserver(dismissCoverSheetOnStop)
