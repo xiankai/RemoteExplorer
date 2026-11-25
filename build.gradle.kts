@@ -2,6 +2,6 @@
 plugins {
     id("com.android.application") version "9.5.2" apply false
     id("com.android.library") version "9.5.2" apply false
-    id("com.google.devtools.ksp") version "2.3.12" apply false
+    id("com.google.devtools.ksp") version "2.3.14" apply false
     alias(libs.plugins.compose.compiler) apply false
 }
