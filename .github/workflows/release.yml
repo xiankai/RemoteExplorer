@@ -31,7 +31,7 @@ jobs:
             *) echo "::error::'$TAG' is not a release-* tag"; exit 1 ;;
           esac
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: refs/tags/${{ env.TAG }}
           fetch-depth: 0

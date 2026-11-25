@@ -136,7 +136,7 @@ jobs:
       - name: Look up the shared Gradle cache
         id: shared
         if: github.event_name == 'push'
-        uses: https://data.forgejo.org/actions/cache/restore@v4
+        uses: https://data.forgejo.org/actions/cache/restore@v6
         with:
           path: |
             ~/.gradle/caches
@@ -147,7 +147,7 @@ jobs:
       - name: Restore the Gradle cache
         if: steps.shared.outputs.cache-hit != 'true' && steps.scope.outputs.docs_only != 'true'
         # stack-reviewer-ignore: PR write scoping is enforced by the runner's cache proxy, which sets Forgejo-Cache-WriteIsolationKey itself for every PR run (act/cacheproxy/handler.go), and the server 403s any write outside it (act/artifactcache/handler.go); reading the shared copy is intended
-        uses: https://data.forgejo.org/actions/cache@v4
+        uses: https://data.forgejo.org/actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -204,7 +204,7 @@ jobs:
   checks:
     needs: checks-local
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: relay
     timeout-minutes: 60
     steps:
       - name: Pass through the local result

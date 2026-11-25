@@ -31,7 +31,7 @@ plugins {
     id("com.google.devtools.ksp")
     alias(libs.plugins.compose.compiler)
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.21"
-    id("io.sentry.android.gradle") version "6.23.0"
+    id("io.sentry.android.gradle") version "6.27.0"
 }
 
 android {
