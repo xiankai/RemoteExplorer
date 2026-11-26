@@ -8,10 +8,23 @@ import java.util.Date
 
 class GridGroupsTest {
 
-    private fun file(parent: String, name: String) = LocalFile(
-        connectionId = 1, parentPath = parent, filename = name, type = FileType.FOLDER,
+    private fun file(parent: String, name: String, connectionId: Int = 1) = LocalFile(
+        connectionId = connectionId, parentPath = parent, filename = name, type = FileType.FOLDER,
         canHaveThumbnail = false, lastModified = Date(0),
     )
+
+    @Test
+    fun `the same folder on two connections clusters as two groups, each under its own key`() {
+        val sorted = listOf(file("p", "x", 2), file("p", "y", 1), file("a", "z", 2), file("p", "w", 2))
+
+        val clustered = clusteredByParent(sorted)
+
+        assertEquals(
+            listOf("2:a", "1:p", "2:p", "2:p"),
+            clustered.map(::parentGroupOf),
+        )
+        assertEquals(listOf("z", "y", "x", "w"), clustered.map { it.filename })
+    }
 
     @Test
     fun `clusters by parent path in path order, keeping the sorted order inside each`() {

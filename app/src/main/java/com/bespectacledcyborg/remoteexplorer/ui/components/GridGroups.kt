@@ -12,9 +12,12 @@ import java.util.Date
 import java.util.Locale
 
 internal fun clusteredByParent(files: List<LocalFile>): List<LocalFile> =
-    files.groupBy { it.parentPath }
-        .toSortedMap(NaturalOrder)
+    files.groupBy(::parentGroupOf)
         .values
+        .sortedWith(
+            compareBy<List<LocalFile>, String>(NaturalOrder) { it.first().parentPath }
+                .thenBy { it.first().connectionId },
+        )
         .flatten()
 
 internal fun parentGroupOf(file: LocalFile): String = "${file.connectionId}:${file.parentPath}"

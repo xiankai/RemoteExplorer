@@ -2,7 +2,7 @@ package com.bespectacledcyborg.remoteexplorer.ui.components
 
 import kotlin.math.roundToInt
 
-internal data class Section(val index: Int, val label: String)
+internal data class Section(val index: Int, val group: String, val label: String)
 
 internal data class FastScrollTarget(val index: Int, val label: String?)
 
@@ -10,8 +10,22 @@ internal data class ScrollMetrics(val first: Int, val visible: Int, val total: I
 
 internal fun <T> sectionsOf(entries: List<GridEntry<T>>, label: (String) -> String): List<Section> =
     entries.mapIndexedNotNull { index, entry ->
-        (entry as? GridEntry.Header)?.let { Section(index, label(it.group)) }
+        (entry as? GridEntry.Header)?.let { Section(index, it.group, label(it.group)) }
     }
+
+internal fun pinnedSection(
+    sections: List<Section>,
+    firstIndex: Int,
+    firstOffset: Int,
+    barInsetOf: (Section) -> Int = { 0 },
+): Section? {
+    val section = sectionAt(sections, firstIndex) ?: return null
+    val ownBarStillShowing = section.index == firstIndex && firstOffset <= barInsetOf(section)
+    return section.takeUnless { ownBarStillShowing }
+}
+
+internal fun pinnedShift(nextHeaderTop: Int?, pinnedHeight: Int): Int =
+    if (nextHeaderTop == null) 0 else minOf(0, nextHeaderTop - pinnedHeight)
 
 internal fun sectionAt(sections: List<Section>, index: Int): Section? =
     sections.lastOrNull { it.index <= index } ?: sections.firstOrNull()

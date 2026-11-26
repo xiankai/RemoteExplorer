@@ -147,6 +147,8 @@ fun ExplorerScreen(
     val groupMode by explorerViewModel.groupModeState.collectAsState()
     val connections by explorerViewModel.connectionsState.collectAsState()
     val browsingConnection by explorerViewModel.connectionState.collectAsState()
+    val tagView = pathState.startsWith(tagPrefix)
+    val headerMode = if (tagView) GroupMode.BY_PARENT_FOLDER else groupMode
     val parentGroupHeads = remember(filteredList.value) {
         filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
     }
@@ -439,14 +441,14 @@ fun ExplorerScreen(
                     initialScroll = explorerViewModel.scrollPositionToRestore(),
                     onScrollPositionChanged = { explorerViewModel.recordScrollPosition(pathState, it) },
                     groupOf = when {
-                        pathState.startsWith(tagPrefix) -> { item -> item.item.parentPath }
+                        tagView -> { item -> parentGroupOf(item.item) }
                         groupMode == GroupMode.BY_DATE -> { item ->
                             addedOn(item.item.createdAt(listingCreated.byPath), today, zone).label
                         }
                         groupMode == GroupMode.BY_PARENT_FOLDER -> { item -> parentGroupOf(item.item) }
                         else -> null
                     },
-                    groupLabel = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
+                    groupLabel = when (headerMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
                         GroupMode.BY_DATE -> { group -> group }
                         GroupMode.BY_PARENT_FOLDER -> { group ->
                             parentGroupHeads[group]
@@ -463,13 +465,16 @@ fun ExplorerScreen(
                         }
                         GroupMode.UNGROUPED -> { group -> group.ifEmpty { connectionName } }
                     },
-                    onGroupClick = when (groupMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
-                        GroupMode.BY_DATE -> null
+                    groupAction = when (headerMode) {  // stack-reviewer-ignore: exhaustive on purpose; a new GroupMode must fail to compile here until its header label and tap are decided, rather than silently fall back
+                        GroupMode.BY_DATE -> { _ -> null }
                         GroupMode.BY_PARENT_FOLDER -> { group ->
-                            parentGroupHeads[group]?.let { explorerViewModel.changePath(it.parentPath) }
+                            parentGroupHeads[group]
+                                ?.takeIf { head -> !tagView || head.connectionId == browsingConnection?.id }
+                                ?.let { head -> { explorerViewModel.changePath(head.parentPath) } }
                         }
-                        GroupMode.UNGROUPED -> { group -> explorerViewModel.changePath(group) }
+                        GroupMode.UNGROUPED -> { _ -> null }
                     },
+                    stickyGroups = tagView,
                     onVisibleItemsChanged = { visible ->
                         explorerViewModel.requestCovers(
                             visible

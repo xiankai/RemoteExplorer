@@ -18,7 +18,7 @@ class FastScrollTest {
     @Test
     fun `sections sit at the header indices, counting headers and fillers`() {
         assertEquals(
-            listOf(Section(0, "A"), Section(5, "B"), Section(8, "C")),
+            listOf(Section(0, "a", "A"), Section(5, "b", "B"), Section(8, "c", "C")),
             sections,
         )
     }
@@ -67,6 +67,37 @@ class FastScrollTest {
         assertTrue(canFastScroll(visible = 10, total = 11))
         assertEquals(0f, thumbFraction(first = 0, visible = 10, total = 10))
         assertEquals(1f, thumbLengthFraction(visible = 10, total = 10))
+    }
+
+    @Test
+    fun `the pinned header is the section the first visible row belongs to`() {
+        assertEquals("a", pinnedSection(sections, firstIndex = 3, firstOffset = 0)?.group)
+        assertEquals("b", pinnedSection(sections, firstIndex = 7, firstOffset = 40)?.group)
+        assertEquals("c", pinnedSection(sections, firstIndex = 8, firstOffset = 12)?.group)
+    }
+
+    @Test
+    fun `a header's own bar stays the visible one until it reaches the top`() {
+        val inset = { _: Section -> 20 }
+        assertNull(pinnedSection(sections, firstIndex = 5, firstOffset = 12, barInsetOf = inset))
+        assertNull(pinnedSection(sections, firstIndex = 5, firstOffset = 20, barInsetOf = inset))
+        assertEquals("b", pinnedSection(sections, firstIndex = 5, firstOffset = 21, barInsetOf = inset)?.group)
+        assertEquals("b", pinnedSection(sections, firstIndex = 6, firstOffset = 0, barInsetOf = inset)?.group)
+    }
+
+    @Test
+    fun `nothing is pinned while a header sits exactly at the top, or with no groups`() {
+        assertNull(pinnedSection(sections, firstIndex = 0, firstOffset = 0))
+        assertNull(pinnedSection(sections, firstIndex = 5, firstOffset = 0))
+        assertNull(pinnedSection(emptyList(), firstIndex = 4, firstOffset = 10))
+    }
+
+    @Test
+    fun `the next header pushes the pinned one up only once it reaches it`() {
+        assertEquals(0, pinnedShift(nextHeaderTop = null, pinnedHeight = 100))
+        assertEquals(0, pinnedShift(nextHeaderTop = 300, pinnedHeight = 100))
+        assertEquals(0, pinnedShift(nextHeaderTop = 100, pinnedHeight = 100))
+        assertEquals(-40, pinnedShift(nextHeaderTop = 60, pinnedHeight = 100))
     }
 
     @Test

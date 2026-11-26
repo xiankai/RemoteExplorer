@@ -34,7 +34,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -72,7 +81,8 @@ fun <T>Explorer(
     onScrollPositionChanged: (ScrollPosition) -> Unit = {},
     groupOf: ((Item<T>) -> String)? = null,
     groupLabel: (String) -> String = { it },
-    onGroupClick: ((String) -> Unit)? = null,
+    groupAction: (String) -> (() -> Unit)? = { null },
+    stickyGroups: Boolean = false,
 ) {
     val entryColumns = if (viewType == ViewType.LIST) 1 else columnCount
     val entries = gridEntries(items, entryColumns, groupOf)
@@ -129,7 +139,7 @@ fun <T>Explorer(
                 items(entries) { entry ->  // stack-reviewer-ignore: the scroll restore and the viewport reporter both index currentEntries, the same list rendered here, and a one-column list never gets fillers
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
-                            groupLabel(entry.group), entry.first, onGroupClick?.let { open -> { open(entry.group) } },
+                            groupLabel(entry.group), headerTopPadding(entry.first), groupAction(entry.group),
                         )
                         is GridEntry.Tile -> ListViewItem(
                             entry.item.name,
@@ -156,7 +166,7 @@ fun <T>Explorer(
                 ) { entry ->
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
-                            groupLabel(entry.group), entry.first, onGroupClick?.let { open -> { open(entry.group) } },
+                            groupLabel(entry.group), headerTopPadding(entry.first), groupAction(entry.group),
                         )
                         is GridEntry.Filler -> GroupCellBox(entry.cell) {
                             ExplorerItemPlaceholder()
@@ -180,6 +190,30 @@ fun <T>Explorer(
                 }
             }
         }
+        val sections = remember(entries, groupLabel) { sectionsOf(entries, groupLabel) }
+        if (stickyGroups) {
+            PinnedGroupHeader(
+                sections = sections,
+                firstVisible = {
+                    if (viewType == ViewType.LIST) {
+                        ScrollPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                    } else {
+                        ScrollPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+                    }
+                },
+                topOf = { index ->
+                    if (viewType == ViewType.LIST) {
+                        listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.offset
+                    } else {
+                        gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.offset?.y
+                    }
+                },
+                groupAction = groupAction,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(horizontal = if (viewType == ViewType.GRID && groupOf != null) 8.dp else 0.dp),
+            )
+        }
         FastScroller(
             metrics = {
                 if (viewType == ViewType.LIST) {
@@ -198,7 +232,7 @@ fun <T>Explorer(
                     )
                 }
             },
-            sections = remember(entries, groupLabel) { sectionsOf(entries, groupLabel) },
+            sections = sections,
             onJump = { index ->
                 if (viewType == ViewType.LIST) listState.scrollToItem(index) else gridState.scrollToItem(index)
             },
@@ -209,12 +243,56 @@ fun <T>Explorer(
 
 private val GROUP_CORNER = 12.dp
 
+private fun headerTopPadding(first: Boolean): Dp = if (first) 8.dp else 20.dp
+
 @Composable
-private fun GroupHeader(label: String, first: Boolean, onClick: (() -> Unit)?) {
+private fun PinnedGroupHeader(
+    sections: List<Section>,
+    firstVisible: () -> ScrollPosition,
+    topOf: (Int) -> Int?,
+    groupAction: (String) -> (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val barInsetOf = { section: Section -> with(density) { headerTopPadding(section.index == 0).roundToPx() } }
+    val currentSections by rememberUpdatedState(sections)
+    val currentFirstVisible by rememberUpdatedState(firstVisible)
+    val currentTopOf by rememberUpdatedState(topOf)
+    val currentBarInsetOf by rememberUpdatedState(barInsetOf)
+    val pinned by remember {
+        derivedStateOf {
+            val first = currentFirstVisible()
+            pinnedSection(currentSections, first.index, first.offset, currentBarInsetOf)
+        }
+    }
+    val section = pinned ?: return
+    val next = sections.firstOrNull { it.index > section.index }
+    val onClick = remember(section.group, groupAction) { groupAction(section.group) }
+    var height by remember { mutableIntStateOf(0) }
+    Box(
+        modifier
+            .offset {
+                val nextBarTop = next?.let { n -> currentTopOf(n.index)?.plus(currentBarInsetOf(n)) }
+                IntOffset(0, pinnedShift(nextBarTop, height))
+            }
+            .onSizeChanged { height = it.height }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            }
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        GroupHeader(section.label, 0.dp, onClick)
+    }
+}
+
+@Composable
+private fun GroupHeader(label: String, topPadding: Dp, onClick: (() -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = if (first) 8.dp else 20.dp)
+            .padding(top = topPadding)
             .background(
                 MaterialTheme.colorScheme.secondaryContainer,
                 RoundedCornerShape(topStart = GROUP_CORNER, topEnd = GROUP_CORNER),
