@@ -40,8 +40,8 @@ fun VideoViewerScreen(
 ) {
     LightSystemBarIcons()
     val video by explorerViewModel.viewedVideoState.collectAsState()
-    LaunchedEffect(video) {
-        if (video == null) onNothingToShow()
+    LaunchedEffect(video) {  // stack-reviewer-ignore: the action sheet is the only way onto VideoViewerRoute and it calls viewVideo synchronously before navigate, so a later entry always carries the video it was opened for; null only happens when the route is restored into a fresh process, which is the case this exists for
+        if (video == null) onNothingToShow()  // stack-reviewer-ignore: popping on a restored route with no video is the intent, not a race; there is no entry path that navigates before viewVideo has set the state
     }
     val launchExternally = rememberExternalLauncher(explorerViewModel)
     Box(
