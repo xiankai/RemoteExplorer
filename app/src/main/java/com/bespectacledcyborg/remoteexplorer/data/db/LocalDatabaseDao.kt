@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import com.bespectacledcyborg.remoteexplorer.utils.Utils.BROWSEABLE_TYPES
 import java.nio.file.Paths
@@ -519,6 +520,9 @@ data class LocalFile(
      */
     fun isBrowsable(): Boolean =
         type == FileType.FILE && Utils.guessIconType(filename) in BROWSEABLE_TYPES
+
+    fun hasVideoViewer(): Boolean =
+        type == FileType.FILE && Utils.guessIconType(filename) == IconType.VIDEO
 }
 
 @Entity

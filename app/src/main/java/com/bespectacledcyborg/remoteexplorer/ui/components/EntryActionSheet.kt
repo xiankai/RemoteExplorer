@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 fun EntryActionSheet(
     entryName: String,
     isFolder: Boolean,
+    onOpenInViewer: (() -> Unit)?,
     onRename: () -> Unit,
     onMove: () -> Unit,
     onCover: () -> Unit,
@@ -28,6 +29,12 @@ fun EntryActionSheet(
     ) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
             ListItem(headlineContent = { Text(entryName) })
+            if (onOpenInViewer != null) {
+                ListItem(
+                    headlineContent = { Text("Open in viewer") },
+                    modifier = Modifier.clickable(onClick = onOpenInViewer),
+                )
+            }
             ListItem(
                 headlineContent = { Text("Rename…") },
                 modifier = Modifier.clickable(onClick = onRename),

@@ -43,11 +43,7 @@ import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ClosedCaptionDisabled
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import android.app.Activity
 import android.os.SystemClock
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
@@ -81,22 +77,7 @@ fun ImageBrowserScreen(
     val initialImage by explorerViewModel.initialBrowsableImageState.collectAsState()
 
     val pagerState = rememberPagerState(initialPage = initialImage, pageCount = { images.size })
-    // The viewer is black in either theme, so the system bars' icons go light while it is
-    // up — in the light theme they would otherwise be dark icons on black — and go back to
-    // whatever the theme set when it closes.
-    val view = LocalView.current
-    DisposableEffect(view) {
-        val window = (view.context as? Activity)?.window
-        val bars = window?.let { WindowCompat.getInsetsController(it, view) }
-        val lightStatus = bars?.isAppearanceLightStatusBars
-        val lightNavigation = bars?.isAppearanceLightNavigationBars
-        bars?.isAppearanceLightStatusBars = false
-        bars?.isAppearanceLightNavigationBars = false
-        onDispose {
-            lightStatus?.let { bars.isAppearanceLightStatusBars = it }
-            lightNavigation?.let { bars.isAppearanceLightNavigationBars = it }
-        }
-    }
+    LightSystemBarIcons()
 
     var chromeVisible by rememberSaveable { mutableStateOf(true) }
 

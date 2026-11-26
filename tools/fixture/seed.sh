@@ -75,7 +75,8 @@ printf 'Opened through ACTION_VIEW rather than the in-app browser.\n' \
 #   - a directory name with a space, brackets and non-ASCII, because the real library is
 #     full of them and a path that only works when it is [A-Za-z0-9._/-] is how the imagor
 #     spike died
-#   - one file-scoped record, which is rare but real
+#   - file-scoped records, rare but real: one on an image, one on a video outside
+#     gallery-dl, which is what the editor writes for a tagged video (#221)
 #   - a tombstone, so dropping a path's tags is exercised rather than assumed
 #   - a re-appended record for a path that already appeared, because last-one-wins is what
 #     makes resuming from a byte offset valid, and a reader that takes the first would pass
@@ -115,6 +116,7 @@ log="$index/index.ndjson"
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950,"added_at":1790047950}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] another gallery","site":"examplebooru","site_id":"992","title":"another gallery","token":"cafef00d","tags":["artist:someone","character:hagoromo gitsune"],"files":1,"mtime":1790048000,"added_at":1790048000}'
   printf '%s\n' '{"scope":"dir","path":"Photos","site":"folder","tags":[],"files":5,"mtime":1790048100,"added_at":1790048100}'
+  printf '%s\n' '{"scope":"file","path":"Videos/clip.mp4","site":"folder","tags":["creator:somebody","female:glasses"],"mtime":1790048200}'
 } >> "$log"
 
 # bytes is the log's length, which is both where a reader stops and the offset it resumes

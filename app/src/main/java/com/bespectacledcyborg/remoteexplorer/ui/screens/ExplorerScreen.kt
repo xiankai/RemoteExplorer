@@ -1,15 +1,7 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens
 
-import android.Manifest
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import java.nio.file.Paths
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,8 +37,6 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.MoveTargetDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.NameEntryDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.net.toUri
 import androidx.navigation.NavHostController
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
@@ -55,9 +45,7 @@ import com.bespectacledcyborg.remoteexplorer.data.createdAt
 import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
-import com.bespectacledcyborg.remoteexplorer.data.PLAYBACK_TYPES
 import com.bespectacledcyborg.remoteexplorer.data.SortType
-import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.components.Explorer
 import com.bespectacledcyborg.remoteexplorer.ui.components.Item
 import com.bespectacledcyborg.remoteexplorer.ui.components.addedOn
@@ -82,9 +70,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.screens.header.ExplorerButtons
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.EntryDialog
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ListingCreated
-import com.bespectacledcyborg.remoteexplorer.utils.Utils
 import kotlinx.coroutines.flow.combine
-import java.net.URLConnection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,8 +78,6 @@ fun ExplorerScreen(
     explorerViewModel: ExplorerViewModel,
     navHostController: NavHostController,
 ) {
-    val context = LocalContext.current
-
     val connectionName by explorerViewModel.connectionNameState.collectAsState()
     val pathState by explorerViewModel.pathState.collectAsState()
     val zone = ZoneId.systemDefault()
@@ -153,19 +137,7 @@ fun ExplorerScreen(
         filteredList.value.entries.distinctBy(::parentGroupOf).associateBy(::parentGroupOf)
     }
 
-    var pendingPlaybackName by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
-    val notificationPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {
-        val name = pendingPlaybackName
-        val path = pendingPlaybackPath
-        pendingPlaybackName = null
-        pendingPlaybackPath = null
-        if (name != null && path != null) {
-            handOffToExternalApp(context, name, explorerViewModel.getUrl(path))
-        }
-    }
+    val launchExternally = rememberExternalLauncher(explorerViewModel)
 
     val handleItemClick = { item: Item<LocalFile> ->
         {
@@ -181,15 +153,7 @@ fun ExplorerScreen(
                         explorerViewModel.browseImages(browsableImages, initialBrowsableImage)
                         navHostController.navigate(Route.ImageBrowserRoute)
                     } else {
-                        val path = item.item.fullPath()
-                        val isPlayback = Utils.guessIconType(item.name) in PLAYBACK_TYPES
-                        if (isPlayback && !context.canPostNotifications()) {
-                            pendingPlaybackName = item.name
-                            pendingPlaybackPath = path
-                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            handOffToExternalApp(context, item.name, explorerViewModel.getUrl(path))
-                        }
+                        launchExternally(item.name, item.item.fullPath())
                     }
                 }
 
@@ -221,6 +185,15 @@ fun ExplorerScreen(
         EntryActionSheet(
             entryName = entry.filename,
             isFolder = entry.type == FileType.FOLDER,
+            onOpenInViewer = if (entry.hasVideoViewer()) {
+                {
+                    explorerViewModel.viewVideo(entry)
+                    actionPath = null
+                    navHostController.navigate(Route.VideoViewerRoute)
+                }
+            } else {
+                null
+            },
             onRename = {
                 explorerViewModel.renameEntry(entry)
                 actionPath = null
@@ -499,18 +472,3 @@ fun ExplorerScreen(
     )
 }
 
-private fun Context.canPostNotifications(): Boolean =
-    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-
-private fun handOffToExternalApp(context: Context, name: String, url: String) {
-    val mimeType = URLConnection.guessContentTypeFromName(name)
-    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(url.toUri(), mimeType)
-    try {
-        context.startActivity(intent)
-        if (Utils.guessIconType(name) in PLAYBACK_TYPES) {
-            ExternalPlaybackService.start(context, name)
-        }
-    } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, "No application found for file type: $mimeType", Toast.LENGTH_SHORT).show()
-    }
-}
