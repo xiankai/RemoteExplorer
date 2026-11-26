@@ -276,7 +276,11 @@ private fun PinnedGroupHeader(
                 IntOffset(0, pinnedShift(nextBarTop, height))
             }
             .onSizeChanged { height = it.height }
-            .pointerInput(Unit) {}
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            }
             .background(MaterialTheme.colorScheme.surface),
     ) {
         GroupHeader(section.label, 0.dp, onClick)
