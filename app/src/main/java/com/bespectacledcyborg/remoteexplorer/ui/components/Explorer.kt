@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -197,7 +198,7 @@ fun <T>Explorer(
                     )
                 }
             },
-            sections = sectionsOf(entries, groupLabel),
+            sections = remember(entries, groupLabel) { sectionsOf(entries, groupLabel) },
             onJump = { index ->
                 if (viewType == ViewType.LIST) listState.scrollToItem(index) else gridState.scrollToItem(index)
             },

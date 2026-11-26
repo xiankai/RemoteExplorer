@@ -18,13 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -33,9 +32,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val THUMB_TOUCH_WIDTH = 28.dp
@@ -53,15 +51,7 @@ internal fun FastScroller(
     val currentMetrics by rememberUpdatedState(metrics)
     val currentSections by rememberUpdatedState(sections)
     val currentOnJump by rememberUpdatedState(onJump)
-
-    LaunchedEffect(Unit) {
-        snapshotFlow {
-            dragFraction?.let { fastScrollTarget(it, currentMetrics().total, currentSections)?.index }
-        }
-            .filterNotNull()
-            .distinctUntilChanged()
-            .collectLatest { currentOnJump(it) }
-    }
+    val scope = rememberCoroutineScope()
 
     if (!canFastScroll(current.visible, current.total) && dragFraction == null) return
 
@@ -88,8 +78,18 @@ internal fun FastScroller(
                 .size(THUMB_TOUCH_WIDTH, with(density) { thumbPx.toDp() })
                 .systemGestureExclusion()
                 .pointerInput(Unit) {
+                    var lastJump: Int? = null
+                    var jump: Job? = null
+                    fun jumpTo(fraction: Float) {
+                        val target = fastScrollTarget(fraction, currentMetrics().total, currentSections)?.index
+                        if (target == null || target == lastJump) return
+                        lastJump = target
+                        jump?.cancel()
+                        jump = scope.launch { currentOnJump(target) }
+                    }
                     detectVerticalDragGestures(
                         onDragStart = {
+                            lastJump = null
                             val start = currentMetrics()
                             dragFraction = thumbFraction(start.first, start.visible, start.total)
                         },
@@ -99,7 +99,9 @@ internal fun FastScroller(
                             change.consume()
                             val travel = currentTravel
                             if (travel > 0f) {
-                                dragFraction = ((dragFraction ?: 0f) + delta / travel).coerceIn(0f, 1f)
+                                val next = ((dragFraction ?: 0f) + delta / travel).coerceIn(0f, 1f)
+                                dragFraction = next
+                                jumpTo(next)
                             }
                         },
                     )
