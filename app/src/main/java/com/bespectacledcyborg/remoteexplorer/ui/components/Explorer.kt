@@ -179,6 +179,30 @@ fun <T>Explorer(
                 }
             }
         }
+        FastScroller(
+            metrics = {
+                if (viewType == ViewType.LIST) {
+                    ScrollMetrics(
+                        listState.firstVisibleItemIndex,
+                        listState.layoutInfo.visibleItemsInfo.size,
+                        listState.layoutInfo.totalItemsCount,
+                        listState.isScrollInProgress,
+                    )
+                } else {
+                    ScrollMetrics(
+                        gridState.firstVisibleItemIndex,
+                        gridState.layoutInfo.visibleItemsInfo.size,
+                        gridState.layoutInfo.totalItemsCount,
+                        gridState.isScrollInProgress,
+                    )
+                }
+            },
+            sections = sectionsOf(entries, groupLabel),
+            onJump = { index ->
+                if (viewType == ViewType.LIST) listState.scrollToItem(index) else gridState.scrollToItem(index)
+            },
+            modifier = Modifier.matchParentSize(),
+        )
     }
 }
 
