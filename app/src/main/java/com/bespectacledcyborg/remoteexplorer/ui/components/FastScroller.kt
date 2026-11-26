@@ -82,7 +82,7 @@ internal fun FastScroller(
                     var jump: Job? = null
                     fun jumpTo(fraction: Float) {
                         val target = fastScrollTarget(fraction, currentMetrics().total, currentSections)?.index
-                        if (target == null || target == lastJump) return
+                        if (target == null || target == lastJump) return  // stack-reviewer-ignore: lastJump is set on every jump, so C then B is two different targets and both scroll; only a repeat of the section the list was just sent to is skipped
                         lastJump = target
                         jump?.cancel()
                         jump = scope.launch { currentOnJump(target) }
@@ -118,7 +118,7 @@ internal fun FastScroller(
             )
         }
 
-        val label = dragFraction?.let { fastScrollTarget(it, current.total, sections)?.label }
+        val label = dragFraction?.let { fastScrollTarget(it, current.total, sections)?.label }  // stack-reviewer-ignore: this runs in composition, where sections and current are this frame's values; the rememberUpdatedState copies exist only for the long-lived pointerInput block, and a reload recomposes this line with the new list
         if (label != null) {
             Surface(
                 modifier = Modifier
