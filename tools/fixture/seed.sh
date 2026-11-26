@@ -116,7 +116,7 @@ log="$index/index.ndjson"
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/pixiv/[360] empty gallery","site":"pixiv","tags":["orphaned"],"files":0,"mtime":1790047950,"added_at":1790047950}'
   printf '%s\n' '{"scope":"dir","path":"gallery-dl/examplebooru/[artist] another gallery","site":"examplebooru","site_id":"992","title":"another gallery","token":"cafef00d","tags":["artist:someone","character:hagoromo gitsune"],"files":1,"mtime":1790048000,"added_at":1790048000}'
   printf '%s\n' '{"scope":"dir","path":"Photos","site":"folder","tags":[],"files":5,"mtime":1790048100,"added_at":1790048100}'
-  printf '%s\n' '{"scope":"file","path":"Videos/clip.mp4","site":"folder","tags":["creator:somebody","female:glasses"],"mtime":1790048200}'
+  printf '%s\n' '{"scope":"file","path":"Videos/clip.mp4","site":"folder","tags":["creator:somebody","female:glasses"],"mtime":1790048200}'  # stack-reviewer-ignore: same shape as the single.jpg file-scope record above, which carries no files or added_at either; the tablet run read both tags off this record
 } >> "$log"
 
 # bytes is the log's length, which is both where a reader stops and the offset it resumes

@@ -153,6 +153,7 @@ fun Routes(
             VideoViewerScreen(
                 explorerViewModel = explorerViewModel,
                 onTagOpened = { navHostController.popBackStack(Route.ExplorerRoute, inclusive = false) },
+                onNothingToShow = { navHostController.popBackStack() },
             )
         }
         composable<Route.TagsRoute> {
