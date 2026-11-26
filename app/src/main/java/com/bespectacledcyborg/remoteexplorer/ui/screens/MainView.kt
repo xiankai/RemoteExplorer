@@ -21,6 +21,7 @@ import com.bespectacledcyborg.remoteexplorer.ui.screens.ExplorerScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.ImageBrowserScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.SettingsScreen
 import com.bespectacledcyborg.remoteexplorer.ui.screens.TagsScreen
+import com.bespectacledcyborg.remoteexplorer.ui.screens.VideoViewerScreen
 import com.bespectacledcyborg.remoteexplorer.ui.theme.RemoteExplorerTheme
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.SettingsViewModel
@@ -39,6 +40,9 @@ sealed class Route {
 
     @Serializable
     object ImageBrowserRoute
+
+    @Serializable
+    object VideoViewerRoute
 
     @Serializable
     object TagsRoute
@@ -143,6 +147,13 @@ fun Routes(
             ImageBrowserScreen(
                 explorerViewModel = explorerViewModel,
                 onTagOpened = { navHostController.popBackStack(Route.ExplorerRoute, inclusive = false) },
+            )
+        }
+        composable<Route.VideoViewerRoute> {
+            VideoViewerScreen(
+                explorerViewModel = explorerViewModel,
+                onTagOpened = { navHostController.popBackStack(Route.ExplorerRoute, inclusive = false) },
+                onNothingToShow = { navHostController.popBackStack() },
             )
         }
         composable<Route.TagsRoute> {

@@ -820,6 +820,13 @@ class ExplorerViewModel(
         }
     }
 
+    private val _viewedVideo = MutableStateFlow<LocalFile?>(null)
+    val viewedVideoState = _viewedVideo.asStateFlow()
+
+    fun viewVideo(video: LocalFile) {
+        _viewedVideo.value = video
+    }
+
     private val _tags = MutableStateFlow(emptyList<LocalTagWithMetadata>())
     private val _tagsRefreshed = MutableStateFlow(0)
     val tagsState = _tags.asStateFlow()
