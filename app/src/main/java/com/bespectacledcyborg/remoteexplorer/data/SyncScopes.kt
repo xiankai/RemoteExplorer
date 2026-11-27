@@ -37,7 +37,7 @@ class SyncScopes(
         val segments = folder.split('/').filter { it.isNotEmpty() }
         for (depth in segments.size downTo 0) {
             val candidate = segments.take(depth).joinToString("/")
-            if (local.isSyncthingFolder(connectionId, candidate)) {
+            if (local.isSyncthingFolder(connectionId, candidate)) {  // stack-reviewer-ignore: Syncthing never deletes .stfolder; a missing marker is the "folder marker missing" error that stops the folder, so nothing syncs there and reading it as unsynced is the safe side (owner's ruling A on #225)
                 return SyncScope.Synced(FileIdentity(connectionId, candidate))
             }
         }
