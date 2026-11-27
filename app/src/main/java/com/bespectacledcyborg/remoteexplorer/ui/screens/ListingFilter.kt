@@ -51,6 +51,7 @@ fun emptyResultMessage(
     val kinds = types.joinToString(" or ") { it.name.lowercase() }
     return when {
         side != null && search.isEmpty() && kinds.isEmpty() -> "Nothing here is ${side.whereabouts()}"
+        side != null && search.isEmpty() -> "No $kinds here is ${side.whereabouts()}"
         search.isNotEmpty() && kinds.isNotEmpty() -> "No $kinds matches \"$search\""
         search.isNotEmpty() -> "Nothing matches \"$search\""
         kinds.isNotEmpty() -> "No $kinds here"

@@ -1,5 +1,6 @@
 package com.bespectacledcyborg.remoteexplorer.ui.screens
 
+import com.bespectacledcyborg.remoteexplorer.data.EntrySide
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.data.db.LocalFile
 import com.bespectacledcyborg.remoteexplorer.ui.components.IconType
@@ -74,5 +75,28 @@ class ListingFilterTest {
         assertNull(emptyResultMessage("clip", emptyList(), folderIsEmpty = false, resultIsEmpty = false))
         assertNull(emptyResultMessage("", emptyList(), folderIsEmpty = false, resultIsEmpty = true))
         assertNull(emptyResultMessage("absent", emptyList(), folderIsEmpty = true, resultIsEmpty = true))
+    }
+
+    @Test
+    fun `an empty side filter says which side it was looking for`() {
+        assertEquals(
+            "Nothing here is only on the NAS",
+            emptyResultMessage("", emptyList(), false, true, EntrySide.NAS_ONLY),
+        )
+        assertEquals(
+            "No image here is only on this tablet",
+            emptyResultMessage("", listOf(IconType.IMAGE), false, true, EntrySide.TABLET_ONLY),
+        )
+    }
+
+    @Test
+    fun `the side filter keeps only entries on that side`() {
+        val anime = LocalFile(3, "", "Anime", FileType.FOLDER, false, lastModified = Date(0))
+        val loose = anime.copy(filename = "loose")
+        val both = anime.copy(filename = "Download")
+        val sides = mapOf("Anime" to EntrySide.NAS_ONLY, "loose" to EntrySide.TABLET_ONLY)
+
+        assertEquals(listOf(anime), listOf(anime, loose, both).onSide(EntrySide.NAS_ONLY, sides))
+        assertEquals(listOf(anime, loose, both), listOf(anime, loose, both).onSide(null, sides))
     }
 }

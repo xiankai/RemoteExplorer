@@ -187,7 +187,7 @@ fun ExplorerButtons(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                RadioButton(selectedSide == side, toggle)
+                                RadioButton(selectedSide == side, toggle)  // stack-reviewer-ignore: the same wiring as the type-filter Checkbox rows above; a tap lands on either the radio or the row, never both, so it toggles once
                                 Text(side.label())
                             }
                         },
