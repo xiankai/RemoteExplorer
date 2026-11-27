@@ -972,6 +972,22 @@ class PairedListingTest {
     }
 
     @Test
+    fun `the share's names from the last merged listing are kept for the side badges`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (NAS to "gallery-dl/pixiv") to listOf(entry("Both.jpg"), entry(".stfolder", folder = true)),
+            )
+        )
+        val repository = repository(source, FakeLocalDatabaseDao(cached = emptyList()))
+
+        assertEquals(null, repository.shareNamesLastListed(LOCAL, "pixiv"))
+        repository.listFiles(LOCAL, "pixiv").toList()
+
+        assertEquals(setOf("both.jpg"), repository.shareNamesLastListed(LOCAL, "pixiv"))
+    }
+
+    @Test
     fun `a paired folder lists the union of both sides, the local copy winning a clash`() = runTest {
         val source = ScriptedFileDataSource(
             mapOf(

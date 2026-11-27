@@ -19,6 +19,8 @@ import com.bespectacledcyborg.remoteexplorer.data.CoverPreferences
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.EntrySize
 import com.bespectacledcyborg.remoteexplorer.data.FileOperationResult
+import com.bespectacledcyborg.remoteexplorer.data.EntrySide
+import com.bespectacledcyborg.remoteexplorer.data.EntrySides
 import com.bespectacledcyborg.remoteexplorer.data.FileOperations
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.Refusal
@@ -217,6 +219,7 @@ class ExplorerViewModel(
     private val coverPreferences: CoverPreferences,
     private val folderSortRepository: FolderSortRepository,
     private val fileOperations: FileOperations,
+    private val entrySides: EntrySides,
     private val lastLocation: LastLocation,
     private val groupModes: GroupModes,
     private val metrics: LoadMetrics = LoadMetrics.NONE,
@@ -492,6 +495,12 @@ class ExplorerViewModel(
         _filter.update { extensions }
     }
 
+    private val _sideFilter = MutableStateFlow<EntrySide?>(null)
+    val sideFilterState: StateFlow<EntrySide?> = _sideFilter.asStateFlow()
+    fun filterBySide(side: EntrySide?) {
+        _sideFilter.update { side }
+    }
+
     private val currentListingHasSubfolders: Flow<Boolean> =
         combine(_list, _path) { list, path ->
             list[path]?.any { it.type == FileType.FOLDER } ?: true  // stack-reviewer-ignore: true means "has subfolders", i.e. non-leaf, which is what the PR body says; defaulting to leaf would flip every series folder to A-Z then back instead, and most opens are galleries served from Room before the first frame
@@ -741,6 +750,35 @@ class ExplorerViewModel(
     fun setShowCaptions(show: Boolean) {
         viewModelScope.launch { settingsRepository.setShowCaptions(show) }
     }
+
+    val showsSidesState: StateFlow<Boolean> =
+        combine(_connection, pairingsState) { connection, pairings ->
+            connection?.type == ConnectionType.LOCAL && pairings.any { it.localConnectionId == connection.id }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        viewModelScope.launch {
+            showsSidesState.collect { shows -> if (!shows) _sideFilter.value = null }
+        }
+    }
+
+    val entrySidesState: StateFlow<Map<String, EntrySide>> =
+        combine(_list, _path, _connection, pairingsState) { list, path, connection, _ ->
+            val connectionId = connection?.id ?: return@combine emptyMap()
+            if (path.startsWith(tagPrefix) || path == newestAdditionsPath) return@combine emptyMap()
+            val rows = list[path].orEmpty().filter { it.connectionId == connectionId && it.parentPath == path }
+            if (rows.isEmpty()) return@combine emptyMap()
+            try {
+                val byName = rows.associateBy { it.filename }
+                entrySides.of(connectionId, path, byName.keys)
+                    .mapKeys { (name, _) -> byName.getValue(name).fullPath() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ExplorerViewModel", "Could not tell which side entries are on", e)
+                emptyMap()
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val captionedFoldersState: StateFlow<Set<String>> =
         combine(_list, _path, _captioned, showCaptionsState, pairingsState) { list, path, captioned, show, _ ->

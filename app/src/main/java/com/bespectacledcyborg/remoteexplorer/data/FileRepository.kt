@@ -141,6 +141,11 @@ class FileRepository(
 ) {
     private val shareFailedAt = ConcurrentHashMap<ConnectionId, Long>()
 
+    private val shareNamesListed = ConcurrentHashMap<FileIdentity, Set<String>>()
+
+    fun shareNamesLastListed(localId: ConnectionId, parentPath: String): Set<String>? =
+        shareNamesListed[FileIdentity(localId, Pairings.normalize(parentPath))]
+
     /** See [folderCover]. */
     private val coverListingSlots = Semaphore(MAX_CONCURRENT_COVER_LISTINGS)
 
@@ -238,8 +243,13 @@ class FileRepository(
             null
         }
         val remote = when (val outcome = shareListing(share, forced)) {
-            is ShareListing.Listed -> outcome.files
-            ShareListing.Missing -> if (local == null) throw FileNotFoundException(parentPath) else emptyList()
+            is ShareListing.Listed -> outcome.files.also { files ->
+                shareNamesListed[FileIdentity(localId, Pairings.normalize(parentPath))] =
+                    files.mapTo(HashSet()) { it.filename.lowercase() }
+            }
+            ShareListing.Missing -> if (local == null) throw FileNotFoundException(parentPath) else emptyList<File>().also {
+                shareNamesListed[FileIdentity(localId, Pairings.normalize(parentPath))] = emptySet()
+            }
             is ShareListing.Unreachable -> if (local == null) throw outcome.cause else emptyList()
         }
         if (local == null) return remote
