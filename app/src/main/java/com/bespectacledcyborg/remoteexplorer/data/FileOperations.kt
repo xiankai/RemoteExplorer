@@ -25,6 +25,9 @@ enum class Refusal {
     INTO_ITSELF,
     CROSSES_PAIRING,
     HOLDS_PAIRED_FOLDER,
+    SYNCTHING_FOLDER,
+    OUTSIDE_SYNCTHING_FOLDERS,
+    CROSSES_SYNCTHING_FOLDERS,
 }
 
 sealed interface FileOperationResult {
@@ -67,6 +70,8 @@ class FileOperations(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    private val scopes = SyncScopes(local, isLocalRoot, pairings)
+
     suspend fun createFolder(
         connectionId: ConnectionId,
         parentPath: String,
@@ -76,14 +81,38 @@ class FileOperations(
         if (!EntryNames.isValid(name)) return@withContext refuse(Refusal.INVALID_NAME)
         refusingOnNasFailure {
             when (val parent = sideOf(connectionId, parentPath, mustBeFolder = true)) {
-                is Side.Local -> createIn(connectionId, local, parent.identity, name)
-                is Side.Nas ->
-                    if (isPendingAlong(parent.identity)) refuse(Refusal.SYNC_PENDING)
-                    else createIn(connectionId, share, parent.identity, name, needsConfirmation = !confirmedOnNas)
+                is Side.Local ->
+                    if (scopes.inside(parent.identity) == SyncScope.Unsynced) {
+                        createOnNasInstead(connectionId, parentPath, name, confirmedOnNas)
+                    } else {
+                        createIn(connectionId, local, parent.identity, name)
+                    }
+                is Side.Nas -> createOnNas(connectionId, parent.identity, name, confirmedOnNas)
                 is Side.Absent -> refuse(parent.reason)
             }
         }
     }
+
+    private suspend fun createOnNasInstead(
+        connectionId: ConnectionId,
+        parentPath: String,
+        name: String,
+        confirmedOnNas: Boolean,
+    ): FileOperationResult = when (val parent = nasSideOf(connectionId, parentPath, mustBeFolder = true)) {
+        is Side.Nas -> createOnNas(connectionId, parent.identity, name, confirmedOnNas)
+        is Side.Absent ->
+            refuse(if (parent.reason == Refusal.NOT_FOUND) Refusal.OUTSIDE_SYNCTHING_FOLDERS else parent.reason)
+        is Side.Local -> refuse(Refusal.OUTSIDE_SYNCTHING_FOLDERS)
+    }
+
+    private suspend fun createOnNas(
+        connectionId: ConnectionId,
+        parent: FileIdentity,
+        name: String,
+        confirmedOnNas: Boolean,
+    ): FileOperationResult =
+        if (isPendingAlong(parent)) refuse(Refusal.SYNC_PENDING)
+        else createIn(connectionId, share, parent, name, needsConfirmation = !confirmedOnNas)
 
     private suspend fun createIn(
         connectionId: ConnectionId,
@@ -139,18 +168,27 @@ class FileOperations(
         refusingOnNasFailure {
             when (val source = sideOf(connectionId, path, mustBeFolder = false)) {
                 is Side.Absent -> refuse(source.reason)
-                is Side.Local -> when (val folder = localDestination(connectionId, toFolder)) {
-                    is Side.Local -> relocateWithin(connectionId, local, source.identity, folder.identity, name)
-                    is Side.Nas -> refuse(Refusal.CROSSES_SIDES)
-                    is Side.Absent -> refuse(folder.reason)
-                }
-                is Side.Nas -> when (val folder = nasDestination(connectionId, toFolder)) {
-                    is Side.Nas -> relocateOnNas(connectionId, source.identity, folder.identity, name, confirmedOnNas)
-                    is Side.Local -> refuse(Refusal.CROSSES_SIDES)
-                    is Side.Absent -> refuse(folder.reason)
-                }
+                is Side.Local -> syncthingRefusal(source.identity, onTablet = true)?.let(::refuse)
+                    ?: when (val folder = localDestination(connectionId, toFolder)) {
+                        is Side.Local -> relocateWithin(connectionId, local, source.identity, folder.identity, name)
+                        is Side.Nas -> refuse(Refusal.CROSSES_SIDES)
+                        is Side.Absent -> refuse(folder.reason)
+                    }
+                is Side.Nas -> syncthingRefusal(source.identity, onTablet = false)?.let(::refuse)
+                    ?: when (val folder = nasDestination(connectionId, toFolder)) {
+                        is Side.Nas -> relocateOnNas(connectionId, source.identity, folder.identity, name, confirmedOnNas)
+                        is Side.Local -> refuse(Refusal.CROSSES_SIDES)
+                        is Side.Absent -> refuse(folder.reason)
+                    }
             }
         }
+    }
+
+    private suspend fun syncthingRefusal(source: FileIdentity, onTablet: Boolean): Refusal? = when {
+        scopes.isSyncRoot(source) -> Refusal.SYNCTHING_FOLDER
+        !onTablet || scopes.ofEntry(source) != SyncScope.Unsynced -> null
+        scopes.holdsSyncRoot(source) -> Refusal.SYNCTHING_FOLDER
+        else -> Refusal.OUTSIDE_SYNCTHING_FOLDERS
     }
 
     private suspend fun localDestination(connectionId: ConnectionId, toFolder: String): Side =
@@ -199,6 +237,7 @@ class FileOperations(
         if (target == source) return FileOperationResult.Done(connectionId, frameOf(connectionId, target).path)
         if (holdsPairedFolder(source)) return refuse(Refusal.HOLDS_PAIRED_FOLDER)
         if (pairingAt(source) != pairingAt(target)) return refuse(Refusal.CROSSES_PAIRING)
+        if (scopes.ofEntry(source) != scopes.ofEntry(target)) return refuse(Refusal.CROSSES_SYNCTHING_FOLDERS)
         val sameEntry = source.path.substringBeforeLast('/', "") == folder.path
         if (isTaken(tree, folder, name, except = source.path.substringAfterLast('/').takeIf { sameEntry })) {
             return refuse(Refusal.NAME_TAKEN)

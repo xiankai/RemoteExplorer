@@ -37,4 +37,7 @@ fun Refusal.reason(): String = when (this) {
     Refusal.INTO_ITSELF -> "A folder can't be moved into itself."
     Refusal.CROSSES_PAIRING -> "That would break a pairing between the tablet and the share."
     Refusal.HOLDS_PAIRED_FOLDER -> "That folder holds a paired folder."
+    Refusal.SYNCTHING_FOLDER -> "That folder is, or holds, a Syncthing folder."
+    Refusal.OUTSIDE_SYNCTHING_FOLDERS -> "That's outside every Syncthing folder, so the change would stay on the tablet."
+    Refusal.CROSSES_SYNCTHING_FOLDERS -> "That would move the entry between Syncthing folders."
 }
