@@ -35,7 +35,11 @@ import com.bespectacledcyborg.remoteexplorer.ui.components.columnsChosen
 import com.bespectacledcyborg.remoteexplorer.ui.components.columnsLabel
 import com.bespectacledcyborg.remoteexplorer.ui.components.screenWidthDp
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
+import com.bespectacledcyborg.remoteexplorer.data.EntrySide
 import com.bespectacledcyborg.remoteexplorer.data.SortType
+import com.bespectacledcyborg.remoteexplorer.ui.screens.label
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.RadioButton
 import com.bespectacledcyborg.remoteexplorer.data.newestAdditionsPath
 import com.bespectacledcyborg.remoteexplorer.data.tagPrefix
 
@@ -123,6 +127,8 @@ fun ExplorerButtons(
     })
 
     val selectedFilters by explorerViewModel.filterState.collectAsState()
+    val selectedSide by explorerViewModel.sideFilterState.collectAsState()
+    val showsSides by explorerViewModel.showsSidesState.collectAsState()
     var selectingFilters by remember { mutableStateOf(false) }
     val filters = listOf(
         IconType.IMAGE, IconType.VIDEO, IconType.AUDIO, IconType.TEXT
@@ -168,6 +174,26 @@ fun ExplorerButtons(
                     },
                     onClick = onCheckedChange(iconType),
                 )
+            }
+
+            if (showsSides) {
+                HorizontalDivider()
+                EntrySide.entries.forEach { side ->
+                    val toggle = { explorerViewModel.filterBySide(if (selectedSide == side) null else side) }
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                RadioButton(selectedSide == side, toggle)  // stack-reviewer-ignore: the same wiring as the type-filter Checkbox rows above; a tap lands on either the radio or the row, never both, so it toggles once
+                                Text(side.label())
+                            }
+                        },
+                        onClick = toggle,
+                    )
+                }
             }
         }
     }

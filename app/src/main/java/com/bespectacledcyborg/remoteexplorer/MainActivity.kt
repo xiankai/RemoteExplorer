@@ -21,6 +21,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.bespectacledcyborg.remoteexplorer.data.ConnectionRepository
+import com.bespectacledcyborg.remoteexplorer.data.EntrySides
 import com.bespectacledcyborg.remoteexplorer.data.FileOperations
 import com.bespectacledcyborg.remoteexplorer.data.FileRepository
 import com.bespectacledcyborg.remoteexplorer.data.FolderSortRepository
@@ -303,6 +304,12 @@ class ExplorerViewModelFactory(
             paths = db.pathMoveDao(),
             thumbnails = thumbnailManager,
         )
+        val entrySides = EntrySides(
+            local = localFileDataSource,
+            isLocalRoot = { id -> connectionDao.getConnectionType(id) == ConnectionType.LOCAL },
+            pairings = pairingRepository::current,
+            shareNamesLastListed = fileRepository::shareNamesLastListed,
+        )
 
         @Suppress("UNCHECKED_CAST")
         return ExplorerViewModel(
@@ -319,6 +326,7 @@ class ExplorerViewModelFactory(
             coverPreferences,
             FolderSortRepository(db.folderSortDao()),
             fileOperations,
+            entrySides,
             lastLocation,
             GroupModes.of(application),
             metrics,

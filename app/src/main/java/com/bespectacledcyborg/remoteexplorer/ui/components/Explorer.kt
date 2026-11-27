@@ -52,6 +52,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.bespectacledcyborg.remoteexplorer.data.EntrySide
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.data.db.FileType
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ScrollPosition
@@ -65,6 +66,7 @@ data class Item<T> (
     val captioned: Boolean = false,
     val cover: CoverMode = CoverMode.DEFAULT,
     val dimmed: Boolean = false,
+    val side: EntrySide? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -196,6 +198,7 @@ fun <T>Explorer(
                                         entry.item.captioned,
                                         entry.item.cover,
                                         entry.item.dimmed,
+                                        entry.item.side,
                                     )
                                 }
                             }

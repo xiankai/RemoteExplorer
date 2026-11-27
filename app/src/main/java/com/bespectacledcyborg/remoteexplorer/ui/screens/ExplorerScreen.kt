@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.bespectacledcyborg.remoteexplorer.data.EntrySide
 import com.bespectacledcyborg.remoteexplorer.data.db.CoverMode
 import com.bespectacledcyborg.remoteexplorer.ui.components.ConfirmActionDialog
 import com.bespectacledcyborg.remoteexplorer.ui.components.CoverChoiceSheet
@@ -92,6 +93,8 @@ fun ExplorerScreen(
             explorerViewModel.listingViewsState,
             explorerViewModel.groupModeState,
             explorerViewModel.listingCreatedState,
+            explorerViewModel.sideFilterState,
+            explorerViewModel.entrySidesState,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val list = values[0] as Map<String, List<LocalFile>>
@@ -104,11 +107,15 @@ fun ExplorerScreen(
             val views = values[5] as Map<String, ViewTotals>
             val groupMode = values[6] as GroupMode
             val listingCreated = values[7] as ListingCreated
+            val side = values[8] as EntrySide?
+            @Suppress("UNCHECKED_CAST")
+            val sides = values[9] as Map<String, EntrySide>
             val created = listingCreated.byPath
             val folder = list[path].orEmpty().takeIf { listingCreated.readyFor(it, sort, path) }.orEmpty()
             val narrowed = folder
                 .sortedWith(explorerViewModel.getSortFunction(sort, views, created))
                 .keepingTypes(filter)
+                .onSide(side, sides)
                 .matchingSearch(search)
             ShownListing(
                 entries = when {
@@ -117,7 +124,7 @@ fun ExplorerScreen(
                     groupMode == GroupMode.BY_PARENT_FOLDER -> clusteredByParentInOrder(narrowed)
                     else -> narrowed
                 },
-                emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty()),
+                emptyMessage = emptyResultMessage(search, filter, folder.isEmpty(), narrowed.isEmpty(), side),
             )
         }
     }.collectAsState(ShownListing.NONE)
@@ -125,6 +132,7 @@ fun ExplorerScreen(
     val listingViews by explorerViewModel.listingViewsState.collectAsState()
     val listingCreated by explorerViewModel.listingCreatedState.collectAsState()
     val captionedFolders by explorerViewModel.captionedFoldersState.collectAsState()
+    val entrySides by explorerViewModel.entrySidesState.collectAsState()
     val appliedCovers by explorerViewModel.appliedCoversState.collectAsState()
     val columns by explorerViewModel.columnsState.collectAsState()
     val isRefreshing by explorerViewModel.isRefreshingState.collectAsState()
@@ -400,6 +408,7 @@ fun ExplorerScreen(
                             ),
                             item = it,
                             captioned = it.fullPath() in captionedFolders,
+                            side = entrySides[it.fullPath()],
                             cover = appliedCovers[it.fullPath()] ?: CoverMode.DEFAULT,
                             dimmed = pathState == newestAdditionsPath &&
                                 (listingViews[it.fullPath()] ?: ViewTotals.NONE) != ViewTotals.NONE,
