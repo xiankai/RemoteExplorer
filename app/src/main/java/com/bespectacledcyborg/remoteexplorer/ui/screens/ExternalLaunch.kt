@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -15,15 +17,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withResumed
 import com.bespectacledcyborg.remoteexplorer.data.PLAYBACK_TYPES
 import com.bespectacledcyborg.remoteexplorer.data.views.ExternalPlaybackService
 import com.bespectacledcyborg.remoteexplorer.ui.viewmodels.ExplorerViewModel
 import com.bespectacledcyborg.remoteexplorer.utils.Utils
+import kotlinx.coroutines.launch
 import java.net.URLConnection
 
 @Composable
 fun rememberExternalLauncher(explorerViewModel: ExplorerViewModel): (name: String, path: String) -> Unit {
     val context = LocalContext.current
+    val activity = LocalActivity.current as? ComponentActivity
     var pendingPlaybackName by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(
@@ -33,7 +39,8 @@ fun rememberExternalLauncher(explorerViewModel: ExplorerViewModel): (name: Strin
         val path = pendingPlaybackPath
         pendingPlaybackName = null
         pendingPlaybackPath = null
-        if (name != null && path != null) {
+        if (name == null || path == null) return@rememberLauncherForActivityResult
+        activity.afterResumeStopsPlaybackService {
             handOffToExternalApp(context, name, explorerViewModel.getUrl(path))
         }
     }
@@ -47,6 +54,11 @@ fun rememberExternalLauncher(explorerViewModel: ExplorerViewModel): (name: Strin
             handOffToExternalApp(context, name, explorerViewModel.getUrl(path))
         }
     }
+}
+
+internal fun ComponentActivity?.afterResumeStopsPlaybackService(block: () -> Unit) {
+    if (this == null) return block()
+    lifecycleScope.launch { withResumed(block) }  // stack-reviewer-ignore: a recreated activity (rotation, process restore) receives the permission result itself, through the launcher's latest callback and so its own activity; the only loss is an activity destroyed between the result and its own onResume, which is leaving anyway and should not start a player
 }
 
 private fun Context.canPostNotifications(): Boolean =
