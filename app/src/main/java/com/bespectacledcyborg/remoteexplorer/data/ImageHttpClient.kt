@@ -6,9 +6,11 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 internal const val IMAGE_REQUEST_SLOTS = 24
+internal const val RENDER_WAIT_SECONDS = 60L
 
 private val imageRequestThreadCount = AtomicInteger()
 
@@ -23,7 +25,10 @@ private fun imageOkHttpClient(): OkHttpClient {
         maxRequests = IMAGE_REQUEST_SLOTS
         maxRequestsPerHost = IMAGE_REQUEST_SLOTS
     }
-    return OkHttpClient.Builder().dispatcher(dispatcher).build()
+    return OkHttpClient.Builder()
+        .dispatcher(dispatcher)
+        .readTimeout(RENDER_WAIT_SECONDS, TimeUnit.SECONDS)
+        .build()
 }
 
 internal fun imageHttpClient() = HttpClient(OkHttp) {
