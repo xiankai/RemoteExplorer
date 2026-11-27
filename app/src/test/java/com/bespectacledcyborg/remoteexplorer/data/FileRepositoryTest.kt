@@ -988,6 +988,28 @@ class PairedListingTest {
     }
 
     @Test
+    fun `an unreachable share forgets the names it listed before`() = runTest {
+        val source = ScriptedFileDataSource(
+            mapOf(
+                (LOCAL to "pixiv") to listOf(entry("a.jpg")),
+                (NAS to "gallery-dl/pixiv") to listOf(entry("both.jpg")),
+            )
+        )
+        var shareDown = false
+        val repository = repository(
+            source,
+            FakeLocalDatabaseDao(cached = emptyList()),
+            open = { if (it == NAS && shareDown) throw java.io.IOException("down") },
+        )
+        repository.listFiles(LOCAL, "pixiv").toList()
+
+        shareDown = true
+        repository.listFiles(LOCAL, "pixiv", RefreshMode.FORCE).toList()
+
+        assertEquals(null, repository.shareNamesLastListed(LOCAL, "pixiv"))
+    }
+
+    @Test
     fun `a paired folder lists the union of both sides, the local copy winning a clash`() = runTest {
         val source = ScriptedFileDataSource(
             mapOf(
