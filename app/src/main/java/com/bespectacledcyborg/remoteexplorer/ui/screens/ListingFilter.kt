@@ -52,6 +52,7 @@ fun emptyResultMessage(
     return when {
         side != null && search.isEmpty() && kinds.isEmpty() -> "Nothing here is ${side.whereabouts()}"
         side != null && search.isEmpty() -> "No $kinds here is ${side.whereabouts()}"
+        side != null -> "Nothing ${side.whereabouts()} matches \"$search\""
         search.isNotEmpty() && kinds.isNotEmpty() -> "No $kinds matches \"$search\""
         search.isNotEmpty() -> "Nothing matches \"$search\""
         kinds.isNotEmpty() -> "No $kinds here"

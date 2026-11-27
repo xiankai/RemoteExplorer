@@ -87,6 +87,10 @@ class ListingFilterTest {
             "No image here is only on this tablet",
             emptyResultMessage("", listOf(IconType.IMAGE), false, true, EntrySide.TABLET_ONLY),
         )
+        assertEquals(
+            "Nothing only on the NAS matches \"clip\"",
+            emptyResultMessage("clip", emptyList(), false, true, EntrySide.NAS_ONLY),
+        )
     }
 
     @Test
