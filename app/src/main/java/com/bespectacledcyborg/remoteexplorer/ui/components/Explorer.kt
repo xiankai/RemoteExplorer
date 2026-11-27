@@ -5,9 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -136,6 +139,9 @@ fun <T>Explorer(
     ) {
         if (viewType == ViewType.LIST) {
             LazyColumn(state = listState) {
+                if (entries.isEmpty()) {
+                    item { Box(Modifier.fillParentMaxSize()) }
+                }
                 items(entries) { entry ->  // stack-reviewer-ignore: the scroll restore and the viewport reporter both index currentEntries, the same list rendered here, and a one-column list never gets fillers
                     when (entry) {
                         is GridEntry.Header -> GroupHeader(
@@ -155,35 +161,43 @@ fun <T>Explorer(
                 }
             }
         } else if (viewType == ViewType.GRID) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columnCount),
-                state = gridState,
-                contentPadding = PaddingValues(horizontal = if (groupOf != null) 8.dp else 0.dp),
-            ) {
-                items(
-                    entries,
-                    span = { if (it is GridEntry.Header) GridItemSpan(maxLineSpan) else GridItemSpan(1) },
-                ) { entry ->
-                    when (entry) {
-                        is GridEntry.Header -> GroupHeader(
-                            groupLabel(entry.group), headerTopPadding(entry.first), groupAction(entry.group),
-                        )
-                        is GridEntry.Filler -> GroupCellBox(entry.cell) {
-                            ExplorerItemPlaceholder()
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val viewportHeight = maxHeight
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columnCount),
+                    state = gridState,
+                    contentPadding = PaddingValues(horizontal = if (groupOf != null) 8.dp else 0.dp),
+                ) {
+                    if (entries.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().height(viewportHeight))
                         }
-                        is GridEntry.Tile -> key(columnCount) {  // stack-reviewer-ignore: this is Compose's runtime key() inside one item's own lambda, not a LazyList item key; it only has to be unique among that item's children, and it is the sole child. Its job is to remount the tile when the column count changes so images are requested at the new size.
-                            GroupCellBox(entry.cell) {
-                                ExplorerItem(
-                                    entry.item.name,
-                                    entry.item.type,
-                                    entry.item.thumbnails,
-                                    handleItemClick(entry.item),
-                                    handleLongItemClick(entry.item),
-                                    getImageUrl,
-                                    entry.item.captioned,
-                                    entry.item.cover,
-                                    entry.item.dimmed,
-                                )
+                    }
+                    items(
+                        entries,
+                        span = { if (it is GridEntry.Header) GridItemSpan(maxLineSpan) else GridItemSpan(1) },
+                    ) { entry ->
+                        when (entry) {
+                            is GridEntry.Header -> GroupHeader(
+                                groupLabel(entry.group), headerTopPadding(entry.first), groupAction(entry.group),
+                            )
+                            is GridEntry.Filler -> GroupCellBox(entry.cell) {
+                                ExplorerItemPlaceholder()
+                            }
+                            is GridEntry.Tile -> key(columnCount) {  // stack-reviewer-ignore: this is Compose's runtime key() inside one item's own lambda, not a LazyList item key; it only has to be unique among that item's children, and it is the sole child. Its job is to remount the tile when the column count changes so images are requested at the new size.
+                                GroupCellBox(entry.cell) {
+                                    ExplorerItem(
+                                        entry.item.name,
+                                        entry.item.type,
+                                        entry.item.thumbnails,
+                                        handleItemClick(entry.item),
+                                        handleLongItemClick(entry.item),
+                                        getImageUrl,
+                                        entry.item.captioned,
+                                        entry.item.cover,
+                                        entry.item.dimmed,
+                                    )
+                                }
                             }
                         }
                     }
