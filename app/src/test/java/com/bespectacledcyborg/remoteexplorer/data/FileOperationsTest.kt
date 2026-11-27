@@ -106,6 +106,17 @@ class FileOperationsTest {
         }
         java.io.File(root, "archive").mkdirs()
         java.io.File(nasRoot, "Library/archive").mkdirs()
+        markSyncthingFolder("")
+    }
+
+    private fun markSyncthingFolder(path: String) {
+        java.io.File(root, Pairings.join(path, ".stfolder")).mkdirs()
+    }
+
+    private fun splitIntoSyncthingFolders() {
+        java.io.File(root, ".stfolder").deleteRecursively()
+        markSyncthingFolder("pixiv")
+        markSyncthingFolder("archive")
     }
 
     @After
@@ -511,5 +522,139 @@ class FileOperationsTest {
         val size = operations.sizeOf(PHONE, "pixiv")!!
         assertEquals(3, size.files)
         assertFalse(size.isLarge())
+    }
+
+    @Test
+    fun `a new folder at an unsynced level is made on the NAS once confirmed`() = runTest {
+        splitIntoSyncthingFolders()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.NEEDS_NAS_CONFIRMATION),
+            operations.createFolder(PHONE, "", "new"),
+        )
+        assertEquals(
+            FileOperationResult.Done(PHONE, "new"),
+            operations.createFolder(PHONE, "", "new", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/new").isDirectory)
+        assertFalse(java.io.File(root, "new").exists())
+    }
+
+    @Test
+    fun `a new folder inside a Syncthing folder is still made on the tablet`() = runTest {
+        splitIntoSyncthingFolders()
+
+        assertEquals(FileOperationResult.Done(PHONE, "pixiv/new"), operations.createFolder(PHONE, "pixiv", "new"))
+        assertTrue(java.io.File(root, "pixiv/new").isDirectory)
+        assertFalse(java.io.File(nasRoot, "Library/pixiv/new").exists())
+    }
+
+    @Test
+    fun `a new folder inside a tablet-only unsynced folder is refused`() = runTest {
+        splitIntoSyncthingFolders()
+        java.io.File(root, "loose").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.OUTSIDE_SYNCTHING_FOLDERS),
+            operations.createFolder(PHONE, "loose", "new", confirmedOnNas = true),
+        )
+        assertFalse(java.io.File(root, "loose/new").exists())
+    }
+
+    @Test
+    fun `a Syncthing folder cannot be renamed or moved from either side`() = runTest {
+        splitIntoSyncthingFolders()
+
+        assertEquals(FileOperationResult.Refused(Refusal.SYNCTHING_FOLDER), operations.rename(PHONE, "pixiv", "p"))
+        assertEquals(FileOperationResult.Refused(Refusal.SYNCTHING_FOLDER), operations.move(PHONE, "pixiv", "archive"))
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNCTHING_FOLDER),
+            operations.rename(SHARE, "Library/pixiv", "p", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(root, "pixiv").isDirectory)
+        assertTrue(java.io.File(nasRoot, "Library/pixiv").isDirectory)
+    }
+
+    @Test
+    fun `a folder holding a Syncthing folder cannot be renamed`() = runTest {
+        splitIntoSyncthingFolders()
+        markSyncthingFolder("holder/inner")
+        java.io.File(nasRoot, "Library/holder/inner").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.SYNCTHING_FOLDER),
+            operations.rename(PHONE, "holder", "h", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/holder").isDirectory)
+    }
+
+    @Test
+    fun `a tablet entry outside every Syncthing folder cannot be renamed or moved`() = runTest {
+        splitIntoSyncthingFolders()
+        java.io.File(root, "loose").mkdirs()
+        java.io.File(nasRoot, "Library/stale").mkdirs()
+        java.io.File(root, "stale").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.OUTSIDE_SYNCTHING_FOLDERS),
+            operations.rename(PHONE, "loose", "l", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.OUTSIDE_SYNCTHING_FOLDERS),
+            operations.rename(PHONE, "stale", "s", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(root, "loose").isDirectory)
+        assertTrue(java.io.File(nasRoot, "Library/stale").isDirectory)
+    }
+
+    @Test
+    fun `a move between two Syncthing folders, or out to an unsynced level, is refused`() = runTest {
+        splitIntoSyncthingFolders()
+        java.io.File(root, "loose").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_SYNCTHING_FOLDERS),
+            operations.move(PHONE, "pixiv/100_%a", "archive"),
+        )
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_SYNCTHING_FOLDERS),
+            operations.move(PHONE, "pixiv/100_%a", "loose"),
+        )
+        assertTrue(java.io.File(root, "pixiv/100_%a").isDirectory)
+    }
+
+    @Test
+    fun `a NAS-only entry cannot move across a Syncthing-folder boundary but can move beside it`() = runTest {
+        splitIntoSyncthingFolders()
+        writeOnNas("Library/Anime/show/1.mkv")
+        java.io.File(nasRoot, "Library/Films").mkdirs()
+
+        assertEquals(
+            FileOperationResult.Refused(Refusal.CROSSES_SYNCTHING_FOLDERS),
+            operations.move(PHONE, "Anime/show", "pixiv", confirmedOnNas = true),
+        )
+        assertEquals(
+            FileOperationResult.Done(PHONE, "Films/show"),
+            operations.move(PHONE, "Anime/show", "Films", confirmedOnNas = true),
+        )
+        assertTrue(java.io.File(nasRoot, "Library/Films/show/1.mkv").isFile)
+    }
+
+    @Test
+    fun `inside a Syncthing folder a rename still happens on the tablet`() = runTest {
+        splitIntoSyncthingFolders()
+
+        assertEquals(FileOperationResult.Done(PHONE, "pixiv/100_b"), operations.rename(PHONE, "pixiv/100_%a", "100_b"))
+        assertTrue(java.io.File(root, "pixiv/100_b").isDirectory)
+    }
+
+    @Test
+    fun `an unpaired local root keeps working without any Syncthing folder`() = runTest {
+        pairings = Pairings.NONE
+        java.io.File(root, ".stfolder").deleteRecursively()
+
+        assertEquals(FileOperationResult.Done(PHONE, "new"), operations.createFolder(PHONE, "", "new"))
+        assertEquals(FileOperationResult.Done(PHONE, "archived"), operations.rename(PHONE, "archive", "archived"))
+        assertTrue(java.io.File(root, "archived").isDirectory)
     }
 }

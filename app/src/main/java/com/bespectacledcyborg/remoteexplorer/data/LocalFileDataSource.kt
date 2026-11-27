@@ -129,6 +129,28 @@ class LocalFileDataSource(
         return EntrySize(files, bytes, complete = true)
     }
 
+    fun isSyncthingFolder(connectionId: ConnectionId, folder: String): Boolean =
+        runCatching { hasSyncthingMarker(resolve(connectionId, folder)) }.getOrDefault(false)
+
+    fun holdsSyncthingFolder(connectionId: ConnectionId, folder: String, folderCap: Int): Boolean {
+        val start = runCatching { resolve(connectionId, folder) }.getOrNull() ?: return false
+        val pending = ArrayDeque(subfolders(start))
+        var visited = 0
+        while (pending.isNotEmpty() && visited < folderCap) {
+            val next = pending.removeFirst()
+            visited++
+            if (hasSyncthingMarker(next)) return true
+            pending.addAll(subfolders(next))
+        }
+        return false
+    }
+
+    private fun hasSyncthingMarker(directory: java.io.File): Boolean =
+        directory.isDirectory && java.io.File(directory, SYNCTHING_MARKER).exists()
+
+    private fun subfolders(directory: java.io.File): List<java.io.File> =
+        directory.listFiles { child -> child.isDirectory && !isSyncthingInternal(child.name) }?.toList().orEmpty()
+
     private fun leaf(connectionId: ConnectionId, path: String): java.io.File {
         val name = path.substringAfterLast('/')
         if (name.isEmpty() || name == "." || name == ".." || isSyncthingInternal(name)) {
@@ -180,8 +202,10 @@ class AllFilesAccessMissing : IllegalStateException("All files access is not gra
  * than clutter: once thumbnails are shared with the NAS copy, a half-written frame would be
  * cached under the real file's key.
  */
+internal const val SYNCTHING_MARKER = ".stfolder"
+
 internal fun isSyncthingInternal(name: String): Boolean =
-    name == ".stfolder" ||
+    name == SYNCTHING_MARKER ||
             name == ".stignore" ||
             name == ".stversions" ||
             name.startsWith("~syncthing~") ||
