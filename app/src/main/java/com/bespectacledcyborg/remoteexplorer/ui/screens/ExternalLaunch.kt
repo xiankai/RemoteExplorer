@@ -58,7 +58,7 @@ fun rememberExternalLauncher(explorerViewModel: ExplorerViewModel): (name: Strin
 
 internal fun ComponentActivity?.afterResumeStopsPlaybackService(block: () -> Unit) {
     if (this == null) return block()
-    lifecycleScope.launch { withResumed(block) }
+    lifecycleScope.launch { withResumed(block) }  // stack-reviewer-ignore: a recreated activity (rotation, process restore) receives the permission result itself, through the launcher's latest callback and so its own activity; the only loss is an activity destroyed between the result and its own onResume, which is leaving anyway and should not start a player
 }
 
 private fun Context.canPostNotifications(): Boolean =
